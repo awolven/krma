@@ -160,10 +160,10 @@
   (z :float)
   (u :float)
   (v :float)
+  (col :unsigned-int)
   (nx :float)
   (ny :float)
-  (nz :float)
-  (col :unsigned-int))
+  (nz :float))
 
 (defstruct (textured-3d-vertex-with-normal-array
             (:include vertex-array)
@@ -175,10 +175,6 @@
 (defun make-textured-3d-vertex-with-normal-array (&optional (allocated-count +draw-list-alloc-size+))
   (%make-textured-3d-vertex-with-normal-array (foreign-alloc '(:struct textured-3d-vertex-with-normal) :count allocated-count)
                                               allocated-count))
-
-(defun standard-3d-vertex-with-normals-array-push-extend (vertex-array x y z nx ny nz color)
-  (textured-3d-vertex-with-normal-array-push-extend vertex-array x y z nx ny nz
-                                                    +tex-white-pixel-u+ +tex-white-pixel-v+ color))
 
 (defun textured-3d-vertex-with-normal-array-push-extend (vertex-array x y z nx ny nz u v color)
   (declare (type textured-3d-vertex-with-normal-array vertex-array))
@@ -208,9 +204,6 @@
         (incf fill-pointer)))))
 
 (defun standard-3d-vertex-with-normal-array-push-extend (vertex-array x y z nx ny nz color)
-  (declare (type textured-3d-vertex-array vertex-array))
-  (declare (type real x y z nx ny nz))
-  (declare (type (unsigned-byte 32) color))
   (textured-3d-vertex-with-normal-array-push-extend vertex-array x y z nx ny nz +tex-white-pixel-u+ +tex-white-pixel-v+ color))
 
 ;; todo: implement upgrade-index-array to migrate unsigned-short index-arrays to unsigned-long.

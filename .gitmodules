@@ -1,0 +1,12 @@
+[submodule "submodules/3b-bmfont"]
+	path = submodules/3b-bmfont
+	url = git@github.com:awolven/3b-bmfont.git
+[submodule "submodules/binpack"]
+	path = submodules/binpack
+	url = git@github.com:awolven/binpack.git
+[submodule "submodules/sdf"]
+	path = submodules/sdf
+	url = git@github.com:awolven/sdf.git
+[submodule "submodules/zpb-ttf"]
+	path = submodules/zpb-ttf
+	url = git@github.com:3b/zpb-ttf.git

@@ -16,20 +16,30 @@
 
 (defclass standard-scene (krma-essential-scene-mixin) ())
 
+(defparameter +default-znear+ 0.001)
+(defparameter +default-zfar+ 3000.0)
+
 (defun render-scene (app command-buffer draw-data width height
                      &optional (model-matrix (meye 4))
-                       (view-matrix (meye 4) #+MESSEDUP(mlookat (vec3 0 0 10000) (vec3 0 0 -10000) (vec3 0 1 0)))
-                       (projection-matrix (mortho-vulkan 0 width height 0 -1500 1500)))
+                       (view-matrix (mlookat (vec3 0 0 1500) (vec3 0 0 0) (vec3 0 1 0)))
+
+                       (projection-matrix (mperspective-vulkan 45 (/ width height) +default-znear+ +default-zfar+)
+                                          #+NIL(mortho-vulkan -1500 1500
+                                                          (* -1500 (/ height width))
+                                                          (* 1500 (/ height width))
+                                                          +default-znear+ +default-zfar+)))
 
   (with-slots (3d-point-list-pipeline
                3d-line-list-pipeline
                3d-line-strip-pipeline
                3d-triangle-list-pipeline
+               3d-triangle-list-with-normal-pipeline
                3d-triangle-strip-pipeline
                2d-point-list-pipeline
                2d-line-list-pipeline
                2d-line-strip-pipeline
                2d-triangle-list-pipeline
+               msdf-text-pipeline
                2d-triangle-strip-pipeline)
 
       (application-pipeline-store app)
@@ -40,11 +50,13 @@
                    3d-line-list-draw-list
                    3d-line-strip-draw-list
                    3d-triangle-list-draw-list
+                   3d-triangle-list-with-normal-draw-list
                    3d-triangle-strip-draw-list
                    2d-point-list-draw-list
                    2d-line-list-draw-list
                    2d-line-strip-draw-list
                    2d-triangle-list-draw-list
+                   2d-triangle-list-draw-list-for-text
                    2d-triangle-strip-draw-list)
 
           draw-data
@@ -61,6 +73,8 @@
 
         (render 3d-triangle-list-pipeline 3d-triangle-list-draw-list
                 device command-buffer model-matrix view-matrix projection-matrix width height)
+        (render 3d-triangle-list-with-normal-pipeline 3d-triangle-list-with-normal-draw-list
+                device command-buffer model-matrix view-matrix projection-matrix width height)
         #+NOTYET
         (render 3d-triangle-strip-pipeline 3d-triangle-strip-draw-list
                 device command-buffer model-matrix view-matrix projection-matrix width height)
@@ -75,6 +89,9 @@
                 device command-buffer model-matrix view-matrix projection-matrix width height)
 
         (render 2d-triangle-list-pipeline 2d-triangle-list-draw-list
+                device command-buffer model-matrix view-matrix projection-matrix width height)
+
+        (render msdf-text-pipeline 2d-triangle-list-draw-list-for-text
                 device command-buffer model-matrix view-matrix projection-matrix width height)
         #+NOTYET
         (render 2d-triangle-strip-pipeline 2d-triangle-strip-draw-list
@@ -232,6 +249,64 @@
   (rm-dispatch-to-render-thread (scene draw-data handle)
     (%draw-data-add-textured-3d-triangle-strip-cmd draw-data handle model-mtx texture color vertices)))
 
+(defun scene-add-filled-sphere (scene model-mtx color origin-x origin-y origin-z radius resolution &optional (light-position (vec3 10000 10000 10000)))
+  (declare (type krma-essential-scene-mixin scene))
+  (rm-dispatch-to-render-thread (scene draw-data handle)
+    (%draw-data-add-sphere-cmd draw-data handle model-mtx color origin-x origin-y origin-z radius resolution light-position)))
+
+(defun scene-add-text (scene font color pos-x pos-y string matrix)
+  (let* ((data (font-data font))
+         (glyph-table (slot-value data '3b-bmfont-common::chars))
+         (texture (font-atlas font))
+         (scale-w (3b-bmfont-common:scale-w data))
+         (scale-h (3b-bmfont-common:scale-h data))
+         (coords ())
+         (vertices (loop for char across string
+                         with glyph = nil
+                         with dx = 0
+                         with x0
+                         with y0
+                         with x1
+                         with y1
+                         with u0
+                         with v0
+                         with u1
+                         with v1
+                         with width
+                         with height
+                         do (setf glyph (gethash char glyph-table))
+                         when (and glyph (not (eq (getf glyph :id) 32))) ;; hack to deal with #\space artifact
+                           do
+                              (setq width (getf glyph :width))
+                              (setq height (getf glyph :height))
+                              (setq u0 (/ (getf glyph :x) scale-w))
+                              (setq v0 (/ (getf glyph :y) scale-h))
+                              (setq u1 (+ u0 (/ width scale-w)))
+                              (setq v1 (+ v0 (/ height scale-h)))
+                              (setq x0 (+ pos-x (getf glyph :xoffset)))
+                              (setq y0 (+ pos-y (getf glyph :yoffset)))
+                              (setq x1 (+ x0 width))
+                              (setq y1 (+ y0 height))
+
+                              (push (+ x0 dx) coords)
+                              (push y0 coords)
+                              (push u0 coords)
+                              (push v0 coords)
+                              (push (+ x1 dx) coords)
+                              (push y1 coords)
+                              (push u1 coords)
+                              (push v1 coords)
+
+                         when glyph
+                           do (incf dx (getf glyph :xadvance))
+                         finally (return (nreverse coords)))))
+    (rm-dispatch-to-render-thread (scene draw-data handle)
+      (%draw-data-add-text-quad-list-cmd draw-data handle
+                                         matrix
+                                         texture color
+                                         vertices
+                                         font))))
+
 (defun %reinstance-cmd (cmd model-mtx line-thickness color-override
                         &optional (cmd-constructor #'make-standard-draw-indexed-cmd))
   (let ((first-idx (cmd-first-idx cmd))
@@ -323,6 +398,26 @@
                            (setf (cmd-color-override cmd) color))))))
           (sb-concurrency:enqueue #'(lambda () (update-color! ht0)) wq0)
           (sb-concurrency:enqueue #'(lambda () (update-color! ht1)) wq1)
+          (values))))))
+
+(defun primitive-set-light-position (scene handle pos)
+  (declare (type krma-essential-scene-mixin scene))
+  (let ((draw-data (rm-draw-data scene)))
+    (let ((dd0 (aref draw-data 0))
+          (dd1 (aref draw-data 1)))
+      (declare (type retained-mode-draw-data dd0 dd1))
+      (let ((ht0 (draw-data-handle-hash-table dd0))
+            (ht1 (draw-data-handle-hash-table dd1))
+            (wq0 (draw-data-work-queue dd0))
+            (wq1 (draw-data-work-queue dd1)))
+        (flet ((update-light-pos! (ht)
+                 (let ((cmd (gethash handle ht)))
+                   (if (null cmd)
+                       (warn "could not find primitive ~S to set light position." handle)
+                       (unless (listp cmd)
+                         (setf (cmd-light-position cmd) pos))))))
+          (sb-concurrency:enqueue #'(lambda () (update-light-pos! ht0)) wq0)
+          (sb-concurrency:enqueue #'(lambda () (update-light-pos! ht1)) wq1)
           (values))))))
 
 ;; replaces model-mtx in cmd by this matrix

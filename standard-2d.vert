@@ -6,12 +6,12 @@ layout(set = 0, binding = 0) uniform uniformBuffer {
 } ub;
 
 layout(push_constant) uniform pushConstant {
-  mat4 model;
-  uint colorOverride;
-  float pointSize;
-  bool overrideColor;
+  layout(offset = 0) mat4 model;
+  layout(offset = 64) uint colorOverride;
+  layout(offset = 68) float pointSize;
+  layout(offset = 72) bool overrideColor;
+ vec3 lightPosition;
 } pc;
-
 
 layout(location = 0) in vec2 inPosition;
 layout(location = 1) in vec2 inTexCoord;

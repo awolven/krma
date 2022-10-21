@@ -35,12 +35,21 @@
             (:constructor make-standard-draw-indexed-cmd
                 (draw-list first-idx elem-count vtx-offset
                  &optional (model-mtx nil) (color-override nil) (texture *white-texture*)
-                   (line-thickness 1.0f0) (point-size 1.0f0))))
+                   (line-thickness 1.0f0) (point-size 1.0f0) (light-position nil))))
   (model-mtx)
   (color-override)
   (texture)
   (line-thickness)
-  (point-size))
+  (point-size)
+  (light-position))
+
+(defstruct (text-draw-indexed-cmd
+            (:include standard-draw-indexed-cmd)
+            (:conc-name "CMD-")
+            (:constructor make-text-draw-indexed-cmd
+                (font draw-list first-idx elem-count vtx-offset model-mtx color-override
+                 texture line-thickness)))
+  (font))
 
 ;; cmd-constructor is the "make" function of the particular cmd you want to instantiate
 ;; all cmds must :include essential-draw-indexed-cmd

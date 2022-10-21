@@ -6,11 +6,13 @@
    (3d-line-list-pipeline)
    (3d-line-strip-pipeline)
    (3d-triangle-list-pipeline)
+   (3d-triangle-list-with-normal-pipeline)
    (3d-triangle-strip-pipeline)
    (2d-point-list-pipeline)
    (2d-line-list-pipeline)
    (2d-line-strip-pipeline)
    (2d-triangle-list-pipeline)
+   (msdf-text-pipeline)
    (2d-triangle-strip-pipeline)))
 
 (defmethod initialize-instance :after ((instance pipeline-store) &rest initargs &key app)
@@ -19,11 +21,13 @@
                3d-line-list-pipeline
                3d-line-strip-pipeline
                3d-triangle-list-pipeline
+               3d-triangle-list-with-normal-pipeline
                3d-triangle-strip-pipeline
                2d-point-list-pipeline
                2d-line-list-pipeline
                2d-line-strip-pipeline
                2d-triangle-list-pipeline
+               msdf-text-pipeline
                2d-triangle-strip-pipeline)
       instance
 
@@ -39,6 +43,9 @@
           3d-triangle-list-pipeline (make-instance '3d-triangle-list-pipeline
                                                    :app app
                                                    :name :3d-triangle-list-pipeline)
+          3d-triangle-list-with-normal-pipeline (make-instance '3d-triangle-list-with-normal-pipeline
+                                                               :app app
+                                                               :name :3d-triangle-list-with-normal-pipeline)
           ;;3d-triangle-strip-pipeline (make-instance '3d-triangle-strip-pipeline
             ;;                                        :app app
               ;;                                      :name :3d-triangle-strip-pipeline)
@@ -54,6 +61,9 @@
           2d-triangle-list-pipeline (make-instance '2d-triangle-list-pipeline
                                                    :app app
                                                    :name :2d-triangle-list-pipeline)
+          msdf-text-pipeline (make-instance 'msdf-text-pipeline
+                                            :app app
+                                            :name :msdf-text-pipeline)
           ;;2d-triangle-strip-pipeline (make-instance '2d-triangle-strip-pipeline
             ;;                                        :app app
           ;;                                      :name :2d-triangle-strip-pipeline)
@@ -104,33 +114,33 @@
   (scene-add-3d-line (application-scene vk:*app*) color x0 y0 z0 x1 y1 z1))
 
 (defun add-multicolor-2d-polyline (vertices &key (closed? nil)
-                                              (model-mtx *identity-matrix*)
+                                              (matrix *identity-matrix*)
                                               (line-thickness *default-line-thickness*))
-  (scene-add-multicolor-2d-polyline-1 (application-scene vk:*app*) closed? model-mtx line-thickness vertices))
+  (scene-add-multicolor-2d-polyline-1 (application-scene vk:*app*) closed? matrix line-thickness vertices))
 
 (defun draw-multicolor-2d-polyline (vertices &key (closed? nil))
   (scene-draw-multicolor-2d-polyline-1 (application-scene vk:*app*) closed? vertices))
 
 (defun add-2d-polyline (vertices &key (closed? nil)
                                    (color *default-color*)
-                                   (model-mtx *identity-matrix*)
+                                   (matrix *identity-matrix*)
                                    (line-thickness *default-line-thickness*))
-  (scene-add-2d-polyline-1 (application-scene vk:*app*) closed? model-mtx line-thickness color vertices))
+  (scene-add-2d-polyline-1 (application-scene vk:*app*) closed? matrix line-thickness color vertices))
 
 (defun add-2d-triangle (x0 y0 x1 y1 x2 y2 &key
                                             (color *default-color*)
-                                            (model-mtx *identity-matrix*)
+                                            (matrix *identity-matrix*)
                                             (line-thickness *default-line-thickness*))
-  (scene-add-2d-triangle (application-scene vk:*app*) model-mtx line-thickness color x0 y0 x1 y1 x2 y2))
+  (scene-add-2d-triangle (application-scene vk:*app*) matrix line-thickness color x0 y0 x1 y1 x2 y2))
 
 (defun draw-2d-triangle (x0 y0 x1 y1 x2 y2 &key (color *default-color*))
   (scene-draw-2d-triangle (application-scene vk:*app*) color x0 y0 x1 y1 x2 y2))
 
 (defun add-2d-rectangle (x0 y0 x1 y1
                          &key (color *default-color*)
-                           (model-mtx *identity-matrix*)
+                           (matrix *identity-matrix*)
                            (line-thickness *default-line-thickness*))
-  (scene-add-2d-rectangle (application-scene vk:*app*) model-mtx line-thickness color x0 y0 x1 y1))
+  (scene-add-2d-rectangle (application-scene vk:*app*) matrix line-thickness color x0 y0 x1 y1))
 
 (defun draw-2d-rectangle (x0 y0 x1 y1 &key (color *default-color*))
   (scene-draw-2d-rectangle (application-scene vk:*app*) color x0 y0 x1 y1))
@@ -138,81 +148,98 @@
 (defun add-2d-circular-arc (center-x center-y radius start-angle end-angle
                             &key (closed? nil)
                               (color *default-color*)
-                              (model-mtx *identity-matrix*)
+                              (matrix *identity-matrix*)
                               (line-thickness *default-line-thickness*)
                               (number-of-segments *default-number-of-segments*))
-  (scene-add-2d-circular-arc (application-scene vk:*app*) closed? model-mtx line-thickness color
+  (scene-add-2d-circular-arc (application-scene vk:*app*) closed? matrix line-thickness color
                              center-x center-y radius start-angle end-angle number-of-segments))
 
 (defun add-2d-circle (center-x center-y radius
                       &key (color *default-color*)
-                        (model-mtx *identity-matrix*)
+                        (matrix *identity-matrix*)
                         (line-thickness *default-line-thickness*)
                         (number-of-segments *default-number-of-segments*))
   (scene-add-2d-circle (application-scene vk:*app*)
-                       model-mtx line-thickness color
+                       matrix line-thickness color
                        center-x center-y radius number-of-segments))
 
 (defun add-multicolor-3d-polyline (vertices &key (closed? nil)
-                                              (model-mtx *identity-matrix*)
+                                              (matrix *identity-matrix*)
                                               (line-thickness *default-line-thickness*))
-  (scene-add-multicolor-3d-polyline-1 (application-scene vk:*app*) closed? model-mtx line-thickness vertices))
+  (scene-add-multicolor-3d-polyline-1 (application-scene vk:*app*) closed? matrix line-thickness vertices))
 
 (defun add-3d-polyline (vertices &key (color *default-color*)
                                    (closed? nil)
-                                   (model-mtx *identity-matrix*)
+                                   (matrix *identity-matrix*)
                                    (line-thickness *default-line-thickness*))
-  (scene-add-3d-polyline-1 (application-scene vk:*app*) closed? model-mtx line-thickness color vertices))
+  (scene-add-3d-polyline-1 (application-scene vk:*app*) closed? matrix line-thickness color vertices))
 
 (defun add-filled-2d-triangle-list (vertices &key (color *default-color*)
-                                               (model-mtx *identity-matrix*))
-  (scene-add-filled-2d-triangle-list (application-scene vk:*app*) model-mtx color vertices))
+                                               (matrix *identity-matrix*))
+  (scene-add-filled-2d-triangle-list (application-scene vk:*app*) matrix color vertices))
 
 (defun add-filled-2d-rectangle-list (vertices &key (color *default-color*)
-                                                (model-mtx *identity-matrix*))
-  (scene-add-filled-2d-rectangle-list (application-scene vk:*app*) model-mtx color vertices))
+                                                (matrix *identity-matrix*))
+  (scene-add-filled-2d-rectangle-list (application-scene vk:*app*) matrix color vertices))
 
 (defun add-textured-2d-rectangle-list (vertices &key (color *default-color*)
-                                                  (model-mtx *identity-matrix*)
+                                                  (matrix *identity-matrix*)
                                                   (texture *white-texture*))
-  (scene-add-textured-2d-rectangle-list (application-scene vk::*app*) model-mtx texture color vertices))
+  (scene-add-textured-2d-rectangle-list (application-scene vk::*app*) matrix texture color vertices))
 
 (defun add-filled-2d-polygon (vertices &key
                                          (color *default-color*)
-                                         (model-mtx *identity-matrix*))
-  (scene-add-filled-2d-polygon (application-scene vk:*app*) model-mtx color vertices))
+                                         (matrix *identity-matrix*))
+  (scene-add-filled-2d-polygon (application-scene vk:*app*) matrix color vertices))
 
 (defun add-filled-3d-triangle-list (vertices &key
                                                (color *default-color*)
-                                               (model-mtx *identity-matrix*))
-  (scene-add-filled-3d-triangle-list (application-scene vk:*app*) model-mtx color vertices))
+                                               (matrix *identity-matrix*))
+  (scene-add-filled-3d-triangle-list (application-scene vk:*app*) matrix color vertices))
 
 (defun add-filled-3d-triangle-strip (vertices &key
                                                (color *default-color*)
-                                               (model-mtx *identity-matrix*))
-  (scene-add-filled-3d-triangle-strip (application-scene vk:*app*) model-mtx color vertices))
+                                               (matrix *identity-matrix*))
+  (scene-add-filled-3d-triangle-strip (application-scene vk:*app*) matrix color vertices))
 
 (defun add-filled-3d-triangle-list-with-normals (vertices &key
                                                             (color *default-color*)
-                                                            (model-mtx *identity-matrix*))
-  (scene-add-filled-3d-triangle-list-with-normals (application-scene vk:*app*) model-mtx color vertices))
+                                                            (matrix *identity-matrix*))
+  (scene-add-filled-3d-triangle-list-with-normals (application-scene vk:*app*) matrix color vertices))
 
 (defun add-filled-3d-triangle-strip-with-normals (vertices &key
                                                              (color *default-color*)
-                                                             (model-mtx *identity-matrix*))
-  (scene-add-filled-3d-triangle-strip-with-normals (application-scene vk:*app*) model-mtx color vertices))
+                                                             (matrix *identity-matrix*))
+  (scene-add-filled-3d-triangle-strip-with-normals (application-scene vk:*app*) matrix color vertices))
 
 (defun add-textured-3d-triangle-list (vertices &key
                                                  (color *default-color*)
-                                                 (model-mtx *identity-matrix*)
+                                                 (matrix *identity-matrix*)
                                                  (texture *white-texture*))
-  (scene-add-textured-3d-triangle-list (application-scene vk:*app*) model-mtx texture color vertices))
+  (scene-add-textured-3d-triangle-list (application-scene vk:*app*) matrix texture color vertices))
 
 (defun add-textured-3d-triangle-strip (vertices &key
                                                  (color *default-color*)
-                                                 (model-mtx *identity-matrix*)
+                                                 (matrix *identity-matrix*)
                                                  (texture *white-texture*))
-  (scene-add-textured-3d-triangle-strip (application-scene vk:*app*) model-mtx texture color vertices))
+  (scene-add-textured-3d-triangle-strip (application-scene vk:*app*) matrix texture color vertices))
+
+(defun add-filled-sphere (origin-x origin-y origin-z radius &key (color *default-color*)
+                                   (matrix *identity-matrix*)
+                                   (resolution 64)
+                                   (light-position (vec3 10000 10000 10000)))
+  (scene-add-filled-sphere (application-scene *app*)
+                           matrix color
+                           origin-x origin-y origin-z radius
+                           resolution light-position))
+
+(defvar *font*)
+(defvar *font2*)
+
+(defun add-text (string pos-x pos-y &key (color *default-color*)
+                                      (font *font*)
+                                      (matrix *identity-matrix*))
+  (scene-add-text (application-scene *app*) font color pos-x pos-y string matrix))
 
 (defmethod main ((app krma-test-application))
   (let* ((device (default-logical-device app))
@@ -237,13 +264,26 @@
     (reset-command-pool device command-pool)
 
     ;; one time commands here.
+    (unless (probe-file (asdf/system:system-relative-pathname :krma "acache.json"))
+      (sdf-bmfont:create-bmfont "C:/Windows/Fonts/Arial.ttf" "acache.json" :size 32 :mode :msdf+a :type :json :spread 8))
+    (unless (probe-file (asdf/system:system-relative-pathname :krma "tcache.json"))
+      (sdf-bmfont:create-bmfont "C:/Windows/Fonts/Times.ttf" "tcache.json" :size 32 :mode :msdf+a :type :json :spread 8))
+
+
+    (setq *font*
+          (vulkan-make-font device queue sampler texture-dsl descriptor-pool command-buffer
+                            :cache-file "acache.json"))
+
+    (setq *font2*
+          (vulkan-make-font device queue sampler texture-dsl descriptor-pool command-buffer
+                            :cache-file "tcache.json"))
+
     (let* ((bpp 4)
            (bitmap (make-array bpp :element-type '(unsigned-byte 8) :initial-element #xff)))
       (setq *white-texture*
             (make-vulkan-texture device queue sampler texture-dsl descriptor-pool command-buffer bpp bitmap 1 1)))
 
-
-
+    ;;(test)
     (let ((image-index)
           (work-queue)
           (current-frame-cons (current-frame-cons app))

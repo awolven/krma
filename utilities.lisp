@@ -1,21 +1,42 @@
 (in-package :krma)
 
+(defun d2r (d)
+  (* d #.(/ pi 180)))
 
-(defun mperspective-vulkan (fovy aspect near far)
+(defun lookat-rh (eye target up) ;; sanity check, 3d-matrices:mlookat produces same
+  (let* ((zaxis (vunit (v- eye target)))
+         (xaxis (vunit (vc up zaxis)))
+         (yaxis (vc zaxis xaxis))
+         (orientation
+           (mat (vx xaxis) (vy xaxis) (vz xaxis) 0
+                (vx yaxis) (vy yaxis) (vz yaxis) 0
+                (vx zaxis) (vy zaxis) (vz zaxis) 0
+                0          0          0          1))
+         (translation
+           (mat 1 0 0 (- (vx eye))
+                0 1 0 (- (vy eye))
+                0 0 1 (- (vz eye))
+                0 0 0 1)))
+    (m* orientation translation)))
+
+
+  
+
+(defun mperspective-vulkan (fovy aspect-ratio near far)
   "https://github.com/PacktPublishing/Vulkan-Cookbook/blob/master/Library/Source%20Files/10%20Helper%20Recipes/04%20Preparing%20a%20perspective%20projection%20matrix.cpp"
   ;; switched from column major to row major
   (let* ((zero 0.0)
-	     (focal-length (/ 1.0 (coerce (tan (* 0.5 (d2r fovy))) *read-default-float-format*)))
-	     (n-f (- near far))
-	     (A (/ far n-f))
-	     (B (/ (* near far) n-f))
-	     (x (/ focal-length aspect))
-	     (y (- focal-length)))
+         (f (/ 1.0 (coerce (tan (* 0.5 (d2r fovy))) *read-default-float-format*))) ;; focal length
+	       (near-far (- near far))
+	       (A (/ far near-far))
+	       (B (/ (* near far) near-far))
+	       (x (/ f aspect-ratio))
+	       (y (- f)))
 
     (3d-matrices::mat x      zero zero   zero
                       zero   y    zero   zero
                       zero   zero A      B
-                      zero   zero -1.0 1.0))) ;; is this last digit supposed to be zero or is it supposed to be one?
+                      zero   zero -1.0   zero)))
 
 (defun mortho-vulkan (left right bottom top near far)
   "https://github.com/PacktPublishing/Vulkan-Cookbook/blob/master/Library/Source%20Files/10%20Helper%20Recipes/05%20Preparing%20an%20orthographic%20projection%20matrix.cpp"

@@ -5,7 +5,7 @@
   (ql:quickload :cffi))
 
 (defpackage :krma
-  (:use :cl :cffi #-darwin :vk #-darwin :%vk :%glfw :3d-matrices)
+  (:use :cl :cffi #-darwin :vk #-darwin :%vk :%glfw :3d-vectors :3d-matrices)
   (:export #:unsigned-short-index-array
            #:make-unsigned-short-index-array
            #:unsigned-int-index-array

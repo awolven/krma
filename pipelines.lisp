@@ -175,7 +175,7 @@
   (list (make-instance 'push-constant-range
                        :stage-flags VK_SHADER_STAGE_VERTEX_BIT
                        :offset 0
-                       :size (load-time-value (* 19 (foreign-type-size :uint32))))))
+                       :size (load-time-value (* 23 (foreign-type-size :uint32))))))
 
 (defcstruct 3DMatrix
   (m00 :float)
@@ -205,10 +205,23 @@
   ())
 
 (defmethod fragment-shader-pathname ((pipeline texture-pipeline-mixin))
-  #p"~/draw-list/texture.frag.spv")
+  (asdf/system:system-relative-pathname :krma "texture.frag.spv"))
 
 (defmethod pipeline-min-sample-shading ((pipeline texture-pipeline-mixin))
   0.0f0)
+
+(defmethod make-per-instance-descriptor-set-layout-bindings ((pipeline texture-pipeline-mixin))
+  (list (make-instance 'descriptor-set-layout-binding
+                       :type VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
+                       :count 1
+                       :flags VK_SHADER_STAGE_FRAGMENT_BIT
+                       :samplers (list *sampler*))))
+
+
+(defmethod create-device-objects :around ((pipeline texture-pipeline-mixin) &key app)
+  (setf *sampler*
+        (create-sampler (default-logical-device app) :allocator (allocator pipeline)))
+  (call-next-method))
 
 (defclass 2d-pipeline-mixin ()
   ())
@@ -245,7 +258,7 @@
   ())
 
 (defmethod vertex-shader-pathname ((pipeline 2d-texture-pipeline-mixin))
-  #p"~/draw-list/standard-2d.vert.spv")
+  (asdf/system:system-relative-pathname :krma "standard-2d.vert.spv"))
 
 (defclass 3d-pipeline-mixin ()
   ())
@@ -270,20 +283,23 @@
   ())
 
 (defmethod vertex-shader-pathname ((pipeline 3d-texture-pipeline-mixin))
-  #p"~/draw-list/standard-3d.vert.spv")
+  (asdf/system:system-relative-pathname :krma "standard-3d.vert.spv"))
 
-(defmethod make-per-instance-descriptor-set-layout-bindings ((pipeline texture-pipeline-mixin))
-  (list (make-instance 'descriptor-set-layout-binding
-                       :type VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
-                       :count 1
-                       :flags VK_SHADER_STAGE_FRAGMENT_BIT
-                       :samplers (list *sampler*))))
+(defmethod pipeline-cull-mode ((pipeline 3d-texture-pipeline-mixin))
+  VK_CULL_MODE_BACK_BIT)
 
 
-(defmethod create-device-objects :around ((pipeline texture-pipeline-mixin) &key app)
-  (setf *sampler*
-        (create-sampler (default-logical-device app) :allocator (allocator pipeline)))
-  (call-next-method))
+(defclass 3d-texture-with-normal-pipeline-mixin (3d-texture-pipeline-mixin)
+  ())
+
+(defmethod pipeline-vertex-type ((pipeline 3d-texture-with-normal-pipeline-mixin))
+  '(:struct textured-3d-vertex-with-normal))
+
+(defmethod fragment-shader-pathname ((pipeline 3d-texture-with-normal-pipeline-mixin))
+  (asdf/system:system-relative-pathname :krma "diffuse+texture.frag.spv"))
+
+(defmethod vertex-shader-pathname ((pipeline 3d-texture-with-normal-pipeline-mixin))
+  (asdf/system:system-relative-pathname :krma "3d-with-normal.vert.spv"))
 
 (defclass texture-image (vk::image)
   ((descriptor-set :accessor texture-image-descriptor-set)))
@@ -333,7 +349,7 @@
             (with-foreign-object (p-map :pointer)
 
               (check-vk-result
-               (vkMapMemory (h device) (h upload-buffer-memory) 0 VK_WHOLE_SIZE 0 p-map))
+               (vkMapMemory (h device) (h upload-buffer-memory) 0 upload-size-aligned 0 p-map))
 
               (if (typep bitmap 'vector)
                   (sb-sys:with-pinned-objects (bitmap)
@@ -345,7 +361,7 @@
                                       %vk::size)
                                      p-range (:struct VkMappedMemoryRange))
                   (setf %vk::memory (h upload-buffer-memory)
-                        %vk::size VK_WHOLE_SIZE))
+                        %vk::size upload-size-aligned))
                 (check-vk-result
                  (vkFlushMappedMemoryRanges (h device) 1 p-range))
 
@@ -438,6 +454,7 @@
 
                 (end-command-buffer command-buffer)
 
+
                 (queue-submit1 queue command-buffer)
 
                 (device-wait-idle device)
@@ -449,120 +466,6 @@
 
 (defun cmd-set-line-width (command-buffer line-width)
   (vkCmdSetLineWidth (h command-buffer) (clampf line-width)))
-
-(defun render-standard-draw-indexed-cmd (cmd command-buffer pipeline-layout index-buffer
-                                         &optional (default-line-width *default-line-thickness*)
-                                           (default-point-size *default-point-size*))
-  ;; so we have such a thing as a "standard-draw-indexed-cmd".
-  ;; this standard cmd is used any type of primitive: points, line-lists, line-strips, triangle-lists, triangle-strips
-  ;; because we may use the same cmd object for different primitives/pipelines/pipelines
-  ;; for example, we may want to render something which is essentially a triangle list as a line list
-  ;; to show edges, or another example would be to show endpoints to lines
-  ;; so the standard-draw-indexed-cmd carries line-thickness and point-size regardless of if it is a triangle primitive
-  ;; the standard-2d and standard-3d vertex shader will pass them through or use them per primitive type
-  ;; standard-draw-indexed-cmd also has a slot for texture
-
-  ;; vertex buffers have been bound by the time we reach this function
-  ;; so has pipeline and descriptor sets
-  (let ((command-buffer-handle (h command-buffer)))
-
-    (let ((line-width (cmd-line-thickness cmd))
-          (color-override (cmd-color-override cmd))
-          (model-mtx (cmd-model-mtx cmd))
-          (point-size (cmd-point-size cmd))
-          (texture (cmd-texture cmd)))
-
-      (let ((descriptor-set (texture-image-descriptor-set texture)))
-        (with-foreign-objects ((p-descriptor-sets :pointer 1))
-          (setf (mem-aref p-descriptor-sets :pointer 0) (h descriptor-set))
-          (vkCmdBindDescriptorSets (h command-buffer)
-                                   VK_PIPELINE_BIND_POINT_GRAPHICS
-                                   (h pipeline-layout)
-                                   2 1
-                                   p-descriptor-sets
-                                   0 +nullptr+)))
-
-      ;;(VkCmdBindIndexBuffer command-buffer-handle (h index-buffer) 0 (foreign-type-enum index-buffer))
-      (cmd-bind-index-buffer command-buffer index-buffer 0 :unsigned-short)
-
-      #-darwin
-      (if line-width
-          (vkCmdSetLineWidth command-buffer-handle (clampf line-width))
-          (vkCmdSetLineWidth command-buffer-handle (clampf default-line-width)))
-
-      (with-foreign-object (pvalues :uint32 19)
-        ;; push constant is model-matrix followed by color, followed by point size
-        ;; followed by bool if to use color-override
-        ;; this is so every command can set the model-matrix
-        ;; and override the color of the vertices
-        (if model-mtx
-            (copy-matrix-to-foreign model-mtx pvalues)
-            (copy-matrix-to-foreign *identity-matrix* pvalues))
-
-        (if color-override
-            (let ((pcol (mem-aptr pvalues :uint32 16)))
-              (setf (mem-aref pcol :uint32 0) color-override))
-            (let ((pcol (mem-aptr pvalues :uint32 16)))
-              (setf (mem-aref pcol :uint32 0) #xff0000ff)))
-
-        (let ((psize (mem-aptr pvalues :uint32 17)))
-          (if point-size
-              (setf (mem-aref psize :float) (clampf point-size))
-              (setf (mem-aref psize :float) (clampf default-point-size))))
-
-        (setf (mem-aref pvalues :uint32 18) (if color-override 1 0))
-
-        (vkCmdPushConstants command-buffer-handle
-                            (h pipeline-layout)
-                            VK_SHADER_STAGE_VERTEX_BIT
-                            0
-                            (load-time-value (* 19 (foreign-type-size :uint32)))
-                            pvalues))
-
-      (vkCmdDrawIndexed command-buffer-handle (cmd-elem-count cmd) 1 (cmd-first-idx cmd) (cmd-vtx-offset cmd) 0))))
-
-
-(defun render-draw-indexed-buffers (pipeline
-                                    draw-list
-                                    command-buffer
-                                    model-matrix view-matrix projection-matrix
-                                    width height)
-  (let ((cmd-vector (draw-list-cmd-vector draw-list)))
-    (unless (zerop (fill-pointer cmd-vector))
-      (let* ((pipeline-layout (pipeline-layout pipeline))
-             (index-buffer (draw-list-index-buffer draw-list))
-             (line-width (pipeline-line-width pipeline))
-             (point-size (pipeline-point-size pipeline)))
-        (cmd-bind-pipeline command-buffer (device-pipeline pipeline) :bind-point :graphics)
-        (update-uniform-buffer-2 pipeline (m* projection-matrix view-matrix model-matrix))
-        (cmd-set-viewport command-buffer :width width :height height :min-depth 0.0 :max-depth 1.0)
-        (cmd-set-scissor command-buffer :width width :height height)
-
-        (cmd-bind-descriptor-sets command-buffer pipeline-layout (list (global-descriptor-set pipeline)))
-
-        (with-foreign-objects ((p-descriptor-sets :pointer 1))
-          (setf (mem-aref p-descriptor-sets :pointer 0) (h (global-descriptor-set pipeline)))
-          (vkCmdBindDescriptorSets (h command-buffer)
-                                   VK_PIPELINE_BIND_POINT_GRAPHICS
-                                   (h pipeline-layout)
-                                   0 1
-                                   p-descriptor-sets
-                                   0 +nullptr+))
-
-        (with-foreign-objects ((p-descriptor-sets :pointer 1))
-          (setf (mem-aref p-descriptor-sets :pointer 0) (h (scene-descriptor-set pipeline)))
-          (vkCmdBindDescriptorSets (h command-buffer)
-                                   VK_PIPELINE_BIND_POINT_GRAPHICS
-                                   (h pipeline-layout)
-                                   1 1
-                                   p-descriptor-sets
-                                   0 +nullptr+))
-        (cmd-bind-vertex-buffers command-buffer (list (draw-list-vertex-buffer draw-list)))
-        (loop for cmd across cmd-vector
-              when cmd
-                do (render-standard-draw-indexed-cmd cmd command-buffer pipeline-layout
-                                                     index-buffer line-width point-size)))
-      t)))
 
 ;; initialize buffers for immediate mode should happen right after draw lists
 ;;                    are built in secondary render thread
@@ -842,6 +745,24 @@
                        :format VK_FORMAT_R32_UINT
                        :offset (foreign-slot-offset (pipeline-vertex-type pipeline) 'col))))
 
+(defmethod make-vertex-input-attribute-descriptions ((pipeline 3d-texture-with-normal-pipeline-mixin))
+  (list (make-instance 'vertex-input-attribute-description
+                       :location 0
+                       :format VK_FORMAT_R32G32B32_SFLOAT
+		               :offset (foreign-slot-offset (pipeline-vertex-type pipeline) 'x))
+	    (make-instance 'vertex-input-attribute-description
+		               :location 1
+		               :format VK_FORMAT_R32G32_SFLOAT
+		               :offset (foreign-slot-offset (pipeline-vertex-type pipeline) 'u))
+        (make-instance 'vertex-input-attribute-description
+                       :location 2
+                       :format VK_FORMAT_R32_UINT
+                       :offset (foreign-slot-offset (pipeline-vertex-type pipeline) 'col))
+        (make-instance 'vertex-input-attribute-description
+                       :location 3
+                       :format VK_FORMAT_R32G32B32_SFLOAT
+		               :offset (foreign-slot-offset (pipeline-vertex-type pipeline) 'nx))))
+
 
 (defclass point-list-pipeline-mixin () ())
 
@@ -858,7 +779,7 @@
   nil)
 
 (defmethod fragment-shader-pathname ((pipeline point-list-pipeline-mixin))
-  #p"~/draw-list/notexture.frag.spv")
+  (asdf/system:system-relative-pathname :krma "notexture.frag.spv"))
 
 (defclass 2d-point-list-pipeline (point-list-pipeline-mixin
                                   2d-pipeline-mixin
@@ -866,7 +787,7 @@
   ())
 
 (defmethod vertex-shader-pathname ((pipeline 2d-point-list-pipeline))
-  #p"~/draw-list/standard-2d-point.vert.spv")
+  (asdf/system:system-relative-pathname :krma "standard-2d-point.vert.spv"))
 
 (defclass 3d-point-list-pipeline (point-list-pipeline-mixin
                                   3d-pipeline-mixin
@@ -874,7 +795,7 @@
   ())
 
 (defmethod vertex-shader-pathname ((pipeline 3d-point-list-pipeline))
-  #p"~/draw-list/standard-3d-point.vert.spv")
+  (asdf/system:system-relative-pathname :krma "standard-3d-point.vert.spv"))
 
 (progn
 (defmethod pipeline-depth-test-enable? ((pipeline 3d-point-list-pipeline))
@@ -896,7 +817,7 @@
 (defclass line-pipeline-mixin () ())
 
 (defmethod fragment-shader-pathname ((pipeline line-pipeline-mixin))
-  #p"~/draw-list/notexture.frag.spv")
+  (asdf/system:system-relative-pathname :krma "notexture.frag.spv"))
 
 (defclass 2d-line-pipeline-mixin (line-pipeline-mixin 2d-pipeline-mixin) ())
 
@@ -926,7 +847,7 @@
   ())
 
 (defmethod vertex-shader-pathname ((pipeline 2d-line-list-pipeline))
-  #p"~/draw-list/standard-2d-line-list.vert.spv")
+  (asdf/system:system-relative-pathname :krma "standard-2d-line-list.vert.spv"))
 
 (defclass 2d-line-strip-pipeline (line-strip-pipeline-mixin
                                   2d-line-pipeline-mixin
@@ -934,7 +855,7 @@
   ())
 
 (defmethod vertex-shader-pathname ((pipeline 2d-line-strip-pipeline))
-  #p"~/draw-list/standard-2d-line-strip.vert.spv")
+  (asdf/system:system-relative-pathname :krma "standard-2d-line-strip.vert.spv"))
 
 (defclass 3d-line-list-pipeline (line-list-pipeline-mixin
                                  3d-line-pipeline-mixin
@@ -942,7 +863,7 @@
   ())
 
 (defmethod vertex-shader-pathname ((pipeline 3d-line-list-pipeline))
-  #p"~/draw-list/standard-3d-line-list.vert.spv")
+  (asdf/system:system-relative-pathname :krma "standard-3d-line-list.vert.spv"))
 
 (defclass 3d-line-strip-pipeline (line-strip-pipeline-mixin
                                   3d-line-pipeline-mixin
@@ -950,7 +871,7 @@
   ())
 
 (defmethod vertex-shader-pathname ((pipeline 3d-line-strip-pipeline))
-  #p"~/draw-list/standard-3d-line-strip.vert.spv")
+  (asdf/system:system-relative-pathname :krma "standard-3d-line-strip.vert.spv"))
 
 (defclass triangle-list-pipeline-mixin () ())
 
@@ -964,16 +885,32 @@
 
 
 
-(defclass 2d-triangle-list-pipeline (triangle-list-pipeline-mixin
-                                     2d-texture-pipeline-mixin
-                                     draw-indexed-pipeline-mixin)
+(defclass 2d-triangle-list-pipeline-mixin (triangle-list-pipeline-mixin
+                                           2d-texture-pipeline-mixin
+                                           draw-indexed-pipeline-mixin)
   ())
 
-(defmethod fragment-shader-pathname ((pipeline 2d-triangle-list-pipeline))
-  #p"~/draw-list/texture.frag.spv")
+(defmethod fragment-shader-pathname ((pipeline 2d-triangle-list-pipeline-mixin))
+  (asdf/system:system-relative-pathname :krma "texture.frag.spv"))
 
-(defmethod vertex-shader-pathname ((pipeline 2d-triangle-list-pipeline))
-  #p"~/draw-list/standard-2d.vert.spv")
+(defmethod vertex-shader-pathname ((pipeline 2d-triangle-list-pipeline-mixin))
+  (asdf/system:system-relative-pathname :krma "standard-2d.vert.spv"))
+
+(defclass 2d-triangle-list-pipeline (2d-triangle-list-pipeline-mixin)
+  ())
+
+(defclass msdf-text-pipeline (2d-triangle-list-pipeline-mixin)
+  ())
+
+(defmethod fragment-shader-pathname ((pipeline msdf-text-pipeline))
+  (asdf/system:system-relative-pathname :krma "msdf-texture.frag.spv"))
+
+(defmethod make-push-constant-ranges ((pipeline msdf-text-pipeline))
+  (append (call-next-method)
+          (list (make-instance 'push-constant-range
+                               :stage-flags VK_SHADER_STAGE_FRAGMENT_BIT
+                               :offset (load-time-value (* 23 (foreign-type-size :uint32)))
+                               :size (load-time-value (* 5 (foreign-type-size :float)))))))
 
 (defclass 2d-triangle-strip-pipeline (triangle-strip-pipeline-mixin
                                       2d-texture-pipeline-mixin
@@ -986,10 +923,15 @@
   ())
 
 (defmethod fragment-shader-pathname ((pipeline 3d-triangle-list-pipeline))
-  #p"~/draw-list/texture.frag.spv")
+  (asdf/system:system-relative-pathname :krma "texture.frag.spv"))
 
 (defmethod vertex-shader-pathname ((pipeline 3d-triangle-list-pipeline))
-  #p"~/draw-list/standard-3d.vert.spv")
+  (asdf/system:system-relative-pathname :krma "standard-3d.vert.spv"))
+
+(defclass 3d-triangle-list-with-normal-pipeline (triangle-list-pipeline-mixin
+                                                 3d-texture-with-normal-pipeline-mixin
+                                                 draw-indexed-pipeline-mixin)
+  ())
 
 (defclass 3d-triangle-strip-pipeline (triangle-strip-pipeline-mixin
                                       3d-texture-pipeline-mixin
@@ -998,6 +940,149 @@
 
 
 ;;------
+
+(defun render-standard-draw-indexed-cmd (cmd command-buffer pipeline-layout index-buffer
+                                         &optional (default-line-width *default-line-thickness*)
+                                           (default-point-size *default-point-size*))
+  ;; so we have such a thing as a "standard-draw-indexed-cmd".
+  ;; this standard cmd is used any type of primitive: points, line-lists, line-strips, triangle-lists, triangle-strips
+  ;; because we may use the same cmd object for different primitives/pipelines/pipelines
+  ;; for example, we may want to render something which is essentially a triangle list as a line list
+  ;; to show edges, or another example would be to show endpoints to lines
+  ;; so the standard-draw-indexed-cmd carries line-thickness and point-size regardless of if it is a triangle primitive
+  ;; the standard-2d and standard-3d vertex shader will pass them through or use them per primitive type
+  ;; standard-draw-indexed-cmd also has a slot for texture
+
+  ;; vertex buffers have been bound by the time we reach this function
+  ;; so has pipeline and descriptor sets
+  (let ((command-buffer-handle (h command-buffer)))
+
+    (let ((line-width (cmd-line-thickness cmd))
+          (color-override (cmd-color-override cmd))
+          (model-mtx (cmd-model-mtx cmd))
+          (point-size (cmd-point-size cmd))
+          (texture (cmd-texture cmd)))
+
+      (let ((descriptor-set (texture-image-descriptor-set texture)))
+        (with-foreign-objects ((p-descriptor-sets :pointer 1))
+          (setf (mem-aref p-descriptor-sets :pointer 0) (h descriptor-set))
+          (vkCmdBindDescriptorSets (h command-buffer)
+                                   VK_PIPELINE_BIND_POINT_GRAPHICS
+                                   (h pipeline-layout)
+                                   2 1
+                                   p-descriptor-sets
+                                   0 +nullptr+)))
+
+      ;;(VkCmdBindIndexBuffer command-buffer-handle (h index-buffer) 0 (foreign-type-enum index-buffer))
+      (cmd-bind-index-buffer command-buffer index-buffer 0 :unsigned-short)
+
+      #-darwin
+      (if line-width
+          (vkCmdSetLineWidth command-buffer-handle (clampf line-width))
+          (vkCmdSetLineWidth command-buffer-handle (clampf default-line-width)))
+
+      (with-foreign-object (pvalues :uint32 23)
+        ;; push constant is model-matrix followed by color, followed by point size
+        ;; followed by bool if to use color-override
+        ;; this is so every command can set the model-matrix
+        ;; and override the color of the vertices
+        (if model-mtx
+            (copy-matrix-to-foreign model-mtx pvalues)
+            (copy-matrix-to-foreign *identity-matrix* pvalues))
+
+        (if color-override
+            (let ((pcol (mem-aptr pvalues :uint32 16)))
+              (setf (mem-aref pcol :uint32 0) color-override))
+            (let ((pcol (mem-aptr pvalues :uint32 16)))
+              (setf (mem-aref pcol :uint32 0) #xff0000ff)))
+
+        (let ((psize (mem-aptr pvalues :uint32 17)))
+          (if point-size
+              (setf (mem-aref psize :float) (clampf point-size))
+              (setf (mem-aref psize :float) (clampf default-point-size))))
+
+        (setf (mem-aref pvalues :uint32 18) (if color-override 1 0))
+
+        (let ((plp (mem-aptr pvalues :uint32 20))
+              (light-pos (cmd-light-position cmd)))
+          (if light-pos
+              (setf (mem-aref plp :float 0) (clampf (vx light-pos))
+                    (mem-aref plp :float 1) (clampf (vy light-pos))
+                    (mem-aref plp :float 2) (clampf (vz light-pos)))
+              (setf (mem-aref plp :float 0) 10000.0f0
+                    (mem-aref plp :float 1) 10000.0f0
+                    (mem-aref plp :float 2) 10000.0f0)))
+
+        (vkCmdPushConstants command-buffer-handle
+                            (h pipeline-layout)
+                            VK_SHADER_STAGE_VERTEX_BIT
+                            0
+                            (load-time-value (* 23 (foreign-type-size :uint32)))
+                            pvalues))
+
+      (when (typep cmd 'text-draw-indexed-cmd)
+        (with-foreign-object (pvalues :float 5)
+          (let ((px-range (font-px-range (cmd-font cmd))))
+            (if px-range
+                (setf (mem-aref pvalues :float 0) (clampf px-range))
+                (setf (mem-aref pvalues :float 0) 32.0f0))
+            (setf (mem-aref pvalues :float 1) 0.0f0
+                  (mem-aref pvalues :float 2) 0.0f0
+                  (mem-aref pvalues :float 3) 0.0f0
+                  (mem-aref pvalues :float 4) 1.0f0))
+
+          (vkCmdPushConstants command-buffer-handle
+                              (h pipeline-layout)
+                              VK_SHADER_STAGE_FRAGMENT_BIT
+                              (load-time-value (* 23 (foreign-type-size :uint32)))
+                              (load-time-value (* 5 (foreign-type-size :float)))
+                              pvalues)))
+
+      (vkCmdDrawIndexed command-buffer-handle (cmd-elem-count cmd) 1 (cmd-first-idx cmd) (cmd-vtx-offset cmd) 0))))
+
+
+(defun render-draw-indexed-buffers (pipeline
+                                    draw-list
+                                    command-buffer
+                                    model-matrix view-matrix projection-matrix
+                                    width height)
+  (let ((cmd-vector (draw-list-cmd-vector draw-list)))
+    (unless (zerop (fill-pointer cmd-vector))
+      (let* ((pipeline-layout (pipeline-layout pipeline))
+             (index-buffer (draw-list-index-buffer draw-list))
+             (line-width (pipeline-line-width pipeline))
+             (point-size (pipeline-point-size pipeline)))
+        (cmd-bind-pipeline command-buffer (device-pipeline pipeline) :bind-point :graphics)
+        (update-uniform-buffer-2 pipeline (m* projection-matrix view-matrix model-matrix))
+        (cmd-set-viewport command-buffer :width width :height height :min-depth 0.0 :max-depth 1.0)
+        (cmd-set-scissor command-buffer :width width :height height)
+
+        (cmd-bind-descriptor-sets command-buffer pipeline-layout (list (global-descriptor-set pipeline)))
+
+        (with-foreign-objects ((p-descriptor-sets :pointer 1))
+          (setf (mem-aref p-descriptor-sets :pointer 0) (h (global-descriptor-set pipeline)))
+          (vkCmdBindDescriptorSets (h command-buffer)
+                                   VK_PIPELINE_BIND_POINT_GRAPHICS
+                                   (h pipeline-layout)
+                                   0 1
+                                   p-descriptor-sets
+                                   0 +nullptr+))
+
+        (with-foreign-objects ((p-descriptor-sets :pointer 1))
+          (setf (mem-aref p-descriptor-sets :pointer 0) (h (scene-descriptor-set pipeline)))
+          (vkCmdBindDescriptorSets (h command-buffer)
+                                   VK_PIPELINE_BIND_POINT_GRAPHICS
+                                   (h pipeline-layout)
+                                   1 1
+                                   p-descriptor-sets
+                                   0 +nullptr+))
+
+        (cmd-bind-vertex-buffers command-buffer (list (draw-list-vertex-buffer draw-list)))
+        (loop for cmd across cmd-vector
+              when cmd
+                do (render-standard-draw-indexed-cmd cmd command-buffer pipeline-layout
+                                                     index-buffer line-width point-size)))
+      t)))
 
 (defmethod render ((pipeline draw-indexed-pipeline-mixin) draw-list device command-buffer
                    model-matrix view-matrix projection-matrix

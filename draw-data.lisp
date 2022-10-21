@@ -8,11 +8,13 @@
   (3d-line-list-draw-list (make-instance '3d-vertex-small-draw-list))
   (3d-line-strip-draw-list (make-instance '3d-vertex-small-draw-list))
   (3d-triangle-list-draw-list (make-instance '3d-vertex-small-draw-list))
+  (3d-triangle-list-with-normal-draw-list (make-instance '3d-vertex-with-normal-small-draw-list))
   (3d-triangle-strip-draw-list (make-instance '3d-vertex-small-draw-list))
   (2d-point-list-draw-list (make-instance '2d-vertex-small-draw-list))
   (2d-line-list-draw-list (make-instance '2d-vertex-small-draw-list))
   (2d-line-strip-draw-list (make-instance '2d-vertex-small-draw-list))
   (2d-triangle-list-draw-list (make-instance '2d-vertex-small-draw-list))
+  (2d-triangle-list-draw-list-for-text (make-instance '2d-vertex-small-draw-list))
   (2d-triangle-strip-draw-list (make-instance '2d-vertex-small-draw-list)))
 
 (defstruct (retained-mode-draw-data
@@ -221,4 +223,11 @@
           (%draw-list-add-textured-3d-triangle-strip-cmd
            draw-list
            model-mtx texture color vertices))
+    (values)))
+
+(defun %draw-data-add-sphere-cmd (draw-data handle model-mtx color origin-x origin-y origin-z radius resolution light-position)
+  (declare (type retained-mode-draw-data draw-data))
+  (let ((draw-list (draw-data-3d-triangle-list-with-normal-draw-list draw-data)))
+    (setf (gethash handle (draw-data-handle-hash-table draw-data))
+          (%draw-list-add-filled-sphere-cmd draw-list model-mtx color origin-x origin-y origin-z radius resolution light-position))
     (values)))

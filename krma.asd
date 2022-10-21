@@ -1,6 +1,7 @@
 (defsystem krma
   :description "A platform independent graphics primitive rendering library."
-  :depends-on (:cffi :3d-vectors :3d-matrices #-darwin :cl-vulkan #+darwin :cl-metal)
+  :depends-on (:cffi :3d-vectors :3d-matrices #-darwin :cl-vulkan #+darwin :cl-metal
+                                              :sdf/bmfont :3b-bmfont/json)
   :author "Andrew K Wolven <awolven@gmail.com>"
   :serial t
   :components
@@ -14,4 +15,5 @@
    (:file "draw-data")
    (:file "scene-mixin")
    (:file "application-mixin")
-   (:file "pipelines")))
+   (:file "pipelines")
+   (:file "text")))

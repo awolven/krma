@@ -64,6 +64,12 @@
   ((vertex-array
     :initform (make-textured-3d-vertex-with-normal-array))))
 
+(defclass 3d-vertex-with-normal-small-draw-list (3d-vertex-with-normal-draw-list-mixin small-draw-list-mixin)
+  ())
+
+(defclass 3d-vertex-with-normal-large-draw-list (3d-vertex-with-normal-draw-list-mixin large-draw-list-mixin)
+  ())
+
 (defun %prim-reserve (draw-list vertex-count index-count vertex-type-size index-type-size)
   (let ((res nil))
 
@@ -704,7 +710,7 @@
         (progn
           (loop for (x y z nx ny nz) on vertices by #'cdddr
                 for i from 0
-                do (standard-3d-vertex-with-normals-array-push-extend vertex-array x y z nx ny nz color)
+                do (standard-3d-vertex-with-normal-array-push-extend vertex-array x y z nx ny nz color)
                    (incf number-of-vertices)
                    (index-array-push-extend index-array i))
           (let ((cmd (funcall cmd-constructor
@@ -750,6 +756,66 @@
         (warn (princ-to-string c))
         (setf (foreign-array-fill-pointer vertex-array) vtx-offset
               (foreign-array-fill-pointer index-array) first-index)
+        nil))))
+
+(defun %draw-list-add-filled-sphere-cmd (3d-draw-list model-mtx color origin-x origin-y origin-z radius resolution light-position)
+  (let* ((va (draw-list-vertex-array 3d-draw-list))
+         (ia (draw-list-index-array 3d-draw-list))
+         (vtx-offset (foreign-array-fill-pointer va))
+         (first-index (foreign-array-fill-pointer ia)))
+
+    (handler-case
+        (progn
+          (let* ((sector-count resolution)
+                 (stack-count (/ resolution 2))
+                 (sector-step (/ 2pi sector-count))
+                 (stack-step (/ pi stack-count))
+                 (elem-count 0))
+
+            (loop for i from 0 to stack-count
+                  do (let* ((stack-angle (- #.(/ pi 2) (* i stack-step)))
+                            (xy (* radius (cos stack-angle)))
+                            (z (+ (* radius (sin stack-angle)) origin-z)))
+                       (loop for j from 0 to sector-count
+                             do (let* ((sector-angle (* j sector-step))
+                                       (x (+ (* xy (cos sector-angle)) origin-x))
+                                       (y (+ (* xy (sin sector-angle)) origin-y))
+                                       (nx (/ (- x origin-x) radius))
+                                       (ny (/ (- y origin-y) radius))
+                                       (nz (/ (- z origin-z) radius)))
+
+                                  (standard-3d-vertex-with-normal-array-push-extend va x y z nx ny nz color)))))
+
+            (loop for i from 0 below stack-count
+                  with k1 with k2
+                  do (setq k1 (* i (1+ sector-count))
+                           k2 (+ k1 sector-count 1))
+
+                     (loop for j from 0 below sector-count
+                           when (not (zerop i))
+                             do (index-array-push-extend ia k1)
+                                (index-array-push-extend ia k2)
+                                (index-array-push-extend ia (1+ k1))
+                                (incf elem-count 3)
+                           when (not (eq i (1- stack-count)))
+                             do (index-array-push-extend ia (1+ k1))
+                                (index-array-push-extend ia k2)
+                                (index-array-push-extend ia (1+ k2))
+                                (incf elem-count 3)
+                           do (incf k1)
+                              (incf k2)))
+
+            (let ((cmd (make-standard-draw-indexed-cmd
+                        3d-draw-list
+                        first-index elem-count vtx-offset
+                        model-mtx
+                        nil *white-texture* nil nil light-position)))
+              (vector-push-extend cmd (draw-list-cmd-vector 3d-draw-list))
+              cmd)))
+      (error (c)
+        (warn (princ-to-string c))
+        (setf (foreign-array-fill-pointer va) vtx-offset
+              (foreign-array-fill-pointer ia) first-index)
         nil))))
 
 (defun compact-draw-list (draw-list &optional (cmd-constructor #'make-standard-draw-indexed-cmd))
