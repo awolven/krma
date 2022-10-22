@@ -8,49 +8,68 @@
   (foreign-type nil)
   (foreign-type-size 1 :type fixnum))
 
-(defstruct (index-array (:include foreign-adjustable-array)))
-
-(defstruct (unsigned-short-index-array
-            (:include index-array)
-            (:constructor %make-unsigned-short-index-array
-                (ptr allocated-count
-                 &optional (foreign-type :unsigned-short)
-                   (foreign-type-size (load-time-value (foreign-type-size :unsigned-short)))))))
-
-(defun make-unsigned-short-index-array (&optional (allocated-count +draw-list-alloc-size+))
-  (%make-unsigned-short-index-array (foreign-alloc :unsigned-short :count allocated-count)
-                                    allocated-count))
-
-(defstruct (unsigned-int-index-array
-            (:include index-array)
-            (:constructor %make-unsigned-int-index-array
-                (ptr allocated-count
-                 &optional (foreign-type :unsigned-int)
-                   (foreign-type-size (load-time-value (foreign-type-size :unsigned-int)))))))
-
-(defun make-unsigned-int-index-array (&optional (allocated-count +draw-list-alloc-size+))
-  (%make-unsigned-short-index-array (foreign-alloc :unsigned-int :count allocated-count)
-                                    allocated-count))
+(defstruct (index-array
+            (:include foreign-adjustable-array)
+            (:constructor make-index-array
+                (&optional
+                   (allocated-count +draw-list-alloc-size+)
+                   (foreign-type :unsigned-short)
+                   (fill-pointer 0)
+                   (ptr (foreign-alloc :unsigned-short :count allocated-count))
+                   (foreign-type-size (foreign-type-size foreign-type))))))
 
 (defun index-array-push-extend (index-array index)
   (declare (type index-array index-array))
   (declare (type (unsigned-byte 32) index))
-  (with-slots (ptr
-               allocated-count
-               fill-pointer
-               foreign-type
-               foreign-type-size)
-      index-array
-    (unless (< fill-pointer allocated-count)
-      (let* ((new-count (* 2 allocated-count))
-             (new-array (foreign-alloc foreign-type :count new-count))
-             (old-array ptr))
-        (memcpy new-array old-array (* fill-pointer foreign-type-size))
-        (setf ptr new-array)
-        (setf allocated-count new-count)
-        (foreign-free old-array)))
-    (setf (mem-aref ptr foreign-type fill-pointer) index)
-    (incf fill-pointer)))
+  (let ((err nil))
+    (flet ((upgrade-index-array! ()
+             (when err
+               (error "unknown type error in index-array-push-extend"))
+             (with-slots (ptr
+                          allocated-count
+                          fill-pointer
+                          foreign-type
+                          foreign-type-size)
+                 index-array
+               (let ((new-ptr (foreign-alloc :unsigned-int :count allocated-count)))
+                 (loop for i from 0 below fill-pointer ;; copy the indexes
+                       do (setf (mem-aref new-ptr :unsigned-int i)
+                                (mem-aref ptr :unsigned-short i)))
+                 (foreign-free ptr)
+                 (setf foreign-type :unsigned-int
+                       foreign-type-size (load-time-value (foreign-type-size :unsigned-int))
+                       ptr new-ptr
+                       err t)
+                 (values)))))
+    (with-slots (ptr
+                 allocated-count
+                 fill-pointer
+                 foreign-type
+                 foreign-type-size)
+        index-array
+
+      (unless (< fill-pointer allocated-count)
+        (let* ((new-count (* 2 allocated-count))
+               (new-array (foreign-alloc foreign-type :count new-count))
+               (old-array ptr))
+          (memcpy new-array old-array (* fill-pointer foreign-type-size))
+          (setf ptr new-array)
+          (setf allocated-count new-count)
+          (foreign-free old-array)))
+
+      (tagbody
+       retry
+         (handler-case
+             (setf (mem-aref (foreign-array-ptr index-array)
+                             (foreign-array-foreign-type index-array)
+                             (foreign-array-fill-pointer index-array))
+                   index)
+           (type-error ()
+             (format t "~&upgrading index array from unsigned-short to unsigned-int.")
+             (finish-output)
+             (upgrade-index-array!)
+             (go retry)))
+         (incf fill-pointer))))))
 
 (defstruct (vertex-array (:include foreign-adjustable-array)))
 
@@ -65,14 +84,13 @@
 
 (defstruct (textured-2d-vertex-array
             (:include vertex-array)
-            (:constructor %make-textured-2d-vertex-array
-                (ptr allocated-count
-                 &optional (foreign-type '(:struct textured-2d-vertex))
-                   (foreign-type-size (load-time-value (foreign-type-size '(:struct textured-2d-vertex))))))))
-
-(defun make-textured-2d-vertex-array (&optional (allocated-count +draw-list-alloc-size+))
-  (%make-textured-2d-vertex-array (foreign-alloc '(:struct textured-2d-vertex) :count allocated-count)
-                                  allocated-count))
+            (:constructor make-textured-2d-vertex-array
+                (&optional
+                   (allocated-count +draw-list-alloc-size+)
+                   (foreign-type '(:struct textured-2d-vertex))
+                   (fill-pointer 0)
+                   (ptr (foreign-alloc foreign-type :count allocated-count))
+                   (foreign-type-size (foreign-type-size foreign-type))))))
 
 (defun textured-2d-vertex-array-push-extend (textured-2d-vertex-array x y u v color)
   (declare (type textured-2d-vertex-array textured-2d-vertex-array))
@@ -114,14 +132,13 @@
 
 (defstruct (textured-3d-vertex-array
             (:include vertex-array)
-            (:constructor %make-textured-3d-vertex-array
-                (ptr allocated-count
-                 &optional (foreign-type '(:struct textured-3d-vertex))
-                   (foreign-type-size (load-time-value (foreign-type-size '(:struct textured-3d-vertex))))))))
-
-(defun make-textured-3d-vertex-array (&optional (allocated-count +draw-list-alloc-size+))
-  (%make-textured-3d-vertex-array (foreign-alloc '(:struct textured-3d-vertex) :count allocated-count)
-                                  allocated-count))
+            (:constructor make-textured-3d-vertex-array
+                (&optional
+                   (allocated-count +draw-list-alloc-size+)
+                   (foreign-type '(:struct textured-3d-vertex))
+                   (fill-pointer 0)
+                   (ptr (foreign-alloc foreign-type :count allocated-count))
+                   (foreign-type-size (foreign-type-size foreign-type))))))
 
 (defun textured-3d-vertex-array-push-extend (vertex-array x y z u v color)
   (declare (type textured-3d-vertex-array vertex-array))
@@ -167,14 +184,13 @@
 
 (defstruct (textured-3d-vertex-with-normal-array
             (:include vertex-array)
-            (:constructor %make-textured-3d-vertex-with-normal-array
-                (ptr allocated-count
-                 &optional (foreign-type '(:struct textured-3d-vertex-with-normal))
-                   (foreign-type-size (load-time-value (foreign-type-size '(:struct textured-3d-vertex-with-normal))))))))
-
-(defun make-textured-3d-vertex-with-normal-array (&optional (allocated-count +draw-list-alloc-size+))
-  (%make-textured-3d-vertex-with-normal-array (foreign-alloc '(:struct textured-3d-vertex-with-normal) :count allocated-count)
-                                              allocated-count))
+            (:constructor make-textured-3d-vertex-with-normal-array
+                (&optional
+                   (allocated-count +draw-list-alloc-size+)
+                   (foreign-type '(:struct textured-3d-vertex-with-normal))
+                   (fill-pointer 0)
+                   (ptr (foreign-alloc foreign-type :count allocated-count))
+                   (foreign-type-size (foreign-type-size foreign-type))))))
 
 (defun textured-3d-vertex-with-normal-array-push-extend (vertex-array x y z nx ny nz u v color)
   (declare (type textured-3d-vertex-with-normal-array vertex-array))

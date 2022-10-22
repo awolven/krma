@@ -2,7 +2,8 @@
 
 (defclass draw-list-mixin ()
   ((index-array
-    :accessor draw-list-index-array)
+    :accessor draw-list-index-array
+    :initform (make-index-array))
    (vertex-array
     :reader draw-list-vertex-array)
    (cmd-vector
@@ -21,16 +22,6 @@
     :accessor draw-list-vertex-buffer
     :initform nil)))
 
-;; <= 65536 vertices
-(defclass small-draw-list-mixin ()
-  ((index-array
-    :initform (make-unsigned-short-index-array))))
-
-;; <= (expt 2 32) vertices
-(defclass large-draw-list-mixin ()
-  ((index-array
-    :initform (make-unsigned-int-index-array))))
-
 ;; we are using textured vertices for standard (non-textured) primitives
 ;; for two reasons:
 ;; - cuts down on the number of shader variants we have to implement/track
@@ -44,30 +35,21 @@
   ((vertex-array
     :initform (make-textured-2d-vertex-array))))
 
-(defclass 2d-vertex-small-draw-list (2d-vertex-draw-list-mixin small-draw-list-mixin)
-  ())
-
-(defclass 2d-vertex-large-draw-list (2d-vertex-draw-list-mixin large-draw-list-mixin)
+(defclass 2d-vertex-draw-list (2d-vertex-draw-list-mixin)
   ())
 
 (defclass 3d-vertex-draw-list-mixin (draw-list-mixin)
   ((vertex-array
     :initform (make-textured-3d-vertex-array))))
 
-(defclass 3d-vertex-small-draw-list (3d-vertex-draw-list-mixin small-draw-list-mixin)
-  ())
-
-(defclass 3d-vertex-large-draw-list (3d-vertex-draw-list-mixin large-draw-list-mixin)
+(defclass 3d-vertex-draw-list (3d-vertex-draw-list-mixin)
   ())
 
 (defclass 3d-vertex-with-normal-draw-list-mixin (draw-list-mixin)
   ((vertex-array
     :initform (make-textured-3d-vertex-with-normal-array))))
 
-(defclass 3d-vertex-with-normal-small-draw-list (3d-vertex-with-normal-draw-list-mixin small-draw-list-mixin)
-  ())
-
-(defclass 3d-vertex-with-normal-large-draw-list (3d-vertex-with-normal-draw-list-mixin large-draw-list-mixin)
+(defclass 3d-vertex-with-normal-draw-list (3d-vertex-with-normal-draw-list-mixin)
   ())
 
 (defun %prim-reserve (draw-list vertex-count index-count vertex-type-size index-type-size)
@@ -111,26 +93,6 @@
                  (foreign-free old-array)
                  (setq res t)))))))
     res))
-
-(defun prim-reserve-standard-2d-small (draw-list vertex-count index-count)
-  (let ((vertex-type-size (load-time-value (foreign-type-size '(:struct textured-2d-vertex))))
-        (index-type-size (load-time-value (foreign-type-size :unsigned-short))))
-    (%prim-reserve draw-list vertex-count index-count vertex-type-size index-type-size)))
-
-(defun prim-reserve-standard-2d-large (draw-list vertex-count index-count)
-  (let ((vertex-type-size (load-time-value (foreign-type-size '(:struct textured-2d-vertex))))
-        (index-type-size (load-time-value (foreign-type-size :unsigned-int))))
-    (%prim-reserve draw-list vertex-count index-count vertex-type-size index-type-size)))
-
-(defun prim-reserve-textured-2d-small (draw-list vertex-count index-count)
-  (let ((vertex-type-size (load-time-value (foreign-type-size '(:struct textured-2d-vertex))))
-        (index-type-size (load-time-value (foreign-type-size :unsigned-short))))
-    (%prim-reserve draw-list vertex-count index-count vertex-type-size index-type-size)))
-
-(defun prim-reserve-textured-2d-large (draw-list vertex-count index-count)
-  (let ((vertex-type-size (load-time-value (foreign-type-size '(:struct textured-2d-vertex))))
-        (index-type-size (load-time-value (foreign-type-size :unsigned-int))))
-    (%prim-reserve draw-list vertex-count index-count vertex-type-size index-type-size)))
 
 ;; whether we use a draw-index style of drawing points
 ;; or just a 'draw' style of drawing points depends on

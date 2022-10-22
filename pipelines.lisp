@@ -134,7 +134,7 @@
 
 
 
-
+#+NIL
 (defclass standard-frame-resource (frame-specific-mixin)
   ;; there is one frame-resource object per frame per pipeline
   (;; index-buffers and vertex-buffers may appear again in the same array or in other pipelines
@@ -941,7 +941,7 @@
 
 ;;------
 
-(defun render-standard-draw-indexed-cmd (cmd command-buffer pipeline-layout index-buffer
+(defun render-standard-draw-indexed-cmd (cmd command-buffer pipeline-layout index-buffer index-array
                                          &optional (default-line-width *default-line-thickness*)
                                            (default-point-size *default-point-size*))
   ;; so we have such a thing as a "standard-draw-indexed-cmd".
@@ -973,8 +973,7 @@
                                    p-descriptor-sets
                                    0 +nullptr+)))
 
-      ;;(VkCmdBindIndexBuffer command-buffer-handle (h index-buffer) 0 (foreign-type-enum index-buffer))
-      (cmd-bind-index-buffer command-buffer index-buffer 0 :unsigned-short)
+      (cmd-bind-index-buffer command-buffer index-buffer 0 (foreign-array-foreign-type index-array))
 
       #-darwin
       (if line-width
@@ -1050,6 +1049,7 @@
     (unless (zerop (fill-pointer cmd-vector))
       (let* ((pipeline-layout (pipeline-layout pipeline))
              (index-buffer (draw-list-index-buffer draw-list))
+             (index-array (draw-list-index-array draw-list))
              (line-width (pipeline-line-width pipeline))
              (point-size (pipeline-point-size pipeline)))
         (cmd-bind-pipeline command-buffer (device-pipeline pipeline) :bind-point :graphics)
@@ -1081,7 +1081,8 @@
         (loop for cmd across cmd-vector
               when cmd
                 do (render-standard-draw-indexed-cmd cmd command-buffer pipeline-layout
-                                                     index-buffer line-width point-size)))
+                                                     index-buffer index-array
+                                                     line-width point-size)))
       t)))
 
 (defmethod render ((pipeline draw-indexed-pipeline-mixin) draw-list device command-buffer
@@ -1222,6 +1223,7 @@
       (unless (zerop (fill-pointer cmd-vector))
         (let* ((pipeline-layout (pipeline-layout pipeline))
                (index-buffer (draw-list-index-buffer draw-list))
+               (index-array (draw-list-index-array draw-list))
                (pipeline-line-width (pipeline-line-width pipeline)))
 
           (cmd-bind-pipeline command-buffer (device-pipeline pipeline) :bind-point :graphics)
@@ -1260,8 +1262,7 @@
                              (color-override (cmd-color-override cmd))
                              (model-mtx (cmd-model-mtx cmd)))
 
-                         ;;(VkCmdBindIndexBuffer command-buffer-handle (h index-buffer) 0 (foreign-type-enum index-buffer))
-                         (cmd-bind-index-buffer command-buffer index-buffer 0 :unsigned-short)
+                         (cmd-bind-index-buffer command-buffer index-buffer 0 (foreign-array-foreign-type index-array))
 
                          #-darwin
                          (if line-width

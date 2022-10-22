@@ -499,13 +499,15 @@
                            (let* ((old-index-array (draw-list-index-array (car cmd)))
                                   (ptr (foreign-array-ptr old-index-array))
                                   (type (foreign-array-foreign-type old-index-array))
-                                  (new-index-array (ecase type
-                                                     (:unsigned-short
-                                                      (make-unsigned-short-index-array
-                                                       (index-array-allocated-count old-index-array)))
-                                                     (:unsigned-int
-                                                      (make-unsigned-int-index-array
-                                                       (index-array-allocated-count old-index-array))))))
+                                  (new-index-array
+                                    (make-index-array
+                                     (foreign-array-allocated-count old-index-array)
+                                     (foreign-array-foreign-type old-index-array)
+                                     0
+                                     (foreign-alloc
+                                      (foreign-array-foreign-type old-index-array)
+                                      :count (foreign-array-allocated-count old-index-array))
+                                     (foreign-type-size (foreign-array-foreign-type old-index-array)))))
                              ;; copy indexes
                              (loop for i from 0 below (foreign-array-fill-pointer old-index-array)
                                    unless (member i (cdr cmd))

@@ -6,10 +6,8 @@
 
 (defpackage :krma
   (:use :cl :cffi #-darwin :vk #-darwin :%vk :%glfw :3d-vectors :3d-matrices)
-  (:export #:unsigned-short-index-array
-           #:make-unsigned-short-index-array
-           #:unsigned-int-index-array
-           #:make-unsigned-int-index-array
+  (:export #:index-array
+           #:make-index-array
            #:foreign-array-ptr
            #:foreign-array-fill-pointer
            #:foreign-array-foreign-type
@@ -63,10 +61,9 @@
            #:draw-list-vertex-buffer
            #:draw-list-cmd-vector
 
-           #:2d-vertex-small-draw-list
-           #:2d-vertex-large-draw-list
-           #:3d-vertex-small-draw-list
-           #:3d-vertex-large-draw-list
+           #:2d-vertex-draw-list
+           #:3d-vertex-draw-list
+           #:3d-vertex-with-normal-draw-list
 
            #:essential-draw-indexed-cmd
            #:standard-draw-indexed-cmd
@@ -82,10 +79,6 @@
            #:cmd-line-thickness
            #:cmd-point-size
 
-           #:prim-reserve-standard-2d-small
-           #:prim-reserve-standard-2d-large
-           #:prim-reserve-textured-2d-small
-           #:prim-reserve-textured-2d-large
            #:%prim-reserve
 
            #:make-textured-2d-draw-indexed-cmd
