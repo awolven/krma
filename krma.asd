@@ -15,5 +15,5 @@
    (:file "draw-data")
    (:file "scene-mixin")
    (:file "application-mixin")
-   (:file "pipelines")
+   (:file "vulkan-pipelines")
    (:file "text")))
