@@ -12,34 +12,37 @@
     :initform (make-array 2 :initial-contents
                           (list
                            (make-retained-mode-draw-data "RM Draw Data 0")
-                           (make-retained-mode-draw-data "RM Draw Data 1"))))))
+                           (make-retained-mode-draw-data "RM Draw Data 1"))))
+   (light-position
+    :initform nil
+    :accessor scene-light-position)))
 
 (defclass standard-scene (krma-essential-scene-mixin) ())
 
 (defparameter +default-znear+ 0.001)
 (defparameter +default-zfar+ 3000.0)
 
-(defun render-scene (app command-buffer draw-data width height
+(defun render-scene (scene app command-buffer rm-draw-data im-draw-data width height
                      &optional (model-matrix (meye 4))
                        (view-matrix (mlookat (vec3 0 0 1500) (vec3 0 0 0) (vec3 0 1 0)))
 
                        (projection-matrix (mperspective-vulkan 45 (/ width height) +default-znear+ +default-zfar+)
                                           #+NIL(mortho-vulkan -1500 1500
-                                                          (* -1500 (/ height width))
-                                                          (* 1500 (/ height width))
-                                                          +default-znear+ +default-zfar+)))
+                                                              (* -1500 (/ height width))
+                                                              (* 1500 (/ height width))
+                                                              +default-znear+ +default-zfar+)))
 
-  (with-slots (3d-point-list-pipeline
-               3d-line-list-pipeline
+  (with-slots (3d-point-list-pipeline ;; tested with failure
+               3d-line-list-pipeline  ;; tested
                3d-line-strip-pipeline
                3d-triangle-list-pipeline
-               3d-triangle-list-with-normal-pipeline
+               3d-triangle-list-with-normal-pipeline ;; tested
                3d-triangle-strip-pipeline
-               2d-point-list-pipeline
-               2d-line-list-pipeline
-               2d-line-strip-pipeline
-               2d-triangle-list-pipeline
-               msdf-text-pipeline
+               2d-point-list-pipeline    ;; tested with intermittent failure
+               2d-line-list-pipeline     ;; tested
+               2d-line-strip-pipeline    ;; tested
+               2d-triangle-list-pipeline ;; tested
+               msdf-text-pipeline        ;; tested
                2d-triangle-strip-pipeline)
 
       (application-pipeline-store app)
@@ -59,44 +62,105 @@
                    2d-triangle-list-draw-list-for-text
                    2d-triangle-strip-draw-list)
 
-          draw-data
+          rm-draw-data
 
 
-        (render 3d-point-list-pipeline 3d-point-list-draw-list
-                device command-buffer model-matrix view-matrix projection-matrix width height)
+        (render-draw-list 3d-point-list-pipeline 3d-point-list-draw-list scene
+                          device command-buffer model-matrix view-matrix projection-matrix width height)
 
-        (render 3d-line-list-pipeline 3d-line-list-draw-list
-                device command-buffer model-matrix view-matrix projection-matrix width height)
+        (render-draw-list 3d-line-list-pipeline 3d-line-list-draw-list scene
+                          device command-buffer model-matrix view-matrix projection-matrix width height)
 
-        (render 3d-line-strip-pipeline 3d-line-strip-draw-list
-                device command-buffer model-matrix view-matrix projection-matrix width height)
+        (render-draw-list-cmds 3d-line-strip-pipeline 3d-line-strip-draw-list scene
+                               device command-buffer model-matrix view-matrix projection-matrix width height)
 
-        (render 3d-triangle-list-pipeline 3d-triangle-list-draw-list
-                device command-buffer model-matrix view-matrix projection-matrix width height)
-        (render 3d-triangle-list-with-normal-pipeline 3d-triangle-list-with-normal-draw-list
-                device command-buffer model-matrix view-matrix projection-matrix width height)
-        #+NOTYET
-        (render 3d-triangle-strip-pipeline 3d-triangle-strip-draw-list
-                device command-buffer model-matrix view-matrix projection-matrix width height)
+        (render-draw-list-cmds 3d-triangle-list-pipeline 3d-triangle-list-draw-list scene
+                               device command-buffer model-matrix view-matrix projection-matrix width height)
 
-        (render 2d-point-list-pipeline 2d-point-list-draw-list
-                device command-buffer model-matrix view-matrix projection-matrix width height)
+        (render-draw-list-cmds 3d-triangle-list-with-normal-pipeline 3d-triangle-list-with-normal-draw-list scene
+                               device command-buffer model-matrix view-matrix projection-matrix width height)
 
-        (render 2d-line-list-pipeline 2d-line-list-draw-list
-                device command-buffer model-matrix view-matrix projection-matrix width height)
+        (render-draw-list-cmds 3d-triangle-strip-pipeline 3d-triangle-strip-draw-list scene
+                               device command-buffer model-matrix view-matrix projection-matrix width height)
 
-        (render 2d-line-strip-pipeline 2d-line-strip-draw-list
-                device command-buffer model-matrix view-matrix projection-matrix width height)
+        (let ((view-matrix (meye 4))
+              (projection-matrix (mortho-vulkan 0 width height 0 0 1)))
 
-        (render 2d-triangle-list-pipeline 2d-triangle-list-draw-list
-                device command-buffer model-matrix view-matrix projection-matrix width height)
+          (render-draw-list 2d-point-list-pipeline 2d-point-list-draw-list scene
+                            device command-buffer model-matrix view-matrix projection-matrix width height)
 
-        (render msdf-text-pipeline 2d-triangle-list-draw-list-for-text
-                device command-buffer model-matrix view-matrix projection-matrix width height)
-        #+NOTYET
-        (render 2d-triangle-strip-pipeline 2d-triangle-strip-draw-list
-                device command-buffer model-matrix view-matrix projection-matrix width height)
+          (render-draw-list 2d-line-list-pipeline 2d-line-list-draw-list scene
+                            device command-buffer model-matrix view-matrix projection-matrix width height)
 
+          (render-draw-list-cmds 2d-line-strip-pipeline 2d-line-strip-draw-list scene
+                                 device command-buffer model-matrix view-matrix projection-matrix width height)
+
+          (render-draw-list-cmds 2d-triangle-list-pipeline 2d-triangle-list-draw-list scene
+                                 device command-buffer model-matrix view-matrix projection-matrix width height)
+
+          (render-draw-list-cmds msdf-text-pipeline 2d-triangle-list-draw-list-for-text scene
+                                 device command-buffer model-matrix view-matrix projection-matrix width height)
+
+          (render-draw-list-cmds 2d-triangle-strip-pipeline 2d-triangle-strip-draw-list scene
+                                 device command-buffer model-matrix view-matrix projection-matrix width height)
+          ))
+
+      (with-slots (3d-point-list-draw-list
+                   3d-line-list-draw-list
+                   3d-line-strip-draw-list
+                   3d-triangle-list-draw-list
+                   3d-triangle-list-with-normal-draw-list
+                   3d-triangle-strip-draw-list
+                   2d-point-list-draw-list
+                   2d-line-list-draw-list
+                   2d-line-strip-draw-list
+                   2d-triangle-list-draw-list
+                   2d-triangle-list-draw-list-for-text
+                   2d-triangle-strip-draw-list)
+
+          im-draw-data
+
+
+        (render-draw-list 3d-point-list-pipeline 3d-point-list-draw-list scene
+                          device command-buffer model-matrix view-matrix projection-matrix width height)
+
+        (render-draw-list 3d-line-list-pipeline 3d-line-list-draw-list scene
+                          device command-buffer model-matrix view-matrix projection-matrix width height)
+
+        (render-draw-list-cmds 3d-line-strip-pipeline 3d-line-strip-draw-list scene
+                               device command-buffer model-matrix view-matrix projection-matrix width height)
+
+        (render-draw-list 3d-triangle-list-pipeline 3d-triangle-list-draw-list scene
+                          device command-buffer model-matrix view-matrix projection-matrix width height)
+
+        (render-draw-list 3d-triangle-list-with-normal-pipeline 3d-triangle-list-with-normal-draw-list scene
+                          device command-buffer model-matrix view-matrix projection-matrix width height)
+
+        (render-draw-list-cmds 3d-triangle-strip-pipeline 3d-triangle-strip-draw-list scene
+                               device command-buffer model-matrix view-matrix projection-matrix width height)
+
+        (let ((view-matrix (meye 4))
+              (projection-matrix (mortho-vulkan 0 width height 0 0 1)))
+
+          (render-draw-list 2d-point-list-pipeline 2d-point-list-draw-list scene
+                            device command-buffer model-matrix view-matrix projection-matrix width height)
+
+          (render-draw-list 2d-line-list-pipeline 2d-line-list-draw-list scene
+                            device command-buffer model-matrix view-matrix projection-matrix width height)
+
+          (render-draw-list-cmds 2d-line-strip-pipeline 2d-line-strip-draw-list scene
+                                 device command-buffer model-matrix view-matrix projection-matrix width height)
+
+          (render-draw-list 2d-triangle-list-pipeline 2d-triangle-list-draw-list scene
+                            device command-buffer model-matrix view-matrix projection-matrix width height)
+
+
+          (render-draw-list msdf-text-pipeline 2d-triangle-list-draw-list-for-text scene
+                            device command-buffer model-matrix view-matrix projection-matrix width height)
+
+          (render-draw-list-cmds 2d-triangle-strip-pipeline 2d-triangle-strip-draw-list scene
+                                 device command-buffer model-matrix view-matrix projection-matrix width height)
+          )
 
         (values)))))
 
@@ -107,7 +171,7 @@
 
 (defun scene-draw-2d-point (scene color x y)
   (declare (type krma-essential-scene-mixin scene))
-  (let ((draw-data (rm-draw-data scene)))
+  (let ((draw-data (im-draw-data scene)))
     (%draw-list-add-2d-point (draw-data-2d-point-list-draw-list draw-data) color x y)))
 
 (defun scene-add-3d-point (scene color x y z)
@@ -117,7 +181,7 @@
 
 (defun scene-draw-3d-point (scene color x y z)
   (declare (type krma-essential-scene-mixin scene))
-  (let ((draw-data (rm-draw-data scene)))
+  (let ((draw-data (im-draw-data scene)))
     (%draw-list-add-3d-point (draw-data-3d-point-list-draw-list draw-data) color x y z)))
 
 (defun scene-add-2d-line (scene color x0 y0 x1 y1)
@@ -125,22 +189,32 @@
   (rm-dispatch-to-render-thread (scene draw-data handle)
     (%draw-data-add-2d-line draw-data handle color x0 y0 x1 y1)))
 
+(defun scene-draw-2d-line (scene color x0 y0 x1 y1)
+  (declare (type krma-essential-scene-mixin scene))
+  (let ((draw-data (im-draw-data scene)))
+    (%draw-list-add-2d-line (draw-data-2d-line-list-draw-list draw-data) color x0 y0 x1 y1)))
+
 (defun scene-add-3d-line (scene color x0 y0 z0 x1 y1 z1)
   (declare (type krma-essential-scene-mixin scene))
   (rm-dispatch-to-render-thread (scene draw-data handle)
     (%draw-data-add-3d-line draw-data handle color x0 y0 z0 x1 y1 z1)))
+
+(defun scene-draw-3d-line (scene color x0 y0 z0 x1 y1 z1)
+  (declare (type krma-essential-scene-mixin scene))
+  (let ((draw-data (im-draw-data scene)))
+    (%draw-list-add-3d-line (draw-data-3d-line-list-draw-list draw-data) color x0 y0 z0 x1 y1 z1)))
 
 (defun scene-add-multicolor-2d-polyline-1 (scene closed? model-mtx line-thickness vertices)
   (declare (type krma-essential-scene-mixin scene))
   (rm-dispatch-to-render-thread (scene draw-data handle)
     (%draw-data-add-multicolor-2d-polyline-cmd-1 draw-data handle closed? model-mtx line-thickness vertices)))
 
-(defun scene-draw-multicolor-2d-polyline-1 (scene closed? vertices)
+(defun scene-draw-multicolor-2d-polyline-1 (scene closed? line-thickness vertices)
   (declare (type krma-essential-scene-mixin scene))
-  (let ((draw-data (rm-draw-data scene)))
+  (let ((draw-data (im-draw-data scene)))
     (declare (type standard-draw-data draw-data))
-    (%draw-list-add-multicolor-2d-polyline-1
-     (draw-data-3d-line-list-draw-list draw-data) closed? vertices)))
+    (%draw-list-add-multicolor-2d-polyline-cmd-1
+     (draw-data-2d-line-strip-draw-list draw-data) closed? *identity-matrix* line-thickness vertices)))
 
 (defun scene-add-2d-polyline-1 (scene closed? model-mtx line-thickness color vertices)
   (declare (type krma-essential-scene-mixin scene))
@@ -154,10 +228,10 @@
 
 (defun scene-draw-2d-triangle (scene color x0 y0 x1 y1 x2 y2)
   (declare (type krma-essential-scene-mixin scene))
-  (let ((draw-data (rm-draw-data scene)))
+  (let ((draw-data (im-draw-data scene)))
     (declare (type standard-draw-data draw-data))
-    (%draw-list-add-2d-triangle
-     (draw-data-3d-line-list-draw-list draw-data) color x0 y0 x1 y1 x2 y2)))
+    (%draw-list-add-2d-line-list
+     (draw-data-2d-line-list-draw-list draw-data) color (list x0 y0 x1 y1 x1 y1 x2 y2 x2 y2 x0 y0))))
 
 (defun scene-add-2d-rectangle (scene model-mtx line-thickness color x0 y0 x1 y1)
   (declare (type krma-essential-scene-mixin scene))
@@ -166,10 +240,10 @@
 
 (defun scene-draw-2d-rectangle (scene color x0 y0 x1 y1)
   (declare (type krma-essential-scene-mixin scene))
-  (let ((draw-data (rm-draw-data scene)))
+  (let ((draw-data (im-draw-data scene)))
     (declare (type standard-draw-data draw-data))
-    (%draw-list-add-2d-rectangle
-     (draw-data-3d-line-list-draw-list draw-data) color x0 y0 x1 y1)))
+    (%draw-list-add-2d-line-list
+     (draw-data-2d-line-list-draw-list draw-data) color (list x0 y0 x0 y1 x0 y1 x1 y1 x1 y1 x1 y0 x1 y0 x0 y0))))
 
 (defun scene-add-2d-circular-arc (scene closed? model-mtx line-thickness color
                                   center-x center-y radius start-angle end-angle
@@ -180,6 +254,14 @@
                                         center-x center-y radius start-angle end-angle
                                         number-of-segments)))
 
+(defun scene-draw-2d-circular-arc (scene closed? color center-x center-y radius start-angle end-angle
+                                   &optional (number-of-segments 64))
+  (declare (type krma-essential-scene-mixin scene))
+  (%draw-list-add-2d-circular-arc (draw-data-2d-line-list-draw-list (im-draw-data scene))
+                                  closed? color
+                                  center-x center-y radius start-angle end-angle
+                                  number-of-segments))
+
 (defun scene-add-2d-circle (scene model-mtx line-thickness color
                             center-x center-y radius
                             &optional (number-of-segments 64))
@@ -189,10 +271,38 @@
                                   center-x center-y radius
                                   number-of-segments)))
 
+(defun scene-draw-2d-circle (scene color center-x center-y radius
+                             &optional (number-of-segments 64))
+  (declare (type krma-essential-scene-mixin scene))
+  (%draw-list-add-2d-circle (draw-data-2d-line-list-draw-list (im-draw-data scene))
+                            color
+                            center-x center-y radius
+                            number-of-segments))
+
+(defun scene-add-filled-2d-circle (scene model-mtx color
+                                   center-x center-y radius
+                                   &optional (number-of-segments 64))
+  (declare (type krma-essential-scene-mixin scene))
+  (scene-add-filled-2d-polygon scene model-mtx color
+                               (loop for i from 0 to number-of-segments
+                                     with theta = 0.0d0
+                                     with step = (/ 2pi number-of-segments)
+                                     nconc (let* ((coord-x (+ center-x (* radius (cos theta))))
+                                                  (coord-y (+ center-y (* radius (sin theta)))))
+                                             (prog1 (list coord-x coord-y)
+                                               (incf theta step))))))
+
 (defun scene-add-multicolor-3d-polyline-1 (scene closed? model-mtx line-thickness vertices)
   (declare (type krma-essential-scene-mixin scene))
   (rm-dispatch-to-render-thread (scene draw-data handle)
     (%draw-data-add-multicolor-3d-polyline-cmd-1 draw-data handle closed? model-mtx line-thickness vertices)))
+
+(defun scene-draw-multicolor-3d-polyline-1 (scene closed? line-thickness vertices)
+  (declare (type krma-essential-scene-mixin scene))
+  (let ((draw-data (im-draw-data scene)))
+    (declare (type standard-draw-data draw-data))
+    (%draw-list-add-multicolor-3d-polyline-cmd-1
+     (draw-data-3d-line-strip-draw-list draw-data) closed? *identity-matrix* line-thickness vertices)))
 
 (defun scene-add-3d-polyline-1 (scene closed? model-mtx line-thickness color vertices)
   (declare (type krma-essential-scene-mixin scene))

@@ -46,9 +46,9 @@
           3d-triangle-list-with-normal-pipeline (make-instance '3d-triangle-list-with-normal-pipeline
                                                                :app app
                                                                :name :3d-triangle-list-with-normal-pipeline)
-          ;;3d-triangle-strip-pipeline (make-instance '3d-triangle-strip-pipeline
-            ;;                                        :app app
-              ;;                                      :name :3d-triangle-strip-pipeline)
+          3d-triangle-strip-pipeline (make-instance '3d-triangle-strip-pipeline
+                                                    :app app
+                                                    :name :3d-triangle-strip-pipeline)
           2d-point-list-pipeline (make-instance '2d-point-list-pipeline
                                                 :app app
                                                 :name :2d-point-list-pipeline)
@@ -64,9 +64,9 @@
           msdf-text-pipeline (make-instance 'msdf-text-pipeline
                                             :app app
                                             :name :msdf-text-pipeline)
-          ;;2d-triangle-strip-pipeline (make-instance '2d-triangle-strip-pipeline
-            ;;                                        :app app
-          ;;                                      :name :2d-triangle-strip-pipeline)
+          2d-triangle-strip-pipeline (make-instance '2d-triangle-strip-pipeline
+                                                    :app app
+                                                    :name :2d-triangle-strip-pipeline)
           )
 
     (values)))
@@ -77,7 +77,34 @@
    (exit? :initform nil :accessor application-exit?)
    (current-frame-cons :initform (list 0) :accessor current-frame-cons)
    (current-draw-data-cons :initform (list 0) :accessor current-draw-data-cons)
-   (retained-mode-handle-count-cons :initform (list -1) :accessor retained-mode-handle-count-cons)))
+   (retained-mode-handle-count-cons :initform (list -1) :accessor retained-mode-handle-count-cons)
+   (immediate-mode-work-function-1 :initform nil :accessor immediate-mode-work-function-1)
+   (backtrace :initform nil :accessor application-backtrace)
+   (error-msg :initform nil :accessor application-error-msg)))
+
+(defun backtrace-string ()
+  (with-output-to-string (*debug-io*)
+    (sb-debug:print-backtrace)))
+
+(defun record-backtrace (app)
+  (setf (application-backtrace app) (backtrace-string)))
+
+(defun record-error-msg (app c)
+  (let ((*print-escape* nil))
+    (setf (application-error-msg app)
+          (format nil "~W" c))))
+
+(defmacro maybe-defer-debug ((app) &body body)
+  (let ((app-sym (gensym)))
+    `(let ((,app-sym ,app))
+       (restart-bind ((ignore (lambda (&optional c)
+                                (declare (ignorable c))
+                                (throw :ignore nil))))
+         (catch :ignore
+           (handler-bind ((error (lambda (c)
+                                   (record-error-msg ,app-sym c)
+                                   (record-backtrace ,app-sym))))
+             ,@body))))))
 
 (defmethod initialize-instance :after ((instance krma-application-mixin) &rest initargs)
   (declare (ignore initargs))
@@ -99,51 +126,55 @@
 
 
 (defun add-2d-point (x y &key (color *default-color*))
-  (scene-add-2d-point (application-scene vk:*app*) color x y))
+  (scene-add-2d-point (application-scene *app*) color x y))
+
+(defun draw-2d-point (x y &key (color *default-color*))
+  (scene-draw-2d-point (application-scene *app*) color x y))
 
 (defun add-3d-point (x y z &key (color *default-color*))
-  (scene-add-3d-point (application-scene vk:*app*) color x y z))
+  (scene-add-3d-point (application-scene *app*) color x y z))
 
 (defun draw-3d-point (x y z &key (color *default-color*))
-  (scene-add-3d-point (application-scene vk:*app*) color x y z))
+  (scene-add-3d-point (application-scene *app*) color x y z))
 
 (defun add-2d-line (x0 y0 x1 y1 &key (color *default-color*))
-  (scene-add-2d-line (application-scene vk:*app*) color x0 y0 x1 y1))
+  (scene-add-2d-line (application-scene *app*) color x0 y0 x1 y1))
 
 (defun add-3d-line (x0 y0 z0 x1 y1 z1 &key (color *default-color*))
-  (scene-add-3d-line (application-scene vk:*app*) color x0 y0 z0 x1 y1 z1))
+  (scene-add-3d-line (application-scene *app*) color x0 y0 z0 x1 y1 z1))
 
 (defun add-multicolor-2d-polyline (vertices &key (closed? nil)
                                               (matrix *identity-matrix*)
                                               (line-thickness *default-line-thickness*))
-  (scene-add-multicolor-2d-polyline-1 (application-scene vk:*app*) closed? matrix line-thickness vertices))
+  (scene-add-multicolor-2d-polyline-1 (application-scene *app*) closed? matrix line-thickness vertices))
 
-(defun draw-multicolor-2d-polyline (vertices &key (closed? nil))
-  (scene-draw-multicolor-2d-polyline-1 (application-scene vk:*app*) closed? vertices))
+(defun draw-multicolor-2d-polyline (vertices &key (closed? nil)
+                                             (line-thickness *default-line-thickness*))
+  (scene-draw-multicolor-2d-polyline-1 (application-scene *app*) closed? line-thickness vertices))
 
 (defun add-2d-polyline (vertices &key (closed? nil)
                                    (color *default-color*)
                                    (matrix *identity-matrix*)
                                    (line-thickness *default-line-thickness*))
-  (scene-add-2d-polyline-1 (application-scene vk:*app*) closed? matrix line-thickness color vertices))
+  (scene-add-2d-polyline-1 (application-scene *app*) closed? matrix line-thickness color vertices))
 
 (defun add-2d-triangle (x0 y0 x1 y1 x2 y2 &key
                                             (color *default-color*)
                                             (matrix *identity-matrix*)
                                             (line-thickness *default-line-thickness*))
-  (scene-add-2d-triangle (application-scene vk:*app*) matrix line-thickness color x0 y0 x1 y1 x2 y2))
+  (scene-add-2d-triangle (application-scene *app*) matrix line-thickness color x0 y0 x1 y1 x2 y2))
 
 (defun draw-2d-triangle (x0 y0 x1 y1 x2 y2 &key (color *default-color*))
-  (scene-draw-2d-triangle (application-scene vk:*app*) color x0 y0 x1 y1 x2 y2))
+  (scene-draw-2d-triangle (application-scene *app*) color x0 y0 x1 y1 x2 y2))
 
 (defun add-2d-rectangle (x0 y0 x1 y1
                          &key (color *default-color*)
                            (matrix *identity-matrix*)
                            (line-thickness *default-line-thickness*))
-  (scene-add-2d-rectangle (application-scene vk:*app*) matrix line-thickness color x0 y0 x1 y1))
+  (scene-add-2d-rectangle (application-scene *app*) matrix line-thickness color x0 y0 x1 y1))
 
 (defun draw-2d-rectangle (x0 y0 x1 y1 &key (color *default-color*))
-  (scene-draw-2d-rectangle (application-scene vk:*app*) color x0 y0 x1 y1))
+  (scene-draw-2d-rectangle (application-scene *app*) color x0 y0 x1 y1))
 
 (defun add-2d-circular-arc (center-x center-y radius start-angle end-angle
                             &key (closed? nil)
@@ -151,7 +182,7 @@
                               (matrix *identity-matrix*)
                               (line-thickness *default-line-thickness*)
                               (number-of-segments *default-number-of-segments*))
-  (scene-add-2d-circular-arc (application-scene vk:*app*) closed? matrix line-thickness color
+  (scene-add-2d-circular-arc (application-scene *app*) closed? matrix line-thickness color
                              center-x center-y radius start-angle end-angle number-of-segments))
 
 (defun add-2d-circle (center-x center-y radius
@@ -159,28 +190,35 @@
                         (matrix *identity-matrix*)
                         (line-thickness *default-line-thickness*)
                         (number-of-segments *default-number-of-segments*))
-  (scene-add-2d-circle (application-scene vk:*app*)
+  (scene-add-2d-circle (application-scene *app*)
                        matrix line-thickness color
                        center-x center-y radius number-of-segments))
+
+(defun add-filled-2d-circle (center-x center-y radius
+                             &key (color *default-color*)
+                               (matrix *identity-matrix*)
+                               (number-of-segments *default-number-of-segments*))
+  (scene-add-filled-2d-circle (application-scene *app*)
+                              matrix color center-x center-y radius number-of-segments))
 
 (defun add-multicolor-3d-polyline (vertices &key (closed? nil)
                                               (matrix *identity-matrix*)
                                               (line-thickness *default-line-thickness*))
-  (scene-add-multicolor-3d-polyline-1 (application-scene vk:*app*) closed? matrix line-thickness vertices))
+  (scene-add-multicolor-3d-polyline-1 (application-scene *app*) closed? matrix line-thickness vertices))
 
 (defun add-3d-polyline (vertices &key (color *default-color*)
                                    (closed? nil)
                                    (matrix *identity-matrix*)
                                    (line-thickness *default-line-thickness*))
-  (scene-add-3d-polyline-1 (application-scene vk:*app*) closed? matrix line-thickness color vertices))
+  (scene-add-3d-polyline-1 (application-scene *app*) closed? matrix line-thickness color vertices))
 
 (defun add-filled-2d-triangle-list (vertices &key (color *default-color*)
                                                (matrix *identity-matrix*))
-  (scene-add-filled-2d-triangle-list (application-scene vk:*app*) matrix color vertices))
+  (scene-add-filled-2d-triangle-list (application-scene *app*) matrix color vertices))
 
 (defun add-filled-2d-rectangle-list (vertices &key (color *default-color*)
                                                 (matrix *identity-matrix*))
-  (scene-add-filled-2d-rectangle-list (application-scene vk:*app*) matrix color vertices))
+  (scene-add-filled-2d-rectangle-list (application-scene *app*) matrix color vertices))
 
 (defun add-textured-2d-rectangle-list (vertices &key (color *default-color*)
                                                   (matrix *identity-matrix*)
@@ -190,39 +228,39 @@
 (defun add-filled-2d-polygon (vertices &key
                                          (color *default-color*)
                                          (matrix *identity-matrix*))
-  (scene-add-filled-2d-polygon (application-scene vk:*app*) matrix color vertices))
+  (scene-add-filled-2d-polygon (application-scene *app*) matrix color vertices))
 
 (defun add-filled-3d-triangle-list (vertices &key
                                                (color *default-color*)
                                                (matrix *identity-matrix*))
-  (scene-add-filled-3d-triangle-list (application-scene vk:*app*) matrix color vertices))
+  (scene-add-filled-3d-triangle-list (application-scene *app*) matrix color vertices))
 
 (defun add-filled-3d-triangle-strip (vertices &key
                                                (color *default-color*)
                                                (matrix *identity-matrix*))
-  (scene-add-filled-3d-triangle-strip (application-scene vk:*app*) matrix color vertices))
+  (scene-add-filled-3d-triangle-strip (application-scene *app*) matrix color vertices))
 
 (defun add-filled-3d-triangle-list-with-normals (vertices &key
                                                             (color *default-color*)
                                                             (matrix *identity-matrix*))
-  (scene-add-filled-3d-triangle-list-with-normals (application-scene vk:*app*) matrix color vertices))
+  (scene-add-filled-3d-triangle-list-with-normals (application-scene *app*) matrix color vertices))
 
 (defun add-filled-3d-triangle-strip-with-normals (vertices &key
                                                              (color *default-color*)
                                                              (matrix *identity-matrix*))
-  (scene-add-filled-3d-triangle-strip-with-normals (application-scene vk:*app*) matrix color vertices))
+  (scene-add-filled-3d-triangle-strip-with-normals (application-scene *app*) matrix color vertices))
 
 (defun add-textured-3d-triangle-list (vertices &key
                                                  (color *default-color*)
                                                  (matrix *identity-matrix*)
                                                  (texture *white-texture*))
-  (scene-add-textured-3d-triangle-list (application-scene vk:*app*) matrix texture color vertices))
+  (scene-add-textured-3d-triangle-list (application-scene *app*) matrix texture color vertices))
 
 (defun add-textured-3d-triangle-strip (vertices &key
                                                  (color *default-color*)
                                                  (matrix *identity-matrix*)
                                                  (texture *white-texture*))
-  (scene-add-textured-3d-triangle-strip (application-scene vk:*app*) matrix texture color vertices))
+  (scene-add-textured-3d-triangle-strip (application-scene *app*) matrix texture color vertices))
 
 (defun add-filled-sphere (origin-x origin-y origin-z radius &key (color *default-color*)
                                    (matrix *identity-matrix*)
@@ -240,6 +278,46 @@
                                       (font *font*)
                                       (matrix *identity-matrix*))
   (scene-add-text (application-scene *app*) font color pos-x pos-y string matrix))
+
+(defun erase-immediate-mode-draw-data (app)
+  (let* ((scene (application-scene app))
+         (draw-data (im-draw-data scene)))
+    (with-slots (3d-point-list-draw-list
+                 3d-line-list-draw-list
+                 3d-line-strip-draw-list
+                 3d-triangle-list-draw-list
+                 3d-triangle-list-with-normal-draw-list
+                 3d-triangle-strip-draw-list
+                 2d-point-list-draw-list
+                 2d-line-list-draw-list
+                 2d-line-strip-draw-list
+                 2d-triangle-list-draw-list
+                 2d-triangle-list-draw-list-for-text
+                 2d-triangle-strip-draw-list)
+        draw-data
+
+      (flet ((erase-draw-list (draw-list)
+               (setf (foreign-array-fill-pointer (draw-list-index-array draw-list)) 0)
+               (setf (foreign-array-fill-pointer (draw-list-vertex-array draw-list)) 0)))
+
+        (mapcar #'erase-draw-list
+                (list 3d-point-list-draw-list
+                      3d-line-list-draw-list
+                      3d-line-strip-draw-list
+                      3d-triangle-list-draw-list
+                      3d-triangle-list-with-normal-draw-list
+                      3d-triangle-strip-draw-list
+                      2d-point-list-draw-list
+                      2d-line-list-draw-list
+                      2d-line-strip-draw-list
+                      2d-triangle-list-draw-list
+                      2d-triangle-list-draw-list-for-text
+                      2d-triangle-strip-draw-list))))))
+
+(defun call-immediate-mode-work-functions (app)
+  (maybe-defer-debug (app)
+    (let ((f (immediate-mode-work-function-1 app)))
+      (when f (funcall f)))))
 
 (defmethod main ((app krma-test-application))
   (let* ((device (default-logical-device app))
@@ -309,12 +387,15 @@
                         (command-buffer (frame-command-buffer frame-resource0))
                         (draw-data (aref (rm-draw-data scene) current-draw-data)))
 
+                   (erase-immediate-mode-draw-data app)
                    (setq work-queue (draw-data-work-queue draw-data))
 
-                   (loop with work = nil
-                         while (setq work (sb-concurrency:dequeue work-queue))
-                         do (funcall work))
+                   (maybe-defer-debug (app)
+                     (loop with work = nil
+                           while (setq work (sb-concurrency:dequeue work-queue))
+                           do (funcall work)))
 
+                   (call-immediate-mode-work-functions app)
 
                    (setq image-index
                          (frame-begin swapchain (render-pass swapchain)
@@ -323,8 +404,9 @@
 
                    ;; render here.
                    (multiple-value-bind (width height) (get-framebuffer-size main-window)
-                     (render-scene app command-buffer draw-data width height))
-
+                     (render-scene scene app command-buffer
+                                   draw-data (im-draw-data (application-scene app))
+                                   width height))
 
                    (frame-end swapchain queue current-frame)
 

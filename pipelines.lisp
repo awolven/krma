@@ -75,6 +75,9 @@
 (defmethod pipeline-point-size ((pipeline pipeline-mixin))
   5.0f0)
 
+(defmethod pipeline-default-font ((pipeline pipeline-mixin))
+  nil)
+
 (defmethod create-device-objects ((pipeline pipeline-mixin) &key app)
   (create-standard-pipeline-device-objects pipeline :app app))
 
@@ -134,27 +137,12 @@
 
 
 
-#+NIL
-(defclass standard-frame-resource (frame-specific-mixin)
-  ;; there is one frame-resource object per frame per pipeline
-  (;; index-buffers and vertex-buffers may appear again in the same array or in other pipelines
-   ;; (but must be for the same frame-index)
-   ;; consider edges to faces which use the same vertex-buffer, but different index-buffer
-   (3d-point-list-draw-list :initform (make-instance '3d-vertex-small-draw-list))
-   (3d-line-list-draw-list :initform (make-instance '3d-vertex-small-draw-list))
-   (3d-line-strip-draw-list :initform (make-instance '3d-vertex-small-draw-list))
-   (3d-triangle-list-draw-list :initform (make-instance '3d-vertex-small-draw-list))
-   (3d-triangle-strip-draw-list :initform (make-instance '3d-vertex-small-draw-list))
-   (2d-point-list-draw-list :initform (make-instance '2d-vertex-small-draw-list))
-   (2d-line-list-draw-list :initform (make-instance '2d-vertex-small-draw-list))
-   (2d-line-strip-draw-list :initform (make-instance '2d-vertex-small-draw-list))
-   (2d-triangle-list-draw-list :initform (make-instance '2d-vertex-small-draw-list))
-   (2d-triangle-strip-draw-list :initform (make-instance '2d-vertex-small-draw-list))
-   (frame-work-queue :initform (sb-concurrency:make-queue) :reader frame-work-queue)))
 
+#+NIL
 (defmethod frame-resource-type ((scene standard-scene))
   'standard-frame-resource)
 
+#+NIL
 (defmethod get-frame-resource ((scene standard-scene) frame-index frame-count)
   (with-slots (frame-resources) scene
     (if frame-resources
@@ -902,6 +890,9 @@
 (defclass msdf-text-pipeline (2d-triangle-list-pipeline-mixin)
   ())
 
+(defmethod pipeline-default-font ((pipeline msdf-text-pipeline))
+  *font*)
+
 (defmethod fragment-shader-pathname ((pipeline msdf-text-pipeline))
   (asdf/system:system-relative-pathname :krma "msdf-texture.frag.spv"))
 
@@ -941,29 +932,226 @@
 
 ;;------
 
-(defun render-standard-draw-indexed-cmd (cmd command-buffer pipeline-layout index-buffer index-array
-                                         &optional (default-line-width *default-line-thickness*)
-                                           (default-point-size *default-point-size*))
-  ;; so we have such a thing as a "standard-draw-indexed-cmd".
-  ;; this standard cmd is used any type of primitive: points, line-lists, line-strips, triangle-lists, triangle-strips
-  ;; because we may use the same cmd object for different primitives/pipelines/pipelines
-  ;; for example, we may want to render something which is essentially a triangle list as a line list
-  ;; to show edges, or another example would be to show endpoints to lines
-  ;; so the standard-draw-indexed-cmd carries line-thickness and point-size regardless of if it is a triangle primitive
-  ;; the standard-2d and standard-3d vertex shader will pass them through or use them per primitive type
-  ;; standard-draw-indexed-cmd also has a slot for texture
 
-  ;; vertex buffers have been bound by the time we reach this function
-  ;; so has pipeline and descriptor sets
-  (let ((command-buffer-handle (h command-buffer)))
 
-    (let ((line-width (cmd-line-thickness cmd))
-          (color-override (cmd-color-override cmd))
-          (model-mtx (cmd-model-mtx cmd))
-          (point-size (cmd-point-size cmd))
-          (texture (cmd-texture cmd)))
 
-      (let ((descriptor-set (texture-image-descriptor-set texture)))
+(defmethod render-draw-list-cmds ((pipeline draw-indexed-pipeline-mixin)
+                                  draw-list scene device command-buffer
+                                  model-matrix view-matrix projection-matrix
+                                  width height)
+  (unless (zerop (foreign-array-fill-pointer (draw-list-index-array draw-list)))
+    (initialize-buffers device draw-list)
+    (let ((cmd-vector (draw-list-cmd-vector draw-list)))
+      (unless (zerop (fill-pointer cmd-vector))
+        (let* ((pipeline-layout (pipeline-layout pipeline))
+               (index-buffer (draw-list-index-buffer draw-list))
+               (index-array (draw-list-index-array draw-list))
+               (pipeline-line-width (pipeline-line-width pipeline))
+               (pipeline-point-size (pipeline-point-size pipeline))
+               (command-buffer-handle (h command-buffer))
+               (draw-list-color-override (draw-list-color-override draw-list))
+               (draw-list-line-width (draw-list-line-thickness draw-list))
+               (draw-list-point-size (draw-list-point-size draw-list))
+               (draw-list-model-matrix (draw-list-model-mtx draw-list))
+               (mm))
+
+          (cmd-bind-pipeline command-buffer (device-pipeline pipeline) :bind-point :graphics)
+          (update-uniform-buffer-2 pipeline (m* projection-matrix view-matrix))
+          (cmd-set-viewport command-buffer :width width :height height :min-depth 0.0 :max-depth 1.0)
+          (cmd-set-scissor command-buffer :width width :height height)
+
+          (cmd-bind-descriptor-sets command-buffer pipeline-layout (list (global-descriptor-set pipeline)))
+
+          (with-foreign-objects ((p-descriptor-sets :pointer 1))
+            (setf (mem-aref p-descriptor-sets :pointer 0) (h (global-descriptor-set pipeline)))
+            (vkCmdBindDescriptorSets (h command-buffer)
+                                     VK_PIPELINE_BIND_POINT_GRAPHICS
+                                     (h pipeline-layout)
+                                     0 1
+                                     p-descriptor-sets
+                                     0 +nullptr+))
+
+          (with-foreign-objects ((p-descriptor-sets :pointer 1))
+            (setf (mem-aref p-descriptor-sets :pointer 0) (h (scene-descriptor-set pipeline)))
+            (vkCmdBindDescriptorSets (h command-buffer)
+                                     VK_PIPELINE_BIND_POINT_GRAPHICS
+                                     (h pipeline-layout)
+                                     1 1
+                                     p-descriptor-sets
+                                     0 +nullptr+))
+
+          (cmd-bind-vertex-buffers command-buffer (list (draw-list-vertex-buffer draw-list)))
+          (cmd-bind-index-buffer command-buffer index-buffer 0 (foreign-array-foreign-type index-array))
+
+          (flet ((render-standard-draw-indexed-cmd (cmd)
+                   ;; so we have such a thing as a "standard-draw-indexed-cmd".
+                   ;; this standard cmd is used any type of primitive: points, line-lists, line-strips, triangle-lists, triangle-strips
+                   ;; because we may use the same cmd object for different primitives/pipelines/pipelines
+                   ;; for example, we may want to render something which is essentially a triangle list as a line list
+                   ;; to show edges, or another example would be to show endpoints to lines
+                   ;; so the standard-draw-indexed-cmd carries line-thickness and point-size regardless of if it is a triangle primitive
+                   ;; the standard-2d and standard-3d vertex shader will pass them through or use them per primitive type
+                   ;; standard-draw-indexed-cmd also has a slot for texture
+
+                   ;; vertex buffers have been bound by the time we reach this function
+                   ;; so has pipeline and descriptor sets
+                   (let ((cmd-line-width (cmd-line-thickness cmd))
+                         (cmd-color-override (cmd-color-override cmd))
+                         (cmd-model-matrix (cmd-model-mtx cmd))
+                         (cmd-point-size (cmd-point-size cmd)))
+
+                     (let ((descriptor-set (texture-image-descriptor-set (or (cmd-texture cmd)
+                                                                             (draw-list-texture draw-list)
+                                                                             (and (pipeline-default-font pipeline)
+                                                                                  (font-atlas (pipeline-default-font pipeline)))
+                                                                             *white-texture*))))
+                       (with-foreign-objects ((p-descriptor-sets :pointer 1))
+                         (setf (mem-aref p-descriptor-sets :pointer 0) (h descriptor-set))
+                         (vkCmdBindDescriptorSets (h command-buffer)
+                                                  VK_PIPELINE_BIND_POINT_GRAPHICS
+                                                  (h pipeline-layout)
+                                                  2 1
+                                                  p-descriptor-sets
+                                                  0 +nullptr+)))
+
+                     #-darwin
+                     (if cmd-line-width
+                         (vkCmdSetLineWidth command-buffer-handle (clampf cmd-line-width))
+                         (if draw-list-line-width
+                             (vkCmdSetLineWidth command-buffer-handle (clampf draw-list-line-width))
+                             (if pipeline-line-width
+                                 (vkCmdSetLineWidth command-buffer-handle (clampf pipeline-line-width))
+                                 (vkCmdSetLineWidth command-buffer-handle (clampf *default-line-thickness*)))))
+
+                     (with-foreign-object (pvalues :uint32 23)
+                       ;; push constant is model-matrix followed by color, followed by point size
+                       ;; followed by bool if to use color-override
+                       ;; this is so every command can set the model-matrix
+                       ;; and override the color of the vertices
+                       (if cmd-model-matrix
+                           (if draw-list-model-matrix
+                               (setq mm (m* cmd-model-matrix draw-list-model-matrix model-matrix))
+                               (setq mm (m* cmd-model-matrix model-matrix)))
+                           (if draw-list-model-matrix
+                               (setq mm (m* draw-list-model-matrix model-matrix))
+                               (setq mm model-matrix)))
+
+                       (copy-matrix-to-foreign mm pvalues)
+
+                       (let ((pcol (mem-aptr pvalues :uint32 16)))
+                         (if cmd-color-override
+                             (setf (mem-aref pcol :uint32 0) cmd-color-override)
+                             (when draw-list-color-override
+                               (setf (mem-aref pcol :uint32 0) draw-list-color-override))))
+
+                       (let ((psize (mem-aptr pvalues :uint32 17)))
+                         (if cmd-point-size
+                             (setf (mem-aref psize :float) (clampf cmd-point-size))
+                             (if draw-list-point-size
+                                 (setf (mem-aref psize :float) (clampf draw-list-point-size))
+                                 (if pipeline-point-size
+                                     (setf (mem-aref psize :float) (clampf pipeline-point-size))
+                                     (setf (mem-aref psize :float) (clampf *default-point-size*))))))
+
+                       (setf (mem-aref pvalues :uint32 17) (if (or draw-list-color-override cmd-color-override) 1 0))
+
+                       (let ((plp (mem-aptr pvalues :uint32 20))
+                             (light-pos (cmd-light-position cmd)))
+                         (if light-pos
+                             (setf (mem-aref plp :float 0) (clampf (vx light-pos))
+                                   (mem-aref plp :float 1) (clampf (vy light-pos))
+                                   (mem-aref plp :float 2) (clampf (vz light-pos)))
+                             (let ((scene-light-position (scene-light-position scene)))
+                               (if scene-light-position
+                                   (setf (mem-aref plp :float 0) (clampf (vx scene-light-position))
+                                         (mem-aref plp :float 1) (clampf (vy scene-light-position))
+                                         (mem-aref plp :float 2) (clampf (vz scene-light-position)))
+                                   (setf (mem-aref plp :float 0) 10000.0f0
+                                         (mem-aref plp :float 1) 10000.0f0
+                                         (mem-aref plp :float 2) 10000.0f0)))))
+
+                       (vkCmdPushConstants command-buffer-handle
+                                           (h pipeline-layout)
+                                           VK_SHADER_STAGE_VERTEX_BIT
+                                           0
+                                           (load-time-value (* 23 (foreign-type-size :uint32)))
+                                           pvalues))
+
+                     (when (typep cmd 'text-draw-indexed-cmd)
+                       (with-foreign-object (pvalues :float 5)
+                         (let ((px-range (font-px-range (cmd-font cmd))))
+                           (if px-range
+                               (setf (mem-aref pvalues :float 0) (clampf px-range))
+                               (setf (mem-aref pvalues :float 0) 32.0f0))
+                           (setf (mem-aref pvalues :float 1) 0.0f0
+                                 (mem-aref pvalues :float 2) 0.0f0
+                                 (mem-aref pvalues :float 3) 0.0f0
+                                 (mem-aref pvalues :float 4) 1.0f0))
+
+                         (vkCmdPushConstants command-buffer-handle
+                                             (h pipeline-layout)
+                                             VK_SHADER_STAGE_FRAGMENT_BIT
+                                             (load-time-value (* 23 (foreign-type-size :uint32)))
+                                             (load-time-value (* 5 (foreign-type-size :float)))
+                                             pvalues)))
+
+                     (vkCmdDrawIndexed command-buffer-handle (cmd-elem-count cmd) 1 (cmd-first-idx cmd) (cmd-vtx-offset cmd) 0))))
+
+            (loop for cmd across cmd-vector
+                  when cmd
+                    do (render-standard-draw-indexed-cmd cmd))
+            t))))))
+
+(defmethod render-draw-list ((pipeline draw-indexed-pipeline-mixin)
+                             draw-list scene device command-buffer
+                             model-matrix view-matrix projection-matrix
+                             width height)
+  (unless (zerop (foreign-array-fill-pointer (draw-list-index-array draw-list)))
+    (initialize-buffers device draw-list)
+    (let* ((pipeline-layout (pipeline-layout pipeline))
+           (index-buffer (draw-list-index-buffer draw-list))
+           (index-array (draw-list-index-array draw-list))
+           (pipeline-line-width (pipeline-line-width pipeline))
+           (pipeline-point-size (pipeline-point-size pipeline))
+           (command-buffer-handle (h command-buffer))
+           (draw-list-color-override (draw-list-color-override draw-list))
+           (draw-list-line-width (draw-list-line-thickness draw-list))
+           (draw-list-point-size (draw-list-point-size draw-list))
+           (draw-list-model-matrix (draw-list-model-mtx draw-list))
+           (mm))
+
+      (cmd-bind-pipeline command-buffer (device-pipeline pipeline) :bind-point :graphics)
+      (update-uniform-buffer-2 pipeline (m* projection-matrix view-matrix))
+      (cmd-set-viewport command-buffer :width width :height height :min-depth 0.0 :max-depth 1.0)
+      (cmd-set-scissor command-buffer :width width :height height)
+
+      (cmd-bind-descriptor-sets command-buffer pipeline-layout (list (global-descriptor-set pipeline)))
+
+      (with-foreign-objects ((p-descriptor-sets :pointer 1))
+        (setf (mem-aref p-descriptor-sets :pointer 0) (h (global-descriptor-set pipeline)))
+        (vkCmdBindDescriptorSets (h command-buffer)
+                                 VK_PIPELINE_BIND_POINT_GRAPHICS
+                                 (h pipeline-layout)
+                                 0 1
+                                 p-descriptor-sets
+                                 0 +nullptr+))
+
+      (with-foreign-objects ((p-descriptor-sets :pointer 1))
+        (setf (mem-aref p-descriptor-sets :pointer 0) (h (scene-descriptor-set pipeline)))
+        (vkCmdBindDescriptorSets (h command-buffer)
+                                 VK_PIPELINE_BIND_POINT_GRAPHICS
+                                 (h pipeline-layout)
+                                 1 1
+                                 p-descriptor-sets
+                                 0 +nullptr+))
+
+      (cmd-bind-vertex-buffers command-buffer (list (draw-list-vertex-buffer draw-list)))
+      (cmd-bind-index-buffer command-buffer index-buffer 0 (foreign-array-foreign-type index-array))
+
+      (let ((descriptor-set (texture-image-descriptor-set (or (draw-list-texture draw-list)
+                                                              (if (pipeline-default-font pipeline)
+                                                                  (font-atlas (pipeline-default-font pipeline))
+                                                                  *white-texture*)))))
         (with-foreign-objects ((p-descriptor-sets :pointer 1))
           (setf (mem-aref p-descriptor-sets :pointer 0) (h descriptor-set))
           (vkCmdBindDescriptorSets (h command-buffer)
@@ -973,44 +1161,46 @@
                                    p-descriptor-sets
                                    0 +nullptr+)))
 
-      (cmd-bind-index-buffer command-buffer index-buffer 0 (foreign-array-foreign-type index-array))
-
       #-darwin
-      (if line-width
-          (vkCmdSetLineWidth command-buffer-handle (clampf line-width))
-          (vkCmdSetLineWidth command-buffer-handle (clampf default-line-width)))
+      (if draw-list-line-width
+          (vkCmdSetLineWidth command-buffer-handle (clampf draw-list-line-width))
+          (if pipeline-line-width
+              (vkCmdSetLineWidth command-buffer-handle (clampf pipeline-line-width))
+              (vkCmdSetLineWidth command-buffer-handle (clampf *default-line-thickness*))))
 
       (with-foreign-object (pvalues :uint32 23)
         ;; push constant is model-matrix followed by color, followed by point size
         ;; followed by bool if to use color-override
         ;; this is so every command can set the model-matrix
         ;; and override the color of the vertices
-        (if model-mtx
-            (copy-matrix-to-foreign model-mtx pvalues)
-            (copy-matrix-to-foreign *identity-matrix* pvalues))
+        (if draw-list-model-matrix
+            (setq mm (m* draw-list-model-matrix model-matrix))
+            (setq mm model-matrix))
 
-        (if color-override
-            (let ((pcol (mem-aptr pvalues :uint32 16)))
-              (setf (mem-aref pcol :uint32 0) color-override))
-            (let ((pcol (mem-aptr pvalues :uint32 16)))
-              (setf (mem-aref pcol :uint32 0) #xff0000ff)))
+        (copy-matrix-to-foreign mm pvalues)
+
+        (let ((pcol (mem-aptr pvalues :uint32 16)))
+          (when draw-list-color-override
+            (setf (mem-aref pcol :uint32 0) draw-list-color-override)))
 
         (let ((psize (mem-aptr pvalues :uint32 17)))
-          (if point-size
-              (setf (mem-aref psize :float) (clampf point-size))
-              (setf (mem-aref psize :float) (clampf default-point-size))))
+          (if draw-list-point-size
+              (setf (mem-aref psize :float) (clampf draw-list-point-size))
+              (if pipeline-point-size
+                  (setf (mem-aref psize :float) (clampf pipeline-point-size))
+                  (setf (mem-aref psize :float) (clampf *default-point-size*)))))
 
-        (setf (mem-aref pvalues :uint32 18) (if color-override 1 0))
+        (setf (mem-aref pvalues :uint32 17) (if draw-list-color-override 1 0))
 
-        (let ((plp (mem-aptr pvalues :uint32 20))
-              (light-pos (cmd-light-position cmd)))
-          (if light-pos
-              (setf (mem-aref plp :float 0) (clampf (vx light-pos))
-                    (mem-aref plp :float 1) (clampf (vy light-pos))
-                    (mem-aref plp :float 2) (clampf (vz light-pos)))
-              (setf (mem-aref plp :float 0) 10000.0f0
-                    (mem-aref plp :float 1) 10000.0f0
-                    (mem-aref plp :float 2) 10000.0f0)))
+        (let ((plp (mem-aptr pvalues :uint32 20)))
+          (let ((scene-light-position (scene-light-position scene)))
+            (if scene-light-position
+                (setf (mem-aref plp :float 0) (clampf (vx scene-light-position))
+                      (mem-aref plp :float 1) (clampf (vy scene-light-position))
+                      (mem-aref plp :float 2) (clampf (vz scene-light-position)))
+                (setf (mem-aref plp :float 0) 10000.0f0
+                      (mem-aref plp :float 1) 10000.0f0
+                      (mem-aref plp :float 2) 10000.0f0))))
 
         (vkCmdPushConstants command-buffer-handle
                             (h pipeline-layout)
@@ -1019,9 +1209,9 @@
                             (load-time-value (* 23 (foreign-type-size :uint32)))
                             pvalues))
 
-      (when (typep cmd 'text-draw-indexed-cmd)
+      (when (typep pipeline 'msdf-text-pipeline)
         (with-foreign-object (pvalues :float 5)
-          (let ((px-range (font-px-range (cmd-font cmd))))
+          (let ((px-range (font-px-range (pipeline-default-font pipeline))))
             (if px-range
                 (setf (mem-aref pvalues :float 0) (clampf px-range))
                 (setf (mem-aref pvalues :float 0) 32.0f0))
@@ -1037,83 +1227,30 @@
                               (load-time-value (* 5 (foreign-type-size :float)))
                               pvalues)))
 
-      (vkCmdDrawIndexed command-buffer-handle (cmd-elem-count cmd) 1 (cmd-first-idx cmd) (cmd-vtx-offset cmd) 0))))
 
+      (break)
+      (vkCmdDrawIndexed command-buffer-handle
+                        (foreign-array-fill-pointer index-array)
+                        1 0 0 0))))
 
-(defun render-draw-indexed-buffers (pipeline
-                                    draw-list
-                                    command-buffer
-                                    model-matrix view-matrix projection-matrix
-                                    width height)
-  (let ((cmd-vector (draw-list-cmd-vector draw-list)))
-    (unless (zerop (fill-pointer cmd-vector))
-      (let* ((pipeline-layout (pipeline-layout pipeline))
-             (index-buffer (draw-list-index-buffer draw-list))
-             (index-array (draw-list-index-array draw-list))
-             (line-width (pipeline-line-width pipeline))
-             (point-size (pipeline-point-size pipeline)))
-        (cmd-bind-pipeline command-buffer (device-pipeline pipeline) :bind-point :graphics)
-        (update-uniform-buffer-2 pipeline (m* projection-matrix view-matrix model-matrix))
-        (cmd-set-viewport command-buffer :width width :height height :min-depth 0.0 :max-depth 1.0)
-        (cmd-set-scissor command-buffer :width width :height height)
-
-        (cmd-bind-descriptor-sets command-buffer pipeline-layout (list (global-descriptor-set pipeline)))
-
-        (with-foreign-objects ((p-descriptor-sets :pointer 1))
-          (setf (mem-aref p-descriptor-sets :pointer 0) (h (global-descriptor-set pipeline)))
-          (vkCmdBindDescriptorSets (h command-buffer)
-                                   VK_PIPELINE_BIND_POINT_GRAPHICS
-                                   (h pipeline-layout)
-                                   0 1
-                                   p-descriptor-sets
-                                   0 +nullptr+))
-
-        (with-foreign-objects ((p-descriptor-sets :pointer 1))
-          (setf (mem-aref p-descriptor-sets :pointer 0) (h (scene-descriptor-set pipeline)))
-          (vkCmdBindDescriptorSets (h command-buffer)
-                                   VK_PIPELINE_BIND_POINT_GRAPHICS
-                                   (h pipeline-layout)
-                                   1 1
-                                   p-descriptor-sets
-                                   0 +nullptr+))
-
-        (cmd-bind-vertex-buffers command-buffer (list (draw-list-vertex-buffer draw-list)))
-        (loop for cmd across cmd-vector
-              when cmd
-                do (render-standard-draw-indexed-cmd cmd command-buffer pipeline-layout
-                                                     index-buffer index-array
-                                                     line-width point-size)))
-      t)))
-
-(defmethod render ((pipeline draw-indexed-pipeline-mixin) draw-list device command-buffer
-                   model-matrix view-matrix projection-matrix
-                   width height)
-  (unless (zerop (foreign-array-fill-pointer (draw-list-index-array draw-list)))
-    (initialize-buffers device draw-list)
-    (render-draw-indexed-buffers pipeline draw-list command-buffer
-                                 model-matrix view-matrix projection-matrix
-                                 width height))
-  (values))
-
-(defmethod render ((pipeline point-list-pipeline-mixin)
-                   draw-list device command-buffer
-                   model-matrix view-matrix projection-matrix
-                   width height)
+(defmethod render-draw-list ((pipeline point-list-pipeline-mixin)
+                             draw-list scene device command-buffer
+                             model-matrix view-matrix projection-matrix
+                             width height)
+  (declare (ignore scene))
 
   (let ((index-array (draw-list-index-array draw-list)))
-
     (unless (zerop (foreign-array-fill-pointer index-array))
-
       (initialize-buffers device draw-list)
-
       (let* ((pipeline-layout (pipeline-layout pipeline))
              (index-buffer (draw-list-index-buffer draw-list))
-             (point-size (pipeline-point-size pipeline))
-             (command-buffer-handle (h command-buffer)))
+             (pipeline-point-size (pipeline-point-size pipeline))
+             (command-buffer-handle (h command-buffer))
+             (draw-list-point-size (draw-list-point-size draw-list)))
 
         (cmd-bind-pipeline command-buffer (device-pipeline pipeline) :bind-point :graphics)
 
-        (update-uniform-buffer-2 pipeline (m* projection-matrix view-matrix model-matrix))
+        (update-uniform-buffer-2 pipeline (m* projection-matrix view-matrix))
 
         (cmd-set-viewport command-buffer :width width :height height :min-depth 0.0 :max-depth 1.0)
 
@@ -1142,7 +1279,11 @@
         (cmd-bind-index-buffer command-buffer index-buffer 0 (foreign-array-foreign-type index-array))
 
         (with-foreign-object (pvalues :float 1)
-          (setf (mem-aref pvalues :float) (clampf point-size))
+          (if draw-list-point-size
+              (setf (mem-aref pvalues :float) (clampf draw-list-point-size))
+              (if pipeline-point-size
+                  (setf (mem-aref pvalues :float) (clampf pipeline-point-size))
+                  (setf (mem-aref pvalues :float) (clampf *default-point-size*))))
 
           (vkCmdPushConstants command-buffer-handle
                               (h pipeline-layout)
@@ -1153,145 +1294,186 @@
 
         (vkCmdDrawIndexed command-buffer-handle
                           (foreign-array-fill-pointer index-array)
-                          1 0 0 0))))
-  (values))
+                          1 0 0 0))
+      t)))
 
-(defmethod render ((pipeline line-list-pipeline-mixin)
-                   draw-list device command-buffer
-                   model-matrix view-matrix projection-matrix
-                   width height)
+(defmethod render-draw-list-cmds ((pipeline line-strip-pipeline-mixin)
+                                  draw-list scene device command-buffer
+                                  model-matrix view-matrix projection-matrix
+                                  width height)
+  (declare (ignore scene))
 
   (let ((index-array (draw-list-index-array draw-list)))
-
     (unless (zerop (foreign-array-fill-pointer index-array))
-
       (initialize-buffers device draw-list)
+      (let ((cmd-vector (draw-list-cmd-vector draw-list)))
+        (unless (zerop (fill-pointer cmd-vector))
+          (let* ((pipeline-layout (pipeline-layout pipeline))
+                 (index-buffer (draw-list-index-buffer draw-list))
+                 (pipeline-line-width (pipeline-line-width pipeline)))
 
-      (let* ((pipeline-layout (pipeline-layout pipeline))
-             (index-buffer (draw-list-index-buffer draw-list))
-             (line-width (pipeline-line-width pipeline))
-             (command-buffer-handle (h command-buffer)))
+            (cmd-bind-pipeline command-buffer (device-pipeline pipeline) :bind-point :graphics)
 
-        (cmd-bind-pipeline command-buffer (device-pipeline pipeline) :bind-point :graphics)
+            (update-uniform-buffer-2 pipeline (m* projection-matrix view-matrix))
 
-        (update-uniform-buffer-2 pipeline (m* projection-matrix view-matrix model-matrix))
+            (cmd-set-viewport command-buffer :width width :height height :min-depth 0.0 :max-depth 1.0)
 
-        (cmd-set-viewport command-buffer :width width :height height :min-depth 0.0 :max-depth 1.0)
+            (cmd-set-scissor command-buffer :width width :height height)
 
-        (cmd-set-scissor command-buffer :width width :height height)
+            (with-foreign-objects ((p-descriptor-sets :pointer 1))
+              (setf (mem-aref p-descriptor-sets :pointer 0) (h (global-descriptor-set pipeline)))
+              (vkCmdBindDescriptorSets (h command-buffer)
+                                       VK_PIPELINE_BIND_POINT_GRAPHICS
+                                       (h pipeline-layout)
+                                       0 1
+                                       p-descriptor-sets
+                                       0 +nullptr+))
 
-        (with-foreign-objects ((p-descriptor-sets :pointer 1))
-          (setf (mem-aref p-descriptor-sets :pointer 0) (h (global-descriptor-set pipeline)))
-          (vkCmdBindDescriptorSets command-buffer-handle
-                                   VK_PIPELINE_BIND_POINT_GRAPHICS
-                                   (h pipeline-layout)
-                                   0 1
-                                   p-descriptor-sets
-                                   0 +nullptr+))
+            (with-foreign-objects ((p-descriptor-sets :pointer 1))
+              (setf (mem-aref p-descriptor-sets :pointer 0) (h (scene-descriptor-set pipeline)))
+              (vkCmdBindDescriptorSets (h command-buffer)
+                                       VK_PIPELINE_BIND_POINT_GRAPHICS
+                                       (h pipeline-layout)
+                                       1 1
+                                       p-descriptor-sets
+                                       0 +nullptr+))
 
-        (with-foreign-objects ((p-descriptor-sets :pointer 1))
-          (setf (mem-aref p-descriptor-sets :pointer 0) (h (scene-descriptor-set pipeline)))
-          (vkCmdBindDescriptorSets command-buffer-handle
-                                   VK_PIPELINE_BIND_POINT_GRAPHICS
-                                   (h pipeline-layout)
-                                   1 1
-                                   p-descriptor-sets
-                                   0 +nullptr+))
+            (cmd-bind-vertex-buffers command-buffer (list (draw-list-vertex-buffer draw-list)))
 
-        (cmd-bind-vertex-buffers command-buffer (list (draw-list-vertex-buffer draw-list)))
+            (let ((draw-list-line-width (draw-list-line-thickness draw-list))
+                  (draw-list-color-override (draw-list-color-override draw-list))
+                  (draw-list-model-matrix (draw-list-model-mtx draw-list)))
 
-        (cmd-bind-index-buffer command-buffer index-buffer 0 (foreign-array-foreign-type index-array))
+              (loop for cmd across cmd-vector
+                    when cmd
+                      do (let ((command-buffer-handle (h command-buffer)))
 
-        #-darwin
-        (if line-width
-            (vkCmdSetLineWidth command-buffer-handle (clampf line-width))
-            (vkCmdSetLineWidth command-buffer-handle (clampf *default-line-thickness*)))
+                           (let ((cmd-line-width (cmd-line-thickness cmd))
+                                 (cmd-color-override (cmd-color-override cmd))
+                                 (cmd-model-matrix (cmd-model-mtx cmd))
+                                 (mm))
 
-        (vkCmdDrawIndexed command-buffer-handle
-                          (foreign-array-fill-pointer index-array)
-                          1 0 0 0))))
-  (values))
+                             (cmd-bind-index-buffer command-buffer index-buffer 0 (foreign-array-foreign-type index-array))
 
-(defmethod render ((pipeline line-strip-pipeline-mixin)
-                   draw-list device command-buffer
-                   model-matrix view-matrix projection-matrix
-                   width height)
+                             #-darwin
+                             (if cmd-line-width
+                                 (vkCmdSetLineWidth command-buffer-handle (clampf cmd-line-width))
+                                 (if draw-list-line-width
+                                     (vkCmdSetLineWidth command-buffer-handle (clampf draw-list-line-width))
+                                     (if pipeline-line-width
+                                         (vkCmdSetLineWidth command-buffer-handle (clampf pipeline-line-width))
+                                         (vkCmdSetLineWidth command-buffer-handle (clampf *default-line-thickness*)))))
+
+                             (with-foreign-object (pvalues :uint32 18)
+                               ;; push constant is model-matrix followed by color, followed by point size
+                               ;; followed by bool if to use color-override
+                               ;; this is so every command can set the model-matrix
+                               ;; and override the color of the vertices
+                               (if cmd-model-matrix
+                                   (if draw-list-model-matrix
+                                       (setq mm (m* cmd-model-matrix draw-list-model-matrix model-matrix))
+                                       (setq mm (m* cmd-model-matrix model-matrix)))
+                                   (setq mm model-matrix))
+
+                               (copy-matrix-to-foreign mm pvalues)
+
+                               (let ((pcol (mem-aptr pvalues :uint32 16)))
+                                 (if cmd-color-override
+                                     (setf (mem-aref pcol :uint32 0) cmd-color-override)
+                                     (when draw-list-color-override
+                                       (setf (mem-aref pcol :uint32 0) draw-list-color-override))))
+
+                               (setf (mem-aref pvalues :uint32 17) (if (or draw-list-color-override cmd-color-override) 1 0))
+
+                               (vkCmdPushConstants command-buffer-handle
+                                                   (h pipeline-layout)
+                                                   VK_SHADER_STAGE_VERTEX_BIT
+                                                   0
+                                                   (load-time-value (* 18 (foreign-type-size :uint32)))
+                                                   pvalues))
+
+                             (vkCmdDrawIndexed command-buffer-handle (cmd-elem-count cmd) 1 (cmd-first-idx cmd) (cmd-vtx-offset cmd) 0))))))
+          t)))))
+
+(defmethod render-draw-list ((pipeline line-pipeline-mixin)
+                             draw-list scene device command-buffer
+                             model-matrix view-matrix projection-matrix
+                             width height)
+  (declare (ignore scene))
 
   (unless (zerop (foreign-array-fill-pointer (draw-list-index-array draw-list)))
     (initialize-buffers device draw-list)
-    (let ((cmd-vector (draw-list-cmd-vector draw-list)))
-      (unless (zerop (fill-pointer cmd-vector))
-        (let* ((pipeline-layout (pipeline-layout pipeline))
-               (index-buffer (draw-list-index-buffer draw-list))
-               (index-array (draw-list-index-array draw-list))
-               (pipeline-line-width (pipeline-line-width pipeline)))
+    (let* ((pipeline-layout (pipeline-layout pipeline))
+           (index-buffer (draw-list-index-buffer draw-list))
+           (index-array (draw-list-index-array draw-list)))
 
-          (cmd-bind-pipeline command-buffer (device-pipeline pipeline) :bind-point :graphics)
+      (cmd-bind-pipeline command-buffer (device-pipeline pipeline) :bind-point :graphics)
 
-          (update-uniform-buffer-2 pipeline (m* projection-matrix view-matrix model-matrix))
+      (update-uniform-buffer-2 pipeline (m* projection-matrix view-matrix))
 
-          (cmd-set-viewport command-buffer :width width :height height :min-depth 0.0 :max-depth 1.0)
+      (cmd-set-viewport command-buffer :width width :height height :min-depth 0.0 :max-depth 1.0)
 
-          (cmd-set-scissor command-buffer :width width :height height)
+      (cmd-set-scissor command-buffer :width width :height height)
 
-          (with-foreign-objects ((p-descriptor-sets :pointer 1))
-            (setf (mem-aref p-descriptor-sets :pointer 0) (h (global-descriptor-set pipeline)))
-            (vkCmdBindDescriptorSets (h command-buffer)
-                                     VK_PIPELINE_BIND_POINT_GRAPHICS
-                                     (h pipeline-layout)
-                                     0 1
-                                     p-descriptor-sets
-                                     0 +nullptr+))
+      (with-foreign-objects ((p-descriptor-sets :pointer 1))
+        (setf (mem-aref p-descriptor-sets :pointer 0) (h (global-descriptor-set pipeline)))
+        (vkCmdBindDescriptorSets (h command-buffer)
+                                 VK_PIPELINE_BIND_POINT_GRAPHICS
+                                 (h pipeline-layout)
+                                 0 1
+                                 p-descriptor-sets
+                                 0 +nullptr+))
 
-          (with-foreign-objects ((p-descriptor-sets :pointer 1))
-            (setf (mem-aref p-descriptor-sets :pointer 0) (h (scene-descriptor-set pipeline)))
-            (vkCmdBindDescriptorSets (h command-buffer)
-                                     VK_PIPELINE_BIND_POINT_GRAPHICS
-                                     (h pipeline-layout)
-                                     1 1
-                                     p-descriptor-sets
-                                     0 +nullptr+))
+      (with-foreign-objects ((p-descriptor-sets :pointer 1))
+        (setf (mem-aref p-descriptor-sets :pointer 0) (h (scene-descriptor-set pipeline)))
+        (vkCmdBindDescriptorSets (h command-buffer)
+                                 VK_PIPELINE_BIND_POINT_GRAPHICS
+                                 (h pipeline-layout)
+                                 1 1
+                                 p-descriptor-sets
+                                 0 +nullptr+))
 
-          (cmd-bind-vertex-buffers command-buffer (list (draw-list-vertex-buffer draw-list)))
+      (cmd-bind-vertex-buffers command-buffer (list (draw-list-vertex-buffer draw-list)))
 
-          (loop for cmd across cmd-vector
-                when cmd
-                  do (let ((command-buffer-handle (h command-buffer)))
+      (let ((command-buffer-handle (h command-buffer)))
 
-                       (let ((line-width (cmd-line-thickness cmd))
-                             (color-override (cmd-color-override cmd))
-                             (model-mtx (cmd-model-mtx cmd)))
+        (let ((draw-list-line-width (draw-list-line-thickness draw-list))
+              (draw-list-color-override (draw-list-color-override draw-list))
+              (draw-list-model-matrix (draw-list-model-mtx draw-list)))
 
-                         (cmd-bind-index-buffer command-buffer index-buffer 0 (foreign-array-foreign-type index-array))
+          (cmd-bind-index-buffer command-buffer index-buffer 0 (foreign-array-foreign-type index-array))
 
-                         #-darwin
-                         (if line-width
-                             (vkCmdSetLineWidth command-buffer-handle (clampf line-width))
-                             (vkCmdSetLineWidth command-buffer-handle (clampf pipeline-line-width)))
+          #-darwin
+          (if draw-list-line-width
+              (vkCmdSetLineWidth command-buffer-handle (clampf draw-list-line-width))
+              (let ((pipeline-line-width (pipeline-line-width pipeline)))
+                (if pipeline-line-width
+                    (vkCmdSetLineWidth command-buffer-handle (clampf pipeline-line-width))
+                    (vkCmdSetLineWidth command-buffer-handle (clampf *default-line-thickness*)))))
 
-                         (with-foreign-object (pvalues :uint32 18)
-                           ;; push constant is model-matrix followed by color, followed by point size
-                           ;; followed by bool if to use color-override
-                           ;; this is so every command can set the model-matrix
-                           ;; and override the color of the vertices
-                           (if model-mtx
-                               (copy-matrix-to-foreign model-mtx pvalues)
-                               (copy-matrix-to-foreign *identity-matrix* pvalues))
+          (with-foreign-object (pvalues :uint32 18)
+            ;; push constant is model-matrix followed by color, followed by point size
+            ;; followed by bool if to use color-override
+            ;; this is so every command can set the model-matrix
+            ;; and override the color of the vertices
+            (if draw-list-model-matrix
+                (copy-matrix-to-foreign (m* draw-list-model-matrix model-matrix) pvalues)
+                (copy-matrix-to-foreign model-matrix pvalues))
 
-                           (if color-override
-                               (let ((pcol (mem-aptr pvalues :uint32 16)))
-                                 (setf (mem-aref pcol :uint32 0) color-override))
-                               (let ((pcol (mem-aptr pvalues :uint32 16)))
-                                 (setf (mem-aref pcol :uint32 0) #xff0000ff)))
+            (let ((pcol (mem-aptr pvalues :uint32 16)))
+              (when draw-list-color-override
+                (setf (mem-aref pcol :uint32 0) draw-list-color-override)))
 
-                           (setf (mem-aref pvalues :uint32 17) (if color-override 1 0))
+            (setf (mem-aref pvalues :uint32 17) (if draw-list-color-override 1 0))
 
-                           (vkCmdPushConstants command-buffer-handle
-                                               (h pipeline-layout)
-                                               VK_SHADER_STAGE_VERTEX_BIT
-                                               0
-                                               (load-time-value (* 18 (foreign-type-size :uint32)))
-                                               pvalues))
+            (vkCmdPushConstants command-buffer-handle
+                                (h pipeline-layout)
+                                VK_SHADER_STAGE_VERTEX_BIT
+                                0
+                                (load-time-value (* 18 (foreign-type-size :uint32)))
+                                pvalues))
 
-                         (vkCmdDrawIndexed command-buffer-handle (cmd-elem-count cmd) 1 (cmd-first-idx cmd) (cmd-vtx-offset cmd) 0)))))
-        t))))
+          (vkCmdDrawIndexed command-buffer-handle
+                            (foreign-array-fill-pointer index-array)
+                            1 0 0 0)))
+      t)))

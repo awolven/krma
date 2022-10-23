@@ -20,6 +20,21 @@
     :initform nil)
    (vertex-buffer
     :accessor draw-list-vertex-buffer
+    :initform nil)
+   (texture
+    :accessor draw-list-texture
+    :initform nil)
+   (line-thickness
+    :accessor draw-list-line-thickness
+    :initform nil)
+   (point-size
+    :accessor draw-list-point-size
+    :initform nil)
+   (color-override
+    :accessor draw-list-color-override
+    :initform nil)
+   (model-mtx
+    :accessor draw-list-model-mtx
     :initform nil)))
 
 ;; we are using textured vertices for standard (non-textured) primitives
@@ -237,47 +252,6 @@
               (foreign-array-fill-pointer index-array) first-index)
         nil))))
 
-(defun %draw-list-add-multicolor-2d-polyline-1 (2d-draw-list closed? vertices)
-  (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
-  (declare (type boolean closed?))
-  (when (cddr vertices) ;; there must be at least one vertex to succeed
-    (let* ((index-array (draw-list-index-array 2d-draw-list))
-           (vertex-array (draw-list-vertex-array 2d-draw-list))
-           (vtx-offset (foreign-array-fill-pointer vertex-array))
-           (elem-count 0))
-      ;; not sure how the colors will come out vs the line_strip version
-      (loop for (x1 y1 color1) on (cdddr vertices) by #'cdddr  ;; hopefully this clause is the termination clause
-            for (x0 y0 color0) on vertices by #'cdddr
-            do (standard-2d-vertex-array-push-extend vertex-array x0 y0 color0)
-               (index-array-push-extend index-array (+ vtx-offset elem-count))
-               (standard-2d-vertex-array-push-extend vertex-array x1 y1 color1)
-               (index-array-push-extend index-array (+ vtx-offset (incf elem-count)))
-            finally (when closed? ;; take the last and link it to the first
-                      (index-array-push-extend index-array (+ vtx-offset elem-count))
-                      (index-array-push-extend index-array vtx-offset)))
-      (values))))
-
-;; this has to be done with a line_list instead to work without a cmd (suitable for immediate mode)
-(defun %draw-list-add-2d-polyline-1 (2d-draw-list closed? color vertices)
-  (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
-  (declare (type (unsigned-byte 32) color))
-  (declare (type boolean closed?))
-  (when (cdr vertices) ;; there must be at least one vertex to succeed
-    (let* ((index-array (draw-list-index-array 2d-draw-list))
-           (vertex-array (draw-list-vertex-array 2d-draw-list))
-           (vtx-offset (foreign-array-fill-pointer vertex-array))
-           (elem-count 0))
-      (loop for (x1 y1) on (cddr vertices) by #'cddr
-            for (x0 y0) on vertices by #'cddr
-            do (standard-2d-vertex-array-push-extend vertex-array x0 y0 color)
-               (index-array-push-extend index-array (+ vtx-offset elem-count))
-               (standard-2d-vertex-array-push-extend vertex-array x1 y1 color)
-               (index-array-push-extend index-array (+ vtx-offset (incf elem-count)))
-            finally (when closed?
-                      (index-array-push-extend index-array (+ vtx-offset elem-count))
-                      (index-array-push-extend index-array vtx-offset)))
-      (values))))
-
 ;; the argument `vertices' is a list of x y ... repeating
 ;; for single color polylines
 ;; draw-list should be used with a line-strip pipeline
@@ -314,7 +288,25 @@
               (foreign-array-fill-pointer index-array) first-index)
         nil))))
 
+(defun %draw-list-add-2d-line-list (2d-draw-list color vertices)
+  (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
+  (declare (type (unsigned-byte 32) color))
+  (declare (type list vertices))
+  (when (cdddr vertices)
+    (let* ((index-array (draw-list-index-array 2d-draw-list))
+           (vertex-array (draw-list-vertex-array 2d-draw-list))
+           (vtx-offset (foreign-array-fill-pointer vertex-array))
+           (elem-count 0))
+      (loop for (x0 y0 x1 y1) on vertices by #'cddddr
+            do (standard-2d-vertex-array-push-extend vertex-array x0 y0 color)
+               (index-array-push-extend index-array (+ vtx-offset elem-count))
+               (incf elem-count)
+               (standard-2d-vertex-array-push-extend vertex-array x1 y1 color)
+               (index-array-push-extend index-array (+ vtx-offset elem-count))
+               (incf elem-count)))))
+
 ;; for use with line strip pipeline
+#+NIL
 (defun %draw-list-add-2d-triangle-cmd (2d-draw-list model-mtx line-thickness color
                                        x0 y0 x1 y1 x2 y2
                                        &optional (cmd-constructor #'make-standard-draw-indexed-cmd))
@@ -324,6 +316,7 @@
                                     (list x0 y0 x1 y1 x2 y2) cmd-constructor))
 
 ;; for use with line_list pipeline, suitable for immediate mode
+#+NIL
 (defun %draw-list-add-2d-triangle (2d-draw-list color x0 y0 x1 y1 x2 y2)
   (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
   (declare (type (unsigned-byte 32) color))
@@ -331,6 +324,7 @@
   (%draw-list-add-2d-polyline-1 2d-draw-list t color (list x0 y0 x1 y1 x2 y2)))
 
 ;; for use with line strip pipeline
+#+NIL
 (defun %draw-list-add-2d-rectangle-cmd (2d-draw-list model-mtx line-thickness color
                                         x0 y0 x1 y1
                                         &optional (cmd-constructor #'make-standard-draw-indexed-cmd))
@@ -340,6 +334,7 @@
                                     (list x0 y0 x0 y1 x1 y1 x1 y0) cmd-constructor))
 
 ;; for use with line_list pipeline, suitable for immediate-mode
+#+NIL
 (defun %draw-list-add-2d-rectangle (2d-draw-list color x0 y0 x1 y1)
   (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
   (declare (type (unsigned-byte 32) color))
@@ -386,6 +381,36 @@
                    (foreign-array-fill-pointer index-array) first-index)
         nil))))
 
+(defun %draw-list-add-2d-circular-arc (2d-draw-list closed? color
+                                       center-x center-y radius start-angle end-angle
+                                       number-of-segments)
+  ;; uses line list instead of line strip to avoid need for cmds
+  (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
+  (declare (type (unsigned-byte 32) color))
+  (declare (type boolean closed?))
+  (declare (type real center-x center-y radius start-angle end-angle))
+  (declare (type (integer 0) number-of-segments))
+  (let* ((index-array (draw-list-index-array 2d-draw-list))
+         (vertex-array (draw-list-vertex-array 2d-draw-list))
+         (vtx-offset (foreign-array-fill-pointer vertex-array)))
+    (let* ((dtheta (- start-angle end-angle)))
+      (standard-2d-vertex-array-push-extend vertex-array
+                                            (+ center-x (* radius (cos start-angle)))
+                                            (+ center-y (* radius (sin start-angle)))
+                                            color)
+      (loop for i from vtx-offset
+            repeat number-of-segments
+            with theta = start-angle
+            with step = (/ dtheta number-of-segments)
+            do (let* ((coord-x (+ center-x (* radius (cos (+ theta step)))))
+                      (coord-y (+ center-y (* radius (sin (+ theta step))))))
+                 (index-array-push-extend index-array i)
+                 (standard-2d-vertex-array-push-extend vertex-array coord-x coord-y color)
+                 (index-array-push-extend index-array (1+ i))
+                 (incf theta step))
+            finally (when closed?
+                      (index-array-push-extend index-array vtx-offset))))))
+
 (defun %draw-list-add-2d-circle-cmd (2d-draw-list model-mtx line-thickness color
                                      center-x center-y radius number-of-segments
                                      &optional (cmd-constructor #'make-standard-draw-indexed-cmd))
@@ -420,6 +445,32 @@
         (setf (foreign-array-fill-pointer vertex-array) vtx-offset
               (foreign-array-fill-pointer index-array) first-index)
         nil))))
+
+(defun %draw-list-add-2d-circle (2d-draw-list color
+                                 center-x center-y radius
+                                 number-of-segments)
+  ;; uses line list instead of line strip to avoid need for cmds
+  (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
+  (declare (type (unsigned-byte 32) color))
+  (declare (type real center-x center-y radius))
+  (declare (type (integer 0) number-of-segments))
+  (let* ((index-array (draw-list-index-array 2d-draw-list))
+         (vertex-array (draw-list-vertex-array 2d-draw-list))
+         (vtx-offset (foreign-array-fill-pointer vertex-array)))
+    (standard-2d-vertex-array-push-extend vertex-array
+                                          (+ center-x (* radius #.(cos 0)))
+                                          (+ center-y (* radius #.(sin 0)))
+                                          color)
+    (loop for i from vtx-offset
+          repeat number-of-segments
+          with theta = 0
+          with step = (/ 2pi number-of-segments)
+          do (let* ((coord-x (+ center-x (* radius (cos (+ theta step)))))
+                    (coord-y (+ center-y (* radius (sin (+ theta step))))))
+               (index-array-push-extend index-array i)
+               (standard-2d-vertex-array-push-extend vertex-array coord-x coord-y color)
+               (index-array-push-extend index-array (1+ i))
+               (incf theta step)))))
 
 (defun %draw-list-add-multicolor-3d-polyline-cmd-1
     (3d-draw-list closed? model-mtx line-thickness vertices
@@ -552,7 +603,6 @@
         nil))))
 
 ;; used to implement add-text
-;; will render the whole list in one draw command
 (defun %draw-list-add-textured-2d-rectangle-list-cmd (2d-draw-list model-mtx texture color vertices
                                                       &optional (cmd-constructor #'make-standard-draw-indexed-cmd))
   (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
@@ -590,6 +640,28 @@
         (setf (foreign-array-fill-pointer vertex-array) vtx-offset
               (foreign-array-fill-pointer index-array) first-index)
         nil))))
+
+;; used to implement draw-text
+;; will render the whole list in one draw command
+(defun %draw-list-add-textured-2d-rectangle-list (2d-draw-list color vertices)
+  (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
+  ;; must be at least 2 vertices to succeed
+  (let* ((index-array (draw-list-index-array 2d-draw-list))
+         (vertex-array (draw-list-vertex-array 2d-draw-list)))
+    (loop for (x0 y0 u0 v0 x1 y1 u1 v1) on vertices by #'(lambda (list)
+                                                           (nthcdr 8 list))
+          for i from 0 by 4
+          do (textured-2d-vertex-array-push-extend vertex-array x0 y0 u0 v0 color)
+             (textured-2d-vertex-array-push-extend vertex-array x0 y1 u0 v1 color)
+             (textured-2d-vertex-array-push-extend vertex-array x1 y1 u1 v1 color)
+             (textured-2d-vertex-array-push-extend vertex-array x1 y0 u1 v0 color)
+             (index-array-push-extend index-array i)
+             (index-array-push-extend index-array (1+ i))
+             (index-array-push-extend index-array (+ 2 i))
+             (index-array-push-extend index-array i)
+             (index-array-push-extend index-array (+ 2 i))
+             (index-array-push-extend index-array (+ 3 i)))
+    (values)))
 
 (defun %draw-list-add-filled-2d-polygon-cmd (2d-draw-list model-mtx color vertices
                                              &optional (cmd-constructor #'make-standard-draw-indexed-cmd))

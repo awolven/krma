@@ -62,3 +62,36 @@
                                     500 1135 #x00ff00ff
                                     500 935 #x00ffffff))
   (y-or-n-p))
+
+(defun filled-circle-test-1 ()
+  (add-text "Do you see a filled blue circle?" 100 1200)
+  (add-filled-2d-circle 120 1270 20 :color #x0000ffff)
+  (y-or-n-p))
+
+
+(defun test2 ()
+  (and (2d-point-test-1)
+       (2d-line-test-1)
+       (3d-point-test-1)
+       (3d-line-test-1)
+       (multicolor-2d-polyline-test-1)
+       (multicolor-2d-polyline-test-2)
+       (filled-circle-test-1)))
+
+(defun test-im ()
+  (let ((scene (application-scene *app*)))
+    (setf (immediate-mode-work-function-1 *app*)
+          #'(lambda ()
+              (draw-2d-point 1000 1000 :color #xffff00ff)
+              (scene-draw-3d-point scene #x00ff00ff 900 900 -20)
+              (scene-draw-2d-line scene #x0000ffff 0 0 100 100)
+              (scene-draw-3d-line scene #xffff00ff 100 100 -100 200 200 -200)
+              (scene-draw-multicolor-2d-polyline-1 scene t 2.0f0
+                                                   (list 100 935 #xff0000ff
+                                                         100 1135 #xffff00ff
+                                                         500 1135 #x00ff00ff
+                                                         500 935 #x00ffffff))
+              (scene-draw-2d-triangle scene #xff0000ff 300 300 300 400 400 400)
+              (scene-draw-2d-rectangle scene #x00ff00ff 300 500 400 600)
+              (scene-draw-2d-circular-arc scene nil #x0000ffff 160 1270 20 0 pi)
+              (scene-draw-2d-circle scene #x00ffffff 210 1270 20)))))
