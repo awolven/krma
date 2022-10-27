@@ -34,7 +34,7 @@
     (setf 3d-point-list-pipeline (make-instance '3d-point-list-pipeline
                                                 :app app
                                                 :name :3d-point-list-pipeline)
-          3d-line-list-pipeline (make-instance '3d-line-list-pipeline
+	  3d-line-list-pipeline (make-instance '3d-line-list-pipeline
                                                :app app
                                                :name :3d-line-list-pipeline)
           3d-line-strip-pipeline (make-instance '3d-line-strip-pipeline
@@ -343,7 +343,8 @@
 
     ;; one time commands here.
     (unless (probe-file (asdf/system:system-relative-pathname :krma "acache.json"))
-      (sdf-bmfont:create-bmfont "C:/Windows/Fonts/Arial.ttf" "acache.json" :size 32 :mode :msdf+a :type :json :spread 8))
+      (sdf-bmfont:create-bmfont #+linux "/usr/share/fonts/liberation-mono/LiberationMono-Regular.ttf" #+windows "C:/Windows/Fonts/Arial.ttf" "acache.json" :size 32 :mode :msdf+a :type :json :spread 8))
+    #-linux
     (unless (probe-file (asdf/system:system-relative-pathname :krma "tcache.json"))
       (sdf-bmfont:create-bmfont "C:/Windows/Fonts/Times.ttf" "tcache.json" :size 32 :mode :msdf+a :type :json :spread 8))
 
@@ -351,7 +352,7 @@
     (setq *font*
           (vulkan-make-font device queue sampler texture-dsl descriptor-pool command-buffer
                             :cache-file "acache.json"))
-
+    #-linux
     (setq *font2*
           (vulkan-make-font device queue sampler texture-dsl descriptor-pool command-buffer
                             :cache-file "tcache.json"))

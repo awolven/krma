@@ -13,18 +13,13 @@ layout(push_constant) uniform pushConstant {
 layout(location = 0) in vec3 inPosition;
 layout(location = 1) in uint inColor;
 
-out gl_PerVertex {
-  vec4 gl_Position;
-  float gl_PointSize;
-};
-
 layout(location = 0) out vec4 outColor;
 
 uint color;
 
 void main () {
-  gl_Position = ub.mvp * vec4(inPosition.xyz, 1.0);
-  gl_PointSize = pc.pointSize;
+  gl_Position = ub.mvp * vec4(inPosition, 1.0);
+  gl_PointSize = 7.0;
   color = inColor;
   outColor = vec4((0x000000ff & (color >> 24))/255.0,
                   (0x000000ff & (color >> 16))/255.0,

@@ -593,12 +593,12 @@
     (values)))
 
 (defun create-standard-pipeline-device-objects (pipeline
-						                        &key
+						&key
                                                   app
-						                          (render-pass (render-pass pipeline))
+						  (render-pass (render-pass pipeline))
 
                                                   ;; set 0
-						                          (global-bindings ;; i.e. camera uniform buffer
+						  (global-bindings ;; i.e. camera uniform buffer
                                                    (make-global-descriptor-set-layout-bindings pipeline))
 
                                                   ;; set 1
@@ -609,29 +609,29 @@
                                                   (instance-bindings ;; i.e. texture image or model matrix
                                                    (make-per-instance-descriptor-set-layout-bindings pipeline))
 
-						                          (push-constant-ranges (make-push-constant-ranges pipeline))
-						                          (line-width (pipeline-line-width pipeline))
-						                          (vertex-type (pipeline-vertex-type pipeline))
-						                          (vertex-input-attribute-descriptions
-						                           (make-vertex-input-attribute-descriptions pipeline))
-						                          (topology (pipeline-topology pipeline))
-						                          (min-sample-shading (pipeline-min-sample-shading pipeline))
-						                          (depth-test-enable (pipeline-depth-test-enable? pipeline))
-						                          (depth-write-enable (pipeline-depth-write-enable? pipeline))
-						                          (depth-compare-op (pipeline-depth-compare-op pipeline))
-						                          (logic-op (pipeline-logic-op pipeline))
-						                          (blend-enable (pipeline-blend-enable? pipeline))
-						                          (depth-clamp-enable (pipeline-depth-clamp-enable? pipeline))
-						                          (src-alpha-blend-factor (pipeline-src-alpha-blend-factor pipeline))
-						                          (stippled-line-enable nil)
-						                          (additional-pipeline-creation-args nil)
-						                          (cull-mode (pipeline-cull-mode pipeline))
-						                          (front-face (pipeline-front-face-orientation pipeline)))
+						  (push-constant-ranges (make-push-constant-ranges pipeline))
+						  (line-width (pipeline-line-width pipeline))
+						  (vertex-type (pipeline-vertex-type pipeline))
+						  (vertex-input-attribute-descriptions
+						   (make-vertex-input-attribute-descriptions pipeline))
+						  (topology (pipeline-topology pipeline))
+						  (min-sample-shading (pipeline-min-sample-shading pipeline))
+						  (depth-test-enable (pipeline-depth-test-enable? pipeline))
+						  (depth-write-enable (pipeline-depth-write-enable? pipeline))
+						  (depth-compare-op (pipeline-depth-compare-op pipeline))
+						  (logic-op (pipeline-logic-op pipeline))
+						  (blend-enable (pipeline-blend-enable? pipeline))
+						  (depth-clamp-enable (pipeline-depth-clamp-enable? pipeline))
+						  (src-alpha-blend-factor (pipeline-src-alpha-blend-factor pipeline))
+						  (stippled-line-enable nil)
+						  (additional-pipeline-creation-args nil)
+						  (cull-mode (pipeline-cull-mode pipeline))
+						  (front-face (pipeline-front-face-orientation pipeline)))
   (let ((device (default-logical-device app)))
     (let ((vtx-shader (create-shader-module-from-file device (vertex-shader-pathname pipeline)))
-	      (frg-shader (create-shader-module-from-file device (fragment-shader-pathname pipeline))))
+	  (frg-shader (create-shader-module-from-file device (fragment-shader-pathname pipeline))))
 
-	  (setf (global-descriptor-set-layout pipeline)
+      (setf (global-descriptor-set-layout pipeline)
             (create-descriptor-set-layout device :bindings global-bindings))
 
       (setf (scene-descriptor-set-layout pipeline)
@@ -640,64 +640,64 @@
       (setf (per-instance-descriptor-set-layout pipeline)
             (create-descriptor-set-layout device :bindings instance-bindings))
 
-	  (setf (pipeline-layout pipeline)
-	        (create-pipeline-layout device (list (global-descriptor-set-layout pipeline)
+      (setf (pipeline-layout pipeline)
+	    (create-pipeline-layout device (list (global-descriptor-set-layout pipeline)
                                                  (scene-descriptor-set-layout pipeline)
                                                  (per-instance-descriptor-set-layout pipeline))
-				                    :push-constant-ranges push-constant-ranges)
-	        (device-pipeline pipeline)
-	        (apply #'create-graphics-pipeline device (pipeline-cache pipeline) (pipeline-layout pipeline)
-		           render-pass 3 vtx-shader frg-shader
-		           :cull-mode cull-mode
-		           :front-face front-face
-		           :line-width line-width
-		           :vertex-type vertex-type
-		           :vertex-input-attribute-descriptions vertex-input-attribute-descriptions
-		           :topology topology
-		           :min-sample-shading min-sample-shading
-		           :depth-test-enable (if depth-test-enable (if (eq depth-test-enable VK_FALSE)
-								                                VK_FALSE VK_TRUE)
-					                      VK_FALSE)
-		           :depth-write-enable (if depth-write-enable (if (eq depth-write-enable VK_FALSE)
-								                                  VK_FALSE VK_TRUE)
-					                       VK_FALSE)
-		           :depth-compare-op depth-compare-op
-		           :logic-op logic-op
-		           :blend-enable (if blend-enable (if (eq blend-enable VK_FALSE) VK_FALSE VK_TRUE) VK_FALSE)
-		           :depth-clamp-enable (if depth-clamp-enable (if (eq depth-clamp-enable VK_FALSE)
-								                                  VK_FALSE VK_TRUE)
-					                       VK_FALSE)
-		           :src-alpha-blend-factor src-alpha-blend-factor
-		           :stippled-line-enable (if stippled-line-enable
-					                         VK_TRUE VK_FALSE)
-		           :allocator (allocator pipeline)
-		           additional-pipeline-creation-args))
+				    :push-constant-ranges push-constant-ranges)
+	    (device-pipeline pipeline)
+	    (apply #'create-graphics-pipeline device (pipeline-cache pipeline) (pipeline-layout pipeline)
+		   render-pass nil vtx-shader frg-shader
+		   :cull-mode cull-mode
+		   :front-face front-face
+		   :line-width #-darwin line-width #+darwin 1.0f0
+		   :vertex-type vertex-type
+		   :vertex-input-attribute-descriptions vertex-input-attribute-descriptions
+		   :topology topology
+		   :min-sample-shading min-sample-shading
+		   :depth-test-enable (if depth-test-enable (if (eq depth-test-enable VK_FALSE)
+								VK_FALSE VK_TRUE)
+					  VK_FALSE)
+		   :depth-write-enable (if depth-write-enable (if (eq depth-write-enable VK_FALSE)
+								  VK_FALSE VK_TRUE)
+					   VK_FALSE)
+		   :depth-compare-op depth-compare-op
+		   :logic-op logic-op
+		   :blend-enable (if blend-enable (if (eq blend-enable VK_FALSE) VK_FALSE VK_TRUE) VK_FALSE)
+		   :depth-clamp-enable (if depth-clamp-enable (if (eq depth-clamp-enable VK_FALSE)
+								  VK_FALSE VK_TRUE)
+					   VK_FALSE)
+		   :src-alpha-blend-factor src-alpha-blend-factor
+		   :stippled-line-enable (if stippled-line-enable
+					     VK_TRUE VK_FALSE)
+		   :allocator (allocator pipeline)
+		   additional-pipeline-creation-args))
 
 
-	  (destroy-shader-module vtx-shader)
-	  (destroy-shader-module frg-shader)
+      (destroy-shader-module vtx-shader)
+      (destroy-shader-module frg-shader)
 
-	  (setf (uniform-buffer pipeline)
-	        (create-uniform-buffer device (foreign-type-size (uniform-buffer-type pipeline))))
+      (setf (uniform-buffer pipeline)
+	    (create-uniform-buffer device (foreign-type-size (uniform-buffer-type pipeline))))
 
-	  (setf (uniform-buffer-stage pipeline)
-	        (foreign-alloc (uniform-buffer-type pipeline)))
+      (setf (uniform-buffer-stage pipeline)
+	    (foreign-alloc (uniform-buffer-type pipeline)))
 
       (setf (global-descriptor-set pipeline)
-	        (create-descriptor-set
-	         device
-	         (list (global-descriptor-set-layout pipeline))
-	         (descriptor-pool pipeline)
-	         :descriptor-buffer-info (make-global-descriptor-buffer-info pipeline)))
+	    (create-descriptor-set
+	     device
+	     (list (global-descriptor-set-layout pipeline))
+	     (descriptor-pool pipeline)
+	     :descriptor-buffer-info (make-global-descriptor-buffer-info pipeline)))
 
       (setf (scene-descriptor-set pipeline)
-	        (create-descriptor-set
-	         device
-	         (list (scene-descriptor-set-layout pipeline))
-	         (descriptor-pool pipeline)
-	         :descriptor-buffer-info (make-scene-descriptor-buffer-info pipeline)))
+	    (create-descriptor-set
+	     device
+	     (list (scene-descriptor-set-layout pipeline))
+	     (descriptor-pool pipeline)
+	     :descriptor-buffer-info (make-scene-descriptor-buffer-info pipeline)))
 
-	  pipeline)))
+      pipeline)))
 
 (defmethod pipeline-vertex-type ((pipeline 2d-texture-pipeline-mixin))
   '(:struct textured-2d-vertex))
@@ -784,23 +784,6 @@
 
 (defmethod vertex-shader-pathname ((pipeline 3d-point-list-pipeline))
   (asdf/system:system-relative-pathname :krma "standard-3d-point.vert.spv"))
-
-(progn
-(defmethod pipeline-depth-test-enable? ((pipeline 3d-point-list-pipeline))
-  nil)
-
-(defmethod pipeline-depth-write-enable? ((pipeline 3d-point-list-pipeline))
-  nil)
-
-(defmethod pipeline-depth-compare-op ((pipeline 3d-point-list-pipeline))
-  VK_COMPARE_OP_NEVER)
-
-(defmethod pipeline-logic-op ((pipeline 3d-point-list-pipeline))
-  VK_LOGIC_OP_CLEAR)
-
-(defmethod pipeline-cull-mode ((pipeline 3d-point-list-pipeline))
-  VK_CULL_MODE_NONE)
-)
 
 (defclass line-pipeline-mixin () ())
 
