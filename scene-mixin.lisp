@@ -65,21 +65,6 @@
 
 (defmethod render-scene ((scene krma-essential-scene-mixin)
 			 app command-buffer rm-draw-data im-draw-data)
-  #|
-  3d-point-list-pipeline ;; tested with failure
-  3d-line-list-pipeline  ;; tested
-  3d-line-strip-pipeline
-  3d-triangle-list-pipeline
-  3d-triangle-list-with-normal-pipeline ;; tested
-  3d-triangle-strip-with-normal-pipeline ;; doesn't exist yet
-  3d-triangle-strip-pipeline
-  2d-point-list-pipeline    ;; tested with intermittent failure
-  2d-line-list-pipeline     ;; tested
-  2d-line-strip-pipeline    ;; tested
-  2d-triangle-list-pipeline ;; tested
-  msdf-text-pipeline        ;; tested
-  2d-triangle-strip-pipeline
-  |#
   
   (let ((device (default-logical-device app))
 	(pipeline-store (application-pipeline-store app)))
@@ -92,45 +77,40 @@
 		   2d-camera-view-matrix)
 	  scene
 
-	(loop for (p dd) on (3d-cmd-oriented-combinations pipeline-store rm-draw-data) by #'cddr
-	      do (render-draw-list-cmds
-		  p dd scene device command-buffer *identity-matrix*
-		  3d-camera-view-matrix 3d-camera-projection-matrix width height))
+	(let ((2d-vproj (m* 2d-camera-projection-matrix 2d-camera-view-matrix))
+	      (3d-vproj (m* 3d-camera-projection-matrix 3d-camera-view-matrix)))
 
-	(loop for (p dd) on (3d-draw-list-oriented-combinations pipeline-store rm-draw-data) by #'cddr
-	      do (render-draw-list
-		  p dd scene device command-buffer *identity-matrix*
-		  3d-camera-view-matrix 3d-camera-projection-matrix width height))
+	  (loop for (p dd) on (3d-cmd-oriented-combinations pipeline-store rm-draw-data) by #'cddr
+		do (render-draw-list-cmds
+		    p dd scene device command-buffer *identity-matrix* 3d-vproj width height))
 
-	(loop for (p dd) on (3d-cmd-oriented-combinations pipeline-store im-draw-data) by #'cddr
-	      do (render-draw-list-cmds
-		  p dd scene device command-buffer *identity-matrix*
-		  3d-camera-view-matrix 3d-camera-projection-matrix width height))
+	  (loop for (p dd) on (3d-draw-list-oriented-combinations pipeline-store rm-draw-data) by #'cddr
+		do (render-draw-list
+		    p dd scene device command-buffer *identity-matrix* 3d-vproj width height))
+
+	  (loop for (p dd) on (3d-cmd-oriented-combinations pipeline-store im-draw-data) by #'cddr
+		do (render-draw-list-cmds
+		    p dd scene device command-buffer *identity-matrix* 3d-vproj width height))
 	
-	(loop for (p dd) on (3d-draw-list-oriented-combinations pipeline-store im-draw-data) by #'cddr
-	      do (render-draw-list
-		  p dd scene device command-buffer *identity-matrix*
-		  3d-camera-view-matrix 3d-camera-projection-matrix width height))
+	  (loop for (p dd) on (3d-draw-list-oriented-combinations pipeline-store im-draw-data) by #'cddr
+		do (render-draw-list
+		    p dd scene device command-buffer *identity-matrix* 3d-vproj width height))
 	
-	(loop for (p dd) on (2d-cmd-oriented-combinations pipeline-store rm-draw-data) by #'cddr
-	      do (render-draw-list-cmds
-		  p dd scene device command-buffer *identity-matrix*
-		  2d-camera-view-matrix 2d-camera-projection-matrix width height))
+	  (loop for (p dd) on (2d-cmd-oriented-combinations pipeline-store rm-draw-data) by #'cddr
+		do (render-draw-list-cmds
+		    p dd scene device command-buffer *identity-matrix* 2d-vproj width height))
 
-	(loop for (p dd) on (2d-draw-list-oriented-combinations pipeline-store rm-draw-data) by #'cddr
-	      do (render-draw-list
-		  p dd scene device command-buffer *identity-matrix*
-		  2d-camera-view-matrix 2d-camera-projection-matrix width height))
+	  (loop for (p dd) on (2d-draw-list-oriented-combinations pipeline-store rm-draw-data) by #'cddr
+		do (render-draw-list
+		    p dd scene device command-buffer *identity-matrix* 2d-vproj width height))
 
-	(loop for (p dd) on (2d-cmd-oriented-combinations pipeline-store im-draw-data) by #'cddr
-	      do (render-draw-list-cmds
-		  p dd scene device command-buffer *identity-matrix*
-		  2d-camera-view-matrix 2d-camera-projection-matrix width height))
+	  (loop for (p dd) on (2d-cmd-oriented-combinations pipeline-store im-draw-data) by #'cddr
+		do (render-draw-list-cmds
+		    p dd scene device command-buffer *identity-matrix* 2d-vproj width height))
 	
-	(loop for (p dd) on (2d-draw-list-oriented-combinations pipeline-store im-draw-data) by #'cddr
-	      do (render-draw-list
-		  p dd scene device command-buffer *identity-matrix*
-		  2d-camera-view-matrix 2d-camera-projection-matrix width height))
+	  (loop for (p dd) on (2d-draw-list-oriented-combinations pipeline-store im-draw-data) by #'cddr
+		do (render-draw-list
+		    p dd scene device command-buffer *identity-matrix* 2d-vproj width height)))
 	(values)))))
 
 ;; 2d-point
@@ -163,7 +143,7 @@
   (setq point-size (clampf point-size))
   (let ((draw-data (im-draw-data scene)))
     (declare (type standard-draw-data draw-data))
-    (%draw-data-draw-2d-point draw-data point-size color x y)))
+    (%draw-data-draw-2d-point draw-data point-size (canonicalize-color color) (clampf x) (clampf y))))
 
 ;; 3d-point
 (defun scene-add-3d-point (scene model-matrix point-size color x y z)
@@ -222,7 +202,7 @@
   (rm-dispatch-to-render-thread (scene draw-data handle)
     (%draw-data-add-2d-line-pseudo draw-data handle group line-thickness color x0 y0 x1 y1)))
 
-(defun scene-draw-2d-line (scene color line-thickness x0 y0 x1 y1)
+(defun scene-draw-2d-line (scene line-thickness color x0 y0 x1 y1)
   (declare (type krma-essential-scene-mixin scene))
   (declare (type real x0 y0 x1 y1 line-thickness))
   (let ((draw-data (im-draw-data scene)))
@@ -310,11 +290,13 @@
   (setq y2 (clampf y2))
   (setq line-thickness (clampf line-thickness))
   (rm-dispatch-to-render-thread (scene draw-data handle)
-    (%draw-data-add-2d-triangle-primitive draw-data handle model-mtx line-thickness color x0 y0 x1 y1 x2 y2)))
+    (%draw-data-add-2d-polyline-primitive draw-data handle model-mtx t line-thickness color
+					  (list x0 y0 x1 y1 x2 y2))))
 
 (defun scene-add-2d-triangle-to-group (scene group line-thickness color x0 y0 x1 y1 x2 y2)
   (declare (type krma-essential-scene-mixin scene))
   (declare (type real x0 y0 x1 y1 x2 y2 line-thickness))
+  (assert (typep group 'atom))
   (setq color (canonicalize-color color))
   (setq x0 (clampf x0))
   (setq y0 (clampf y0))
@@ -324,16 +306,15 @@
   (setq y2 (clampf y2))
   (setq line-thickness (clampf line-thickness))
   (rm-dispatch-to-render-thread (scene draw-data handle)
-    (%draw-data-add-2d-triangle-pseudo draw-data handle group line-thickness color x0 y0 x1 y1 x2 y2)))
+    (%draw-data-add-2d-polyline-pseudo draw-data handle group t line-thickness color
+				       (list x0 y0 x1 y1 x2 y2))))
 
 (defun scene-draw-2d-triangle (scene line-thickness color x0 y0 x1 y1 x2 y2)
   (declare (type krma-essential-scene-mixin scene))
   (declare (type real x0 y0 x1 y1 x2 y2 line-thickness))
   (let ((draw-data (im-draw-data scene)))
-    (%draw-data-draw-2d-triangle draw-data (clampf line-thickness) (canonicalize-color color)
-				 (clampf x0) (clampf y0)
-				 (clampf x1) (clampf y1)
-				 (clampf x2) (clampf y2))))
+    (%draw-data-draw-2d-polyline draw-data t (clampf line-thickness) (canonicalize-color color)
+				 (list x0 y0 x1 y1 x2 y2))))
 
 ;; 2d-rectangle
 (defun scene-add-2d-rectangle (scene model-mtx line-thickness color x0 y0 x1 y1)
@@ -346,7 +327,9 @@
   (setq y1 (clampf y1))
   (setq line-thickness (clampf line-thickness))
   (rm-dispatch-to-render-thread (scene draw-data handle)
-    (%draw-data-add-2d-rectangle-primitive draw-data handle model-mtx line-thickness color x0 y0 x1 y1)))
+    (%draw-data-add-2d-polyline-primitive draw-data handle model-mtx t line-thickness color
+					  (list x0 y0 x0 y1 x1 y1 x1 y0))))
+					  
 
 (defun scene-add-2d-rectangle-to-group (scene group line-thickness color x0 y0 x1 y1)
   (declare (type krma-essential-scene-mixin scene))
@@ -359,14 +342,19 @@
   (setq y1 (clampf y1))
   (setq line-thickness (clampf line-thickness))
   (rm-dispatch-to-render-thread (scene draw-data handle)
-    (%draw-data-add-2d-rectangle-pseudo draw-data handle group line-thickness color x0 y0 x1 y1)))
+    (%draw-data-add-2d-polyline-pseudo draw-data handle group t line-thickness color
+				       (list x0 y0 x0 y1 x1 y1 x1 y0))))
 
 (defun scene-draw-2d-rectangle (scene line-thickness color x0 y0 x1 y1)
   (declare (type krma-essential-scene-mixin scene))
   (declare (type real x0 y0 x1 y1 line-thickness))
   (let ((draw-data (im-draw-data scene)))
-    (%draw-data-draw-2d-rectangle draw-data (clampf line-thickness) (canonicalize-color color)
-				  (clampf x0) (clampf y0) (clampf x1) (clampf y1))))
+    (setq x0 (clampf x0))
+    (setq y0 (clampf y0))
+    (setq x1 (clampf x1))
+    (setq y1 (clampf y1))
+    (%draw-data-draw-2d-polyline draw-data t (clampf line-thickness) (canonicalize-color color)
+				 (list x0 y0 x0 y1 x1 y1 x1 y0))))
 
 ;; multicolor-2d-polyline
 (defun scene-add-multicolor-2d-polyline (scene model-mtx closed? line-thickness vertices)
@@ -647,6 +635,7 @@
 (defun scene-add-filled-2d-convex-polygon-to-group (scene group color vertices)
   (declare (type krma-essential-scene-mixin scene))
   (declare (type sequence vertices))
+  (assert (typep group 'atom))
   (setq color (canonicalize-color color))
   (rm-dispatch-to-render-thread (scene draw-data handle)
     (%draw-data-add-filled-2d-convex-polygon-pseudo draw-data handle group color vertices)))
@@ -670,8 +659,8 @@
     (loop for i from 0 to fixnum-number-of-segments
 	  do (let* ((coord-x (clampf (+ df-center-x (* df-radius (cos theta)))))
 		    (coord-y (clampf (+ df-center-y (* df-radius (sin theta))))))
-	       (push coord-y verts)
 	       (push coord-x verts)
+	       (push coord-y verts)	       
 	       (incf theta step))
 	  finally (return (nreverse verts)))))
 
@@ -746,6 +735,7 @@
 (defun scene-add-filled-3d-triangle-list-flat-to-group (scene group color vertices)
   (declare (type krma-essential-scene-mixin scene))
   (declare (type sequence vertices))
+  (assert (typep group 'atom))
   (setq color (canonicalize-color color))
   (rm-dispatch-to-render-thread (scene draw-data handle)
     (%draw-data-add-filled-3d-triangle-list-pseudo draw-data handle group color vertices)))
@@ -767,6 +757,7 @@
 (defun scene-add-filled-3d-triangle-list-diffuse-to-group (scene group color vertices)
   (declare (type krma-essential-scene-mixin scene))
   (declare (type sequence vertices))
+  (assert (typep group 'atom))
   (setq color (canonicalize-color color))
   (rm-dispatch-to-render-thread (scene draw-data handle)
     (%draw-data-add-filled-3d-triangle-list-with-normals-pseudo draw-data handle group color vertices)))
@@ -876,6 +867,7 @@
 (defun scene-add-multicolor-3d-convex-polygon-diffuse-to-group (scene group vertices)
   (declare (type krma-essential-scene-mixin scene))
   (declare (type sequence vertices))
+  (assert (typep group 'atom))
   (rm-dispatch-to-render-thread (scene draw-data handle)
     (%draw-data-add-multicolor-3d-convex-polygon-with-normals-pseudo draw-data group vertices)))
 
@@ -958,7 +950,7 @@
   (setq radius (coerce radius 'double-float))
   (setq color (canonicalize-color color))
   (rm-dispatch-to-render-thread (scene draw-data handle)
-    (%draw-data-add-sphere-primitive
+    (%draw-data-add-filled-sphere-primitive
      draw-data handle model-mtx color origin-x origin-y origin-z radius resolution light-position)))
 
 (defun scene-add-filled-sphere-diffuse-to-group (scene group color origin-x origin-y origin-z radius resolution)
@@ -972,7 +964,7 @@
   (setq radius (coerce radius 'double-float))
   (setq color (canonicalize-color color))
   (rm-dispatch-to-render-thread (scene draw-data handle)
-    (%draw-data-add-sphere-pseudo
+    (%draw-data-add-filled-sphere-pseudo
      draw-data handle group color origin-x origin-y origin-z radius resolution)))
 
 (defun scene-draw-filled-sphere-diffuse (scene color origin-x origin-y origin-z radius resolution)
@@ -984,7 +976,7 @@
   (setq origin-z (coerce origin-z 'double-float))
   (setq radius (coerce radius 'double-float))
   (setq color (canonicalize-color color))
-  (%draw-data-draw-sphere (im-draw-data scene) color origin-x origin-y origin-z radius resolution))
+  (%draw-data-draw-filled-sphere (im-draw-data scene) color origin-x origin-y origin-z radius resolution))
 
 ;; 2d-text
 (defun compute-text-coordinates (pos-x pos-y string glyph-table scale-w scale-h)
@@ -1265,13 +1257,11 @@
         (flet ((delete-handle-from! (ht)
                  (let ((cmd (gethash handle ht)))
                    (if (not cmd)
-                       (warn "could find primitive ~S" handle)
+                       (warn "could not find primitive ~S" handle)
                        (if (listp cmd)
                            ;; point lists and line lists: rebuild index-array and remove handle
                            ;; todo: use memcpy if these index-arrays are big
-			   (progn (print "(break)")
-				  (finish-output)
-                           (let* ((old-index-array (draw-list-index-array (car cmd)))
+			   (let* ((old-index-array (draw-list-index-array (car cmd)))
                                   (ptr (foreign-array-ptr old-index-array))
                                   (type (foreign-array-foreign-type old-index-array))
                                   (new-index-array
@@ -1290,7 +1280,7 @@
                              (setf (draw-list-index-array (car cmd)) new-index-array)
                              (setf (draw-list-needs-compaction? (car cmd)) t)
                              (foreign-free (foreign-array-ptr old-index-array))
-                             (remhash handle ht)))
+                             (remhash handle ht))
 
                            ;; other primitives: delete cmd and remove handle
                            (let* ((draw-list (cmd-draw-list cmd))

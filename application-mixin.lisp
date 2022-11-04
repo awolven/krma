@@ -106,7 +106,8 @@
   (values))
 
 (defclass krma-application-mixin ()
-  ((scene :initform nil :accessor application-scene)
+  ((vk::application-name :initform "krma-application")
+   (scene :initform nil :accessor application-scene)
    (pipeline-store :accessor application-pipeline-store)
    (exit? :initform nil :accessor application-exit?)
    (current-frame-cons :initform (list 0) :accessor current-frame-cons)
@@ -150,7 +151,7 @@
 
 (defclass krma-test-application (krma-application-mixin #-darwin vulkan-application-mixin
                                                         #+darwin metal-application-mixin)
-  ())
+  ((vk::application-name :initform "krma-test-application")))
 
 (defmethod scene-class ((application krma-test-application))
   'standard-scene)

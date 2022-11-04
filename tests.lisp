@@ -3,15 +3,13 @@
 (defun test ()
   (let* ((scene (application-scene *app*))
          (data (font-data *font*))
-         (texture (font-atlas *font*))
          (w (3b-bmfont-common:scale-w data))
          (h (3b-bmfont-common:scale-h data)))
     (rm-dispatch-to-render-thread (scene draw-data handle)
-      (%draw-data-add-text-quad-list-cmd draw-data handle
-                                         *identity-matrix*
-                                         texture #xffffffff
-                                         (list 0 0 0 0 w h 1 1)
-                                         *font*))))
+      (%draw-data-add-text-quad-list-primitive draw-data handle
+					       *identity-matrix*
+					       *font* #xffffffff
+					       (list 0 0 0 0 w h 1 1)))))
 
 (defun 2d-point-test-1 ()
   (add-text "2d point test #1: Do you see a red 4px square point at (100, 125)? (y/n)" 100 75)
@@ -86,12 +84,13 @@
               (scene-draw-3d-point scene 5 #x00ff00ff 900 900 -20)
               (scene-draw-2d-line scene 2 #x0000ffff 0 0 100 100)
               (scene-draw-3d-line scene 2 #xffff00ff 100 100 -100 200 200 -200)
-              (scene-draw-multicolor-2d-polyline-1 scene t 2.0f0
-                                                   (list 100 935 #xff0000ff
-                                                         100 1135 #xffff00ff
-                                                         500 1135 #x00ff00ff
-                                                         500 935 #x00ffffff))
+              (scene-draw-multicolor-2d-polyline scene t 2.0f0
+						 (list 100 935 #xff0000ff
+                                                       100 1135 #xffff00ff
+                                                       500 1135 #x00ff00ff
+                                                       500 935 #x00ffffff))
               (scene-draw-2d-triangle scene 2 #xff0000ff 300 300 300 400 400 400)
               (scene-draw-2d-rectangle scene 2 #x00ff00ff 300 500 400 600)
               (scene-draw-2d-circular-arc scene nil 2 #x0000ffff 160 1270 20 0 pi)
-              (scene-draw-2d-circle scene 2 #x00ffffff 210 1270 20)))))
+              (scene-draw-2d-circle scene 2 #x00ffffff 210 1270 20)
+	      (scene-draw-text scene *font* #xff0000ff 1000 100 "hullabaloo2")))))

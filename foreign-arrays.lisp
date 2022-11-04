@@ -331,7 +331,8 @@
               (textured-3d-vertex-with-normal-nx ptr) sf-nx
               (textured-3d-vertex-with-normal-ny ptr) sf-ny
               (textured-3d-vertex-with-normal-nz ptr) sf-nz)
-        (incf fill-pointer)))))
+	(prog1 fill-pointer
+          (incf fill-pointer))))))
 
 ;;(declaim (inline standard-3d-vertex-with-normal-array-push-extend))
 (defun standard-3d-vertex-with-normal-array-push-extend (vertex-array

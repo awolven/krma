@@ -35,12 +35,9 @@
     :accessor draw-list-point-size
     :initform nil
     :initarg :point-size)
-   (color-override
-    :accessor draw-list-color-override
-    :initform nil)
-   (model-mtx
-    :accessor draw-list-model-mtx
-    :initform nil)))
+   (group :accessor draw-list-group
+	  :initform nil
+	  :initarg :group)))
 
 ;; we are using textured vertices for standard (non-textured) primitives
 ;; for two reasons:
