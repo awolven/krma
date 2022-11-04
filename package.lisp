@@ -5,8 +5,14 @@
   (ql:quickload :cffi))
 
 (defpackage :krma
-  (:use :cl :cffi #-darwin :vk #-darwin :%vk :%glfw :3d-vectors :3d-matrices)
-  (:export #:index-array
+  (:use :cl :cffi #-darwin :vk #-darwin :%vk :$glfw :3d-vectors :3d-matrices)
+  (:export #:krma-application-mixin
+	   #:krma-essential-scene-mixin
+	   #:canonicalize-color
+	   #:application-scene
+	   #:mortho-vulkan
+	   #:mperspective-vulkan
+	   #:index-array
            #:make-index-array
            #:foreign-array-ptr
            #:foreign-array-fill-pointer
@@ -85,8 +91,9 @@
 
            #:essential-scene-mixin
            #:application-with-essential-scene-mixin
-           #:scene
+           #:scene ;; do i really need to export this?
            #:application-scene
+	   #:scene-light-position
 
            #:add-2d-point ;; working
            #:draw-2d-point
@@ -130,6 +137,7 @@
            #:scene-draw-3d-point
            #:scene-add-2d-line
            #:scene-add-3d-line
+	   #:scene-draw-3d-line
            #:scene-add-multicolor-2d-polyline-1
            #:scene-draw-multicolor-2d-polyline-1
            #:scene-add-2d-polyline-1
@@ -141,6 +149,8 @@
            #:scene-add-2d-circle
            #:scene-add-multicolor-3d-polyline-1
            #:scene-add-3d-polyline-1
+	   #:scene-add-3d-polyline-2
+	   #:scene-draw-3d-polyline-1
            #:scene-add-filled-2d-triangle-list
            #:scene-add-filled-2d-triangle-strip
            #:scene-add-textured-2d-triangle-list
@@ -154,6 +164,10 @@
            #:scene-add-filled-3d-triangle-strip-with-normals
            #:scene-add-textured-3d-triangle-list
            #:scene-add-textured-3d-triangle-strip
+	   #:scene-draw-multicolor-3d-convex-polygon-diffuse
+	   #:scene-draw-multicolor-3d-convex-polygon-flat
+	   #:scene-draw-filled-3d-convex-polygon-diffuse
+	   #:scene-draw-filled-3d-convex-polygon-flat
 
            #:reinstance-primitive
            #:primitive-set-color

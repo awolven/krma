@@ -1,81 +1,45 @@
 (in-package :krma)
 
-(defclass draw-list-mixin ()
-  ((index-array
-    :accessor draw-list-index-array
-    :initform (make-index-array))
-   (vertex-array
-    :reader draw-list-vertex-array)
-   (cmd-vector
-    :initform (make-array +draw-list-alloc-size+ :adjustable t :fill-pointer 0)
-    :reader draw-list-cmd-vector)
-   (changed?
-    :initform t
-    :accessor draw-list-changed?)
-   (needs-compaction?
-    :initform nil
-    :accessor draw-list-needs-compaction?)
-   (index-buffer
-    :accessor draw-list-index-buffer
-    :initform nil)
-   (vertex-buffer
-    :accessor draw-list-vertex-buffer
-    :initform nil)
-   (texture
-    :accessor draw-list-texture
-    :initform nil)
-   (line-thickness
-    :accessor draw-list-line-thickness
-    :initform nil)
-   (point-size
-    :accessor draw-list-point-size
-    :initform nil)
-   (color-override
-    :accessor draw-list-color-override
-    :initform nil)
-   (model-mtx
-    :accessor draw-list-model-mtx
-    :initform nil)))
+;;(declaim (optimize (safety 0) (speed 3) (debug 3)))
 
-;; we are using textured vertices for standard (non-textured) primitives
-;; for two reasons:
-;; - cuts down on the number of shader variants we have to implement/track
-;; - textured and non-textured vertices can be stored in the same draw list
-;;   - less draw lists, less buffers, less cmds, etc.
-;; we will not use "textured-" in the name for brevity, "textured-...-vertices" are implied.
-;; we also don't associate the draw-list with a particular primitive type,
-;; since this is a function of the pipeline, not the draw-list
-;; and different pipelines using different primitives can use the same draw-lists
-(defclass 2d-vertex-draw-list-mixin (draw-list-mixin)
-  ((vertex-array
-    :initform (make-textured-2d-vertex-array))))
-
-(defclass 2d-vertex-draw-list (2d-vertex-draw-list-mixin)
-  ())
-
-(defclass 3d-vertex-draw-list-mixin (draw-list-mixin)
-  ((vertex-array
-    :initform (make-textured-3d-vertex-array))))
-
-(defclass 3d-vertex-draw-list (3d-vertex-draw-list-mixin)
-  ())
-
-(defclass 3d-vertex-with-normal-draw-list-mixin (draw-list-mixin)
-  ((vertex-array
-    :initform (make-textured-3d-vertex-with-normal-array))))
-
-(defclass 3d-vertex-with-normal-draw-list (3d-vertex-with-normal-draw-list-mixin)
-  ())
+(defmacro with-draw-list-transaction ((draw-list first-index initial-vtx-offset)
+				      &body body)
+  (let ((draw-list-sym (gensym)))
+    `(let ((,draw-list-sym ,draw-list))
+       (handler-case
+	   (progn ,@body)
+	 (error (c)
+	   (warn (princ-to-string c))
+	   ;;(break)
+	   (setf (foreign-array-fill-pointer (draw-list-index-array ,draw-list-sym)) ,first-index
+		 (foreign-array-fill-pointer (draw-list-vertex-array ,draw-list-sym)) ,initial-vtx-offset)
+	   nil)))))
 
 (defun %prim-reserve (draw-list vertex-count index-count vertex-type-size index-type-size)
+  ;; prim-reserve [potentially] allocates memory on the draw-list for indices and vertices
+  ;; you can use prim-reserve when seq-vertices is an array
+  ;; you can use index-array-set and vertex-array-set instead of
+  ;; index-array-push-extend and ...-vertex-array-push-extend
+  ;; and optimize out the incf of the fill pointer, if you were so anal retentive  
+  (declare (type fixnum vertex-count index-count vertex-type-size index-type-size))
+  ;; todo: make sure arguments passed into this function:
+  ;; vertex-count * vertex-type-size < most-positive-fixnum
+  ;; index-count * index-type-size < most-positive-fixnum
   (let ((res nil))
-
     (with-slots (ptr fill-pointer allocated-count) (draw-list-vertex-array draw-list)
-      (let ((reqd-size (+ vertex-count fill-pointer)))
-        (unless (<= reqd-size allocated-count)
+      (let ((reqd-size (+ vertex-count (cl:the fixnum fill-pointer))))
+	(declare (type fixnum reqd-size))
+	;; fill-pointer will always be less than or equal to allocated-count
+	#+NIL(assert (< (cl:the fixnum fill-pointer) (cl:the fixnum
+							(- most-positive-fixnum
+							   (cl:the fixnum (* vertex-count vertex-type-size))))))
+        (unless (<= reqd-size (cl:the fixnum allocated-count))
           (let ((new-count allocated-count))
+	    (declare (type fixnum new-count))
             (tagbody
              try-again
+	       ;; don't let new-count overflow (that's alot of memory on a 64 bit machine!)
+	       (assert (< new-count #.(/ most-positive-fixnum 2)))
                (setq new-count (* 2 new-count))
                (if (<= reqd-size new-count)
                    (go exit)
@@ -83,18 +47,25 @@
              exit
                (let ((new-array (foreign-alloc :unsigned-char :count (* new-count vertex-type-size)))
                      (old-array ptr))
-                 (memcpy new-array old-array (* fill-pointer vertex-type-size))
+                 (memcpy new-array old-array
+			 (cl:the fixnum (* (cl:the fixnum fill-pointer) vertex-type-size)))
                  (setf ptr new-array)
                  (setf allocated-count new-count)
                  (foreign-free old-array)
                  (setq res t)))))))
 
     (with-slots (ptr fill-pointer allocated-count) (draw-list-index-array draw-list)
-      (let ((reqd-size (+ index-count fill-pointer)))
-        (unless (<= reqd-size allocated-count)
+      (let ((reqd-size (+ index-count (cl:the fixnum fill-pointer))))
+	(declare (type fixnum reqd-size))
+	#+NIL(assert (< (cl:the fixnum fill-pointer) (cl:the fixnum
+							(- most-positive-fixnum
+							   (cl:the fixnum (* index-count index-type-size))))))
+        (unless (<= reqd-size (cl:the fixnum allocated-count))
           (let ((new-count allocated-count))
+	    (declare (type fixnum new-count))
             (tagbody
              try-again
+	       (assert (< new-count #.(/ most-positive-fixnum 2)))
                (setq new-count (* 2 new-count))
                (if (<= reqd-size new-count)
                    (go exit)
@@ -102,7 +73,7 @@
              exit
                (let ((new-array (foreign-alloc :unsigned-char :count (* new-count index-type-size)))
                      (old-array ptr))
-                 (memcpy new-array old-array (* fill-pointer index-type-size))
+                 (memcpy new-array old-array (cl:the fixnum (* (cl:the fixnum fill-pointer) index-type-size)))
                  (setf ptr new-array)
                  (setf allocated-count new-count)
                  (foreign-free old-array)
@@ -127,34 +98,65 @@
 ;; so you can't have more than 65536 points for the small draw-list
 ;; the large draw list would be used if you're drawing starts in a simulated sky or something
 ;; in which case you might want a different vertex type with point size
-(defun %draw-list-add-2d-point (2d-draw-list color x y)
+(defun %draw-list-add-2d-point-pseudo-cmd (2d-draw-list ub32-color sf-x sf-y)
+  ;; for point-list-pipeline
   (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
+  (declare (type (unsigned-byte 32) ub32-color))
+  (declare (type single-float sf-x sf-y))
   (with-slots (vertex-array index-array) 2d-draw-list
     (let ((first-index (foreign-array-fill-pointer index-array))
           (vtx-offset (foreign-array-fill-pointer vertex-array)))
-      (handler-case
-          (let ((index (standard-2d-vertex-array-push-extend vertex-array x y color)))
-            (index-array-push-extend index-array index))
-        (error (c)
-          (warn (princ-to-string c))
-          (setf (foreign-array-fill-pointer vertex-array) vtx-offset
-                (foreign-array-fill-pointer index-array) first-index)
-          nil)))))
+      (with-draw-list-transaction (2d-draw-list first-index vtx-offset)
+	(let ((index (standard-2d-vertex-array-push-extend vertex-array sf-x sf-y ub32-color)))
+	  (list* 2d-draw-list (index-array-push-extend index-array index)))))))
 
-(defun %draw-list-add-3d-point (3d-draw-list color x y z)
+(defun %draw-list-add-2d-point-cmd (2d-draw-list model-mtx sf-point-size ub32-color sf-x sf-y)
+  ;; for point-list-pipeline
+  (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
+  (declare (type (unsigned-byte 32) ub32-color))
+  (declare (type single-float sf-x sf-y))
+  (with-slots (vertex-array index-array) 2d-draw-list
+    (let ((first-index (foreign-array-fill-pointer index-array))
+          (vtx-offset (foreign-array-fill-pointer vertex-array)))
+      (with-draw-list-transaction (2d-draw-list first-index vtx-offset)
+	(standard-2d-vertex-array-push-extend vertex-array sf-x sf-y ub32-color)
+	(index-array-push-extend index-array 0)
+	(let ((cmd (make-standard-draw-indexed-cmd
+		    2d-draw-list
+		    first-index 1 vtx-offset
+		    model-mtx nil *white-texture* sf-point-size nil nil)))
+	  (vector-push-extend cmd (draw-list-cmd-vector 2d-draw-list))
+	  cmd)))))
+
+(defun %draw-list-add-3d-point-pseudo-cmd (3d-draw-list ub32-color sf-x sf-y sf-z)
+  ;; for point-list pipeline
   (declare (type 3d-vertex-draw-list-mixin 3d-draw-list))
+  (declare (type (unsigned-byte 32) ub32-color))
+  (declare (type single-float sf-x sf-y sf-z))		 
   (with-slots (vertex-array index-array) 3d-draw-list
     (let ((first-index (foreign-array-fill-pointer index-array))
           (vtx-offset (foreign-array-fill-pointer vertex-array)))
+      (with-draw-list-transaction (3d-draw-list first-index vtx-offset)
+          (let ((index (standard-3d-vertex-array-push-extend vertex-array sf-x sf-y sf-z ub32-color)))
+            (list 3d-draw-list (index-array-push-extend index-array index)))))))
 
-      (handler-case
-          (let ((index (standard-3d-vertex-array-push-extend vertex-array x y z color)))
-            (index-array-push-extend index-array index))
-        (error (c)
-          (warn (princ-to-string c))
-          (setf (foreign-array-fill-pointer vertex-array) vtx-offset
-                (foreign-array-fill-pointer index-array) first-index)
-          nil)))))
+(defun %draw-list-add-3d-point-cmd (3d-draw-list model-mtx sf-point-size ub32-color sf-x sf-y sf-z)
+  ;; for point-list-pipeline
+  (declare (type 3d-vertex-draw-list-mixin 3d-draw-list))
+  (declare (type (unsigned-byte 32) ub32-color))
+  (declare (type single-float sf-x sf-y))
+  (with-slots (vertex-array index-array) 3d-draw-list
+    (let ((first-index (foreign-array-fill-pointer index-array))
+          (vtx-offset (foreign-array-fill-pointer vertex-array)))
+      (with-draw-list-transaction (3d-draw-list first-index vtx-offset)
+	(standard-3d-vertex-array-push-extend vertex-array sf-x sf-y sf-z ub32-color)
+	(index-array-push-extend index-array 0)
+	(let ((cmd (make-standard-draw-indexed-cmd 
+		    3d-draw-list
+		    first-index 1 vtx-offset
+		    model-mtx nil *white-texture* sf-point-size nil nil)))
+	  (vector-push-extend cmd (draw-list-cmd-vector 3d-draw-list))
+	  cmd)))))
 
 ;; A [2d|3d]-line-list-draw-list is intended to be processed in one cmd
 ;; so the index-array ends up being a increasing list of non-negative integers
@@ -170,58 +172,214 @@
 ;; and (expt 2 31) for the large
 
 ;; draw-2d-line-internal returns a cons of index (index-indexes) for a "receipt"
-(defun %draw-list-add-2d-line (2d-draw-list color x0 y0 x1 y1)
+(defun %draw-list-add-2d-line-pseudo-cmd (2d-draw-list ub32-color sf-x0 sf-y0 sf-x1 sf-y1)
+  ;; for line-list pipeline
+  (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
+  (declare (type (unsigned-byte 32) ub32-color))
+  (declare (type single-float sf-x0 sf-y0 sf-x1 sf-y1))
+  (let* ((ia (draw-list-index-array 2d-draw-list))
+         (va (draw-list-vertex-array 2d-draw-list))
+         (first-index (foreign-array-fill-pointer ia))
+         (vtx-offset (foreign-array-fill-pointer va)))
+    (with-draw-list-transaction (2d-draw-list first-index vtx-offset)
+      (let ((offset0 (standard-2d-vertex-array-push-extend va sf-x0 sf-y0 ub32-color))
+	    (offset1 (standard-2d-vertex-array-push-extend va sf-x1 sf-y1 ub32-color)))
+	(list 2d-draw-list
+	      (index-array-push-extend ia offset0)
+	      (index-array-push-extend ia offset1))))))
+
+(defun %draw-list-add-2d-line-cmd (2d-draw-list model-mtx sf-line-thickness ub32-color sf-x0 sf-y0 sf-x1 sf-y1)
+  ;; for line-list pipeline
   (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
   (let* ((ia (draw-list-index-array 2d-draw-list))
          (va (draw-list-vertex-array 2d-draw-list))
          (first-index (foreign-array-fill-pointer ia))
          (vtx-offset (foreign-array-fill-pointer va)))
+    (with-draw-list-transaction (2d-draw-list first-index vtx-offset)
+      (let ((offset0 (standard-2d-vertex-array-push-extend va sf-x0 sf-y0 ub32-color))
+	    (offset1 (standard-2d-vertex-array-push-extend va sf-x1 sf-y1 ub32-color)))
+	(index-array-push-extend ia offset0)
+	(index-array-push-extend ia offset1)
+	(let ((cmd (make-standard-draw-indexed-cmd
+		    2d-draw-list
+		    first-index 2 vtx-offset
+		    model-mtx nil *white-texture* nil sf-line-thickness nil)))
+	  (vector-push-extend cmd (draw-list-cmd-vector 2d-draw-list))
+	  cmd)))))
 
-    (handler-case
-        (let ((offset0 (standard-2d-vertex-array-push-extend va x0 y0 color))
-              (offset1 (standard-2d-vertex-array-push-extend va x1 y1 color)))
-          (list (index-array-push-extend ia offset0)
-                (index-array-push-extend ia offset1)))
-      (error (c)
-        (warn (princ-to-string c))
-        (setf (foreign-array-fill-pointer ia) first-index
-              (foreign-array-fill-pointer va) vtx-offset)
-        nil))))
+(defun %draw-list-add-3d-line-pseudo-cmd (3d-draw-list ub32-color sf-x0 sf-y0 sf-z0 sf-x1 sf-y1 sf-z1)
+  ;; for line-list pipeline
+  (declare (type 3d-vertex-draw-list-mixin 3d-draw-list))
+  (declare (type (unsigned-byte 32) ub32-color))
+  (declare (type single-float sf-x0 sf-y0 sf-z0 sf-x1 sf-y1 sf-z1))
+  (let* ((ia (draw-list-index-array 3d-draw-list))
+         (va (draw-list-vertex-array 3d-draw-list))
+         (first-index (foreign-array-fill-pointer ia))
+         (vtx-offset (foreign-array-fill-pointer va)))
+    (with-draw-list-transaction (3d-draw-list first-index vtx-offset)
+      (let ((offset0 (standard-3d-vertex-array-push-extend va sf-x0 sf-y0 sf-z0 ub32-color))
+	    (offset1 (standard-3d-vertex-array-push-extend va sf-x1 sf-y1 sf-z1 ub32-color)))
+	(list 3d-draw-list
+	      (index-array-push-extend ia offset0)
+	      (index-array-push-extend ia offset1))))))
 
-(defun %draw-list-add-3d-line (3d-draw-list color x0 y0 z0 x1 y1 z1)
+(defun %draw-list-add-3d-line-cmd (3d-draw-list model-mtx sf-line-thickness ub32-color
+				   sf-x0 sf-y0 sf-z0 sf-x1 sf-y1 sf-z1)
+  ;; for line-list pipeline
   (declare (type 3d-vertex-draw-list-mixin 3d-draw-list))
   (let* ((ia (draw-list-index-array 3d-draw-list))
          (va (draw-list-vertex-array 3d-draw-list))
          (first-index (foreign-array-fill-pointer ia))
          (vtx-offset (foreign-array-fill-pointer va)))
-    (handler-case
-        (let ((offset0 (standard-3d-vertex-array-push-extend va x0 y0 z0 color))
-              (offset1 (standard-3d-vertex-array-push-extend va x1 y1 z1 color)))
-          (list (index-array-push-extend ia offset0)
-                (index-array-push-extend ia offset1)))
-      (error (c)
-        (warn (princ-to-string c))
-        (setf (foreign-array-fill-pointer ia) first-index
-              (foreign-array-fill-pointer va) vtx-offset)
-        nil))))
+    (with-draw-list-transaction (3d-draw-list first-index vtx-offset)
+      (standard-3d-vertex-array-push-extend va sf-x0 sf-y0 sf-z0 ub32-color)
+      (standard-3d-vertex-array-push-extend va sf-x1 sf-y1 sf-z1 ub32-color)
+      (index-array-push-extend ia 0)
+      (index-array-push-extend ia 1)
+      (let ((cmd (make-standard-draw-indexed-cmd
+		  3d-draw-list
+		  first-index 2 vtx-offset
+		  model-mtx nil *white-texture* nil sf-line-thickness nil)))
+	(vector-push-extend cmd (draw-list-cmd-vector 3d-draw-list))
+	cmd))))
 
-;; cmd-constructor is the "make" function of the particular cmd you want to instantiate
-;; all cmds must :include essential-draw-indexed-cmd
-
-;; this "-1" version of draw-2d-polyline-internal doesn't require the num-vertices as an arg
-;; but must check for each vertex being added that the vertex and index arrays are big enough
-;; todo: implement a "-2" version of draw-[2d|3d]-polyline that doesn't do extra checks
-;; polylines don't need textured or with-normal versions, but polygons will
-;; you can copy this cmd and issue it with different model-matrices if you wish
-;; rather than baking a copy into the draw list
-;; the argument `vertices' is a list of x y color ... repeating
-
-;; for multicolored polylines
-;; draw list should be used with a line-strip pipeline
-(defun %draw-list-add-multicolor-2d-polyline-cmd-1 (2d-draw-list closed? model-mtx line-thickness vertices
-                                                    &optional (cmd-constructor #'make-standard-draw-indexed-cmd))
+(defun %draw-list-add-2d-polyline-pseudo-cmd (2d-draw-list bool-closed? ub32-color seq-vertices)
+  ;; for line-list pipeline
   (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
-  (declare (type function cmd-constructor))
+  (declare (type boolean bool-closed?))
+  (declare (type (unsigned-byte 32) ub32-color))
+  (declare (type sequence seq-vertices))
+  ;; there must be at least one vertex to succeed
+  (let* ((index-array (draw-list-index-array 2d-draw-list))
+         (vertex-array (draw-list-vertex-array 2d-draw-list))
+	 (first-index (foreign-array-fill-pointer index-array))
+	 (vtx-offset (foreign-array-fill-pointer vertex-array)))
+    (declare (type fixnum vtx-offset))
+    (with-draw-list-transaction (2d-draw-list first-index vtx-offset)
+      (etypecase seq-vertices
+	(list
+	 (loop for (x1 y1) on (cddr seq-vertices) by #'cddr
+	       for (x0 y0) on seq-vertices by #'cddr
+	       with indices = ()
+	       do (setq x0 (clampf x0))
+		  (setq y0 (clampf y0))
+		  (setq x1 (clampf x1))
+		  (setq y1 (clampf y1))
+		  (let ((offset (standard-2d-vertex-array-push-extend vertex-array x0 y0 ub32-color)))
+		    (push (index-array-push-extend index-array offset) indices))
+		  (let ((offset (standard-2d-vertex-array-push-extend vertex-array x1 y1 ub32-color)))
+		    (push (index-array-push-extend index-array offset) indices))
+	       finally (when bool-closed?
+			 (push (index-array-push-extend index-array vtx-offset) indices))
+		       (return (list* 2d-draw-list indices))))))))
+
+(defun %draw-list-add-2d-triangle-pseudo-cmd (2d-draw-list ub32-color sf-x0 sf-y0 sf-x1 sf-y1 sf-x2 sf-y2)
+  ;; for line-list pipeline
+  (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
+  (declare (type (unsigned-byte 32) ub32-color))
+  (declare (type single-float sf-x0 sf-y0 sf-x1 sf-y1 sf-x2 sf-y2))
+  (%draw-list-add-2d-polyline-pseudo-cmd 2d-draw-list t ub32-color (list sf-x0 sf-y0 sf-x1 sf-y1 sf-x2 sf-y2)))
+
+(defun %draw-list-add-2d-rectangle-pseudo-cmd (2d-draw-list ub32-color sf-x0 sf-y0 sf-x1 sf-y1)
+  ;; for line-list pipeline
+  (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
+  (declare (type (unsigned-byte 32) ub32-color))
+  (declare (type single-float sf-x0 sf-y0 sf-x1 sf-y1))
+  (%draw-list-add-2d-polyline-pseudo-cmd 2d-draw-list t ub32-color
+					 (list sf-x0 sf-y0 sf-x0 sf-y1 sf-x1 sf-y1 sf-x1 sf-y0)))
+
+;; the argument `vertices' is a list of x y ... repeating
+;; for single color polylines
+(defun %draw-list-add-2d-polyline-cmd (2d-draw-list model-mtx bool-closed?
+				       sf-line-thickness ub32-color seq-vertices)
+  ;; for line-strip pipeline
+  (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
+  (declare (type boolean bool-closed?))
+  (declare (type single-float sf-line-thickness))
+  (declare (type sequence seq-vertices))
+  ;; there must be at least one vertex to succeed
+  (let* ((index-array (draw-list-index-array 2d-draw-list))
+         (vertex-array (draw-list-vertex-array 2d-draw-list))
+         (vtx-offset (foreign-array-fill-pointer vertex-array))
+         (first-index (foreign-array-fill-pointer index-array))
+         (elem-count 0))
+    (declare (type fixnum elem-count))
+    (with-draw-list-transaction (2d-draw-list first-index vtx-offset)
+      (etypecase seq-vertices
+	(list
+	 (loop for (x y) on seq-vertices by #'cddr
+               do (setq x (clampf x))
+		  (setq y (clampf y))
+		  (standard-2d-vertex-array-push-extend vertex-array x y ub32-color)
+                  (index-array-push-extend index-array elem-count)
+                  (incf elem-count)
+               finally (when bool-closed?
+                         (index-array-push-extend index-array 0)
+                         (incf elem-count)))))
+          (let ((cmd (make-standard-draw-indexed-cmd
+                              2d-draw-list
+                              first-index elem-count vtx-offset
+                              model-mtx nil *white-texture* nil sf-line-thickness nil)))
+            (vector-push-extend cmd (draw-list-cmd-vector 2d-draw-list))
+            cmd))))
+
+(defun %draw-list-add-2d-triangle-cmd (2d-draw-list model-mtx sf-line-thickness ub32-color
+				       sf-x0 sf-y0 sf-x1 sf-y1 sf-x2 sf-y2)
+  ;; for line-strip pipeline
+  (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
+  (declare (type (unsigned-byte 32) ub32-color))
+  (declare (type single-float sf-x0 sf-y0 sf-x1 sf-y1 sf-x2 sf-y2))
+  (%draw-list-add-2d-polyline-cmd 2d-draw-list t model-mtx sf-line-thickness
+				  ub32-color (list sf-x0 sf-y0 sf-x1 sf-y1 sf-x2 sf-y2)))
+
+(defun %draw-list-add-2d-rectangle-cmd (2d-draw-list model-mtx sf-line-thickness ub32-color
+					sf-x0 sf-y0 sf-x1 sf-y1)
+  ;; for line-strip pipeline
+  (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
+  (declare (type (unsigned-byte 32) ub32-color))
+  (declare (type single-float sf-x0 sf-y0 sf-x1 sf-y1))
+  (%draw-list-add-2d-polyline-cmd 2d-draw-list t model-mtx sf-line-thickness
+				  ub32-color (list sf-x0 sf-y0 sf-x0 sf-y1 sf-x1 sf-y1 sf-x1 sf-y0)))
+
+;; the argument `seq-vertices' is a cl sequence of x y color ... repeating
+(defun %draw-list-add-multicolor-2d-polyline-pseudo-cmd (2d-draw-list bool-closed? seq-vertices)
+  ;; uses line-list
+  (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
+  (declare (type boolean bool-closed?))
+  (declare (type sequence seq-vertices))
+  ;; there must be at least one vertex to succeed
+  (let* ((index-array (draw-list-index-array 2d-draw-list))
+         (vertex-array (draw-list-vertex-array 2d-draw-list))
+	 (first-index (foreign-array-fill-pointer index-array))
+         (vtx-offset (foreign-array-fill-pointer vertex-array)))
+    (declare (type fixnum vtx-offset))
+    (with-draw-list-transaction (2d-draw-list first-index vtx-offset)
+      (etypecase seq-vertices
+	(list
+	 (loop for (x1 y1 color1) on (cdddr seq-vertices) by #'cdddr
+	       for (x0 y0 color0) on seq-vertices by #'cdddr
+	       with indices = ()
+	       do (setq x0 (clampf x0))
+		  (setq y0 (clampf y0))
+		  (setq color0 (canonicalize-color color0))
+		  (setq x1 (clampf x1))
+		  (setq y1 (clampf y1))
+		  (setq color1 (canonicalize-color color1))
+		  (let ((offset (standard-2d-vertex-array-push-extend vertex-array x0 y0 color0)))
+		    (push (index-array-push-extend index-array offset) indices))
+		  (let ((offset (standard-2d-vertex-array-push-extend vertex-array x1 y1 color1)))
+		    (push (index-array-push-extend index-array offset) indices))
+	       finally (when bool-closed?
+			 (push (index-array-push-extend index-array vtx-offset) indices))
+		       (return (list* 2d-draw-list indices))))))))
+
+(defun %draw-list-add-multicolor-2d-polyline-cmd (2d-draw-list model-mtx bool-closed? sf-line-thickness
+						  seq-vertices)
+  ;; uses line-strip
+  (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
+  (declare (type boolean bool-closed?))
+  (declare (type single-float sf-line-thickness))
+  (declare (type sequence seq-vertices))
   ;; there must be at least one vertex to succeed
   (let* ((index-array (draw-list-index-array 2d-draw-list))
          (vertex-array (draw-list-vertex-array 2d-draw-list))
@@ -229,761 +387,1475 @@
          (vtx-offset (foreign-array-fill-pointer vertex-array))
          (first-index (foreign-array-fill-pointer index-array))
          (elem-count 0))
-
-    (handler-case
-        (progn
-          (assert (realp line-thickness))
-          (loop for (x y color) on vertices by #'cdddr
-                do (standard-2d-vertex-array-push-extend vertex-array x y color)
-                   (index-array-push-extend index-array elem-count)
-                   (incf elem-count)
-                finally (when closed?
-                          (index-array-push-extend index-array 0)
-                          (incf elem-count)))
-          (let ((cmd (funcall cmd-constructor
-                              2d-draw-list
-                              first-index elem-count vtx-offset
-                              model-mtx nil *white-texture* (clampf line-thickness))))
+    (declare (type fixnum elem-count))
+    (with-draw-list-transaction (2d-draw-list first-index vtx-offset)
+      (etypecase seq-vertices
+	(list
+	 (loop for (x y color) on seq-vertices by #'cdddr
+	       do (setq x (clampf x))
+		  (setq y (clampf y))
+		  (setq color (canonicalize-color color))
+		  (standard-2d-vertex-array-push-extend vertex-array x y color)
+		  (index-array-push-extend index-array elem-count)
+		  (incf elem-count)
+	       finally (when bool-closed?
+			 (index-array-push-extend index-array 0)
+			 (incf elem-count)))))
+	  (let ((cmd (make-standard-draw-indexed-cmd
+		      2d-draw-list
+		      first-index elem-count vtx-offset
+		      model-mtx nil *white-texture* nil sf-line-thickness nil)))
             (vector-push-extend cmd cmd-vector)
-            cmd))
-      (error (c)
-        (warn (princ-to-string c))
-        (setf (foreign-array-fill-pointer vertex-array) vtx-offset
-              (foreign-array-fill-pointer index-array) first-index)
-        nil))))
+            cmd))))
 
-;; the argument `vertices' is a list of x y ... repeating
-;; for single color polylines
-;; draw-list should be used with a line-strip pipeline
-(defun %draw-list-add-2d-polyline-cmd-1 (2d-draw-list closed? model-mtx line-thickness color vertices
-                                        &optional (cmd-constructor #'make-standard-draw-indexed-cmd))
+(defun %draw-list-add-2d-line-list-pseudo-cmd (2d-draw-list ub32-color seq-vertices)
   (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
-  (declare (type function cmd-constructor))
-  ;; there must be at least one vertex to succeed
+  (declare (type sequence seq-vertices))
+  (let* ((index-array (draw-list-index-array 2d-draw-list))
+	 (vertex-array (draw-list-vertex-array 2d-draw-list)))
+    (declare (type foreign-adjustable-array index-array vertex-array))
+    (let ((first-index (foreign-array-fill-pointer index-array))
+	  (vtx-offset (foreign-array-fill-pointer vertex-array)))
+      (with-draw-list-transaction (2d-draw-list first-index vtx-offset)
+	(etypecase seq-vertices
+	  (list
+	   (when (cdddr seq-vertices)
+	     (loop for (x0 y0 x1 y1) on seq-vertices by #'cddddr
+		   with indices = ()
+		   do (setq x0 (clampf x0))
+		      (setq y0 (clampf y0))
+		      (setq x1 (clampf x1))
+		      (setq y1 (clampf y1))
+		      (let ((offset (standard-2d-vertex-array-push-extend vertex-array x0 y0 ub32-color)))
+			(push (index-array-push-extend index-array offset) indices))
+		      (let ((offset (standard-2d-vertex-array-push-extend vertex-array x1 y1 ub32-color)))
+			(push (index-array-push-extend index-array offset) indices))
+		   finally (return (list* 2d-draw-list indices))))))))))
+
+(defun %draw-list-add-2d-line-list-cmd (2d-draw-list model-mtx sf-line-thickness ub32-color seq-vertices)
+  (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
+  (declare (type sequence seq-vertices))
+  (let* ((index-array (draw-list-index-array 2d-draw-list))
+	 (vertex-array (draw-list-vertex-array 2d-draw-list))
+	 (first-index (foreign-array-fill-pointer index-array))
+         (vtx-offset (foreign-array-fill-pointer vertex-array))
+	 (cmd-vector (draw-list-cmd-vector 2d-draw-list))
+	 (elem-count -1))
+    (with-draw-list-transaction (2d-draw-list first-index vtx-offset)
+      (etypecase seq-vertices
+	(list
+	 (when (cdddr seq-vertices)
+	   (loop for (x0 y0 x1 y1) on seq-vertices by #'cddddr
+		 with indices = ()
+		 do (setq x0 (clampf x0))
+		    (setq y0 (clampf y0))
+		    (setq x1 (clampf x1))
+		    (setq y1 (clampf y1))
+		    (standard-2d-vertex-array-push-extend vertex-array x0 y0 ub32-color)
+		    (index-array-push-extend index-array (incf elem-count))
+		    (standard-2d-vertex-array-push-extend vertex-array x1 y1 ub32-color)
+		    (index-array-push-extend index-array (incf elem-count))))))
+	  (let ((cmd (make-standard-draw-indexed-cmd
+		      2d-draw-list
+		      first-index elem-count vtx-offset
+		      model-mtx nil *white-texture* nil sf-line-thickness nil)))
+            (vector-push-extend cmd cmd-vector)
+            cmd))))
+
+(defun %draw-list-add-2d-circular-arc-pseudo-cmd (2d-draw-list bool-closed? ub32-color
+						  df-center-x df-center-y df-radius df-start-angle df-end-angle
+						  fixnum-number-of-segments)
+  ;; uses line list instead of line strip
+  (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
+  (declare (type boolean bool-closed?))
+  (declare (type (unsigned-byte 32) ub32-color))
+  (declare (type double-float df-center-x df-center-y df-radius df-start-angle df-end-angle))
+  (declare (type fixnum fixnum-number-of-segments))
+
   (let* ((index-array (draw-list-index-array 2d-draw-list))
          (vertex-array (draw-list-vertex-array 2d-draw-list))
-         (vtx-offset (foreign-array-fill-pointer vertex-array))
-         (first-index (foreign-array-fill-pointer index-array))
-         (elem-count 0))
+	 (first-index (foreign-array-fill-pointer index-array))
+         (vtx-offset (foreign-array-fill-pointer vertex-array)))
+    (declare (type fixnum vtx-offset))
+    (with-draw-list-transaction (2d-draw-list first-index vtx-offset)
+      (let* ((dtheta (- df-start-angle df-end-angle)))
+	(declare (type double-float dtheta))
+	(standard-2d-vertex-array-push-extend vertex-array
+                                              (clampf (+ df-center-x (* df-radius (cos df-start-angle))))
+                                              (clampf (+ df-center-y (* df-radius (sin df-start-angle))))
+                                              ub32-color)
+	(loop for i from vtx-offset
+              repeat fixnum-number-of-segments
+              with theta = df-start-angle
+              with step = (/ dtheta fixnum-number-of-segments)
+              do (let* ((angle (+ (cl:the double-float theta) (cl:the double-float step)))
+			(coord-x (clampf (+ df-center-x (* df-radius (cos angle)))))
+			(coord-y (clampf (+ df-center-y (* df-radius (sin angle))))))
+                   (index-array-push-extend index-array i)
+                   (standard-2d-vertex-array-push-extend vertex-array coord-x coord-y ub32-color)
+                   (index-array-push-extend index-array (1+ (cl:the fixnum i)))
+                   (incf theta step))
+              finally (when bool-closed?
+			(index-array-push-extend index-array vtx-offset)))))))
 
-    (handler-case
-        (progn
-          (assert (realp line-thickness))
-          (loop for (x y) on vertices by #'cddr
-                do (standard-2d-vertex-array-push-extend vertex-array x y color)
-                   (index-array-push-extend index-array elem-count)
-                   (incf elem-count)
-                finally (when closed?
+
+(defun %draw-list-add-2d-circular-arc-cmd (2d-draw-list model-mtx bool-closed? sf-line-thickness ub32-color
+                                           df-center-x df-center-y df-radius df-start-angle df-end-angle
+                                           fixnum-number-of-segments
+                                           &optional (cmd-constructor #'make-standard-draw-indexed-cmd))
+  ;; for use with line strip pipeline
+  (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
+  (declare (type function cmd-constructor))
+  (declare (type boolean bool-closed?))
+  (declare (type single-float sf-line-thickness))
+  (declare (type (unsigned-byte 32) ub32-color))
+  (declare (type double-float df-center-x df-center-y df-radius df-start-angle df-end-angle))
+  (declare (type fixnum fixnum-number-of-segments))
+  
+  (let* ((index-array (draw-list-index-array 2d-draw-list))
+         (first-index (foreign-array-fill-pointer index-array))
+         (vertex-array (draw-list-vertex-array 2d-draw-list))
+         (vtx-offset (foreign-array-fill-pointer vertex-array)))
+
+    (with-draw-list-transaction (2d-draw-list first-index vertex-array)
+      (unless (or (minusp df-radius) (minusp fixnum-number-of-segments))
+        (let* ((dtheta (- df-start-angle df-end-angle)))
+          (loop for i from 0 to fixnum-number-of-segments
+                with theta = df-start-angle
+                with step = (/ dtheta fixnum-number-of-segments)
+                do (let* ((coord-x (clampf
+				    (+ df-center-x (* df-radius (cos (cl:the double-float theta))))))
+                          (coord-y (clampf
+				    (+ df-center-y (* df-radius (sin (cl:the double-float theta)))))))
+		     (standard-2d-vertex-array-push-extend vertex-array coord-x coord-y ub32-color)
+		     (index-array-push-extend index-array i)
+		     (incf (cl:the double-float theta) step))
+                finally (when bool-closed?
                           (index-array-push-extend index-array 0)
-                          (incf elem-count)))
+			  (incf fixnum-number-of-segments)))
           (let ((cmd (funcall cmd-constructor
                               2d-draw-list
-                              first-index elem-count vtx-offset
-                              model-mtx nil *white-texture* (clampf line-thickness) nil)))
-            (vector-push-extend cmd (draw-list-cmd-vector 2d-draw-list))
-            cmd))
-      (error (c)
-        (warn (princ-to-string c))
-        (setf (foreign-array-fill-pointer vertex-array) vtx-offset
-              (foreign-array-fill-pointer index-array) first-index)
-        nil))))
+                              first-index (1+ fixnum-number-of-segments) vtx-offset
+                              model-mtx nil *white-texture* sf-line-thickness nil)))
+	    (vector-push-extend cmd (draw-list-cmd-vector 2d-draw-list))
+	    cmd))))))
 
-(defun %draw-list-add-2d-line-list (2d-draw-list color vertices)
+(defun %draw-list-add-2d-circle-pseudo-cmd (2d-draw-list ub32-color
+					    df-center-x df-center-y df-radius
+					    fixnum-number-of-segments)
+  ;; uses line list instead of line strip
   (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
-  (declare (type (unsigned-byte 32) color))
-  (declare (type list vertices))
-  (when (cdddr vertices)
-    (let* ((index-array (draw-list-index-array 2d-draw-list))
-           (vertex-array (draw-list-vertex-array 2d-draw-list))
-           (vtx-offset (foreign-array-fill-pointer vertex-array))
-           (elem-count 0))
-      (loop for (x0 y0 x1 y1) on vertices by #'cddddr
-            do (standard-2d-vertex-array-push-extend vertex-array x0 y0 color)
-               (index-array-push-extend index-array (+ vtx-offset elem-count))
-               (incf elem-count)
-               (standard-2d-vertex-array-push-extend vertex-array x1 y1 color)
-               (index-array-push-extend index-array (+ vtx-offset elem-count))
-               (incf elem-count)))))
-
-;; for use with line strip pipeline
-#+NIL
-(defun %draw-list-add-2d-triangle-cmd (2d-draw-list model-mtx line-thickness color
-                                       x0 y0 x1 y1 x2 y2
-                                       &optional (cmd-constructor #'make-standard-draw-indexed-cmd))
-  (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
-  (declare (type function cmd-constructor))
-  (%draw-list-add-2d-polyline-cmd-1 2d-draw-list t model-mtx line-thickness color
-                                    (list x0 y0 x1 y1 x2 y2) cmd-constructor))
-
-;; for use with line_list pipeline, suitable for immediate mode
-#+NIL
-(defun %draw-list-add-2d-triangle (2d-draw-list color x0 y0 x1 y1 x2 y2)
-  (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
-  (declare (type (unsigned-byte 32) color))
-  (declare (type real x0 y0 x1 y1 x2 y2))
-  (%draw-list-add-2d-polyline-1 2d-draw-list t color (list x0 y0 x1 y1 x2 y2)))
-
-;; for use with line strip pipeline
-#+NIL
-(defun %draw-list-add-2d-rectangle-cmd (2d-draw-list model-mtx line-thickness color
-                                        x0 y0 x1 y1
-                                        &optional (cmd-constructor #'make-standard-draw-indexed-cmd))
-  (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
-  (declare (type function cmd-constructor))
-  (%draw-list-add-2d-polyline-cmd-1 2d-draw-list t model-mtx line-thickness color
-                                    (list x0 y0 x0 y1 x1 y1 x1 y0) cmd-constructor))
-
-;; for use with line_list pipeline, suitable for immediate-mode
-#+NIL
-(defun %draw-list-add-2d-rectangle (2d-draw-list color x0 y0 x1 y1)
-  (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
-  (declare (type (unsigned-byte 32) color))
-  (declare (type real x0 y0 x1 y1))
-  (%draw-list-add-2d-polyline-1 2d-draw-list t color (list x0 y0 x0 y1 x1 y1 x1 y0)))
-
-;; for use with line strip pipeline
-(defun %draw-list-add-2d-circular-arc-cmd (2d-draw-list closed? model-mtx line-thickness color
-                                           center-x center-y radius start-angle end-angle
-                                           number-of-segments
-                                           &optional (cmd-constructor #'make-standard-draw-indexed-cmd))
-  (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
-  (declare (type function cmd-constructor))
-
-  (let* ((index-array (draw-list-index-array 2d-draw-list))
-         (first-index (foreign-array-fill-pointer index-array))
-         (vertex-array (draw-list-vertex-array 2d-draw-list))
-         (vtx-offset (foreign-array-fill-pointer vertex-array)))
-
-    (handler-case
-        (unless (minusp radius)
-          (assert (typep line-thickness 'real))
-          (let* ((dtheta (- start-angle end-angle)))
-            (loop for i from 0 to number-of-segments
-                  with theta = start-angle
-                  with step = (/ dtheta number-of-segments)
-                  do (let* ((coord-x (+ center-x (* radius (cos theta))))
-                            (coord-y (+ center-y (* radius (sin theta)))))
-                       (standard-2d-vertex-array-push-extend vertex-array coord-x coord-y color)
-                       (index-array-push-extend index-array i)
-                       (incf theta step))
-                  finally (when closed?
-                            (index-array-push-extend index-array 0)
-                            (incf number-of-segments)))
-            (let ((cmd (funcall cmd-constructor
-                                2d-draw-list
-                                first-index (1+ number-of-segments) vtx-offset
-                                model-mtx nil *white-texture* (clampf line-thickness) nil)))
-              (vector-push-extend cmd (draw-list-cmd-vector 2d-draw-list))
-              cmd)))
-      (error (c)
-             (warn (princ-to-string c))
-             (setf (foreign-array-fill-pointer vertex-array) vtx-offset
-                   (foreign-array-fill-pointer index-array) first-index)
-        nil))))
-
-(defun %draw-list-add-2d-circular-arc (2d-draw-list closed? color
-                                       center-x center-y radius start-angle end-angle
-                                       number-of-segments)
-  ;; uses line list instead of line strip to avoid need for cmds
-  (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
-  (declare (type (unsigned-byte 32) color))
-  (declare (type boolean closed?))
-  (declare (type real center-x center-y radius start-angle end-angle))
-  (declare (type (integer 0) number-of-segments))
+  (declare (type (unsigned-byte 32) ub32-color))
+  (declare (type double-float df-center-x df-center-y df-radius))
+  (declare (type fixnum fixnum-number-of-segments))
   (let* ((index-array (draw-list-index-array 2d-draw-list))
          (vertex-array (draw-list-vertex-array 2d-draw-list))
+	 (first-index (foreign-array-fill-pointer index-array))
          (vtx-offset (foreign-array-fill-pointer vertex-array)))
-    (let* ((dtheta (- start-angle end-angle)))
+    (declare (type fixnum vtx-offset))
+    (with-draw-list-transaction (2d-draw-list first-index vtx-offset)
       (standard-2d-vertex-array-push-extend vertex-array
-                                            (+ center-x (* radius (cos start-angle)))
-                                            (+ center-y (* radius (sin start-angle)))
-                                            color)
+                                            (clampf (+ df-center-x (* df-radius #.(cos 0))))
+                                            (clampf (+ df-center-y (* df-radius #.(sin 0))))
+                                            ub32-color)
       (loop for i from vtx-offset
-            repeat number-of-segments
-            with theta = start-angle
-            with step = (/ dtheta number-of-segments)
-            do (let* ((coord-x (+ center-x (* radius (cos (+ theta step)))))
-                      (coord-y (+ center-y (* radius (sin (+ theta step))))))
-                 (index-array-push-extend index-array i)
-                 (standard-2d-vertex-array-push-extend vertex-array coord-x coord-y color)
-                 (index-array-push-extend index-array (1+ i))
-                 (incf theta step))
-            finally (when closed?
-                      (index-array-push-extend index-array vtx-offset))))))
+            repeat fixnum-number-of-segments
+            with theta = 0.0d0
+            with step = (/ 2pi fixnum-number-of-segments)
+	    with indices = ()
+            do (let* ((angle (+ (cl:the double-float theta) (cl:the double-float step)))
+		      (coord-x (clampf (+ df-center-x (* df-radius (cos angle)))))
+                      (coord-y (clampf (+ df-center-y (* df-radius (sin angle))))))
+		 (push (index-array-push-extend index-array i) indices)
+		 (let ((offset (standard-2d-vertex-array-push-extend vertex-array coord-x coord-y ub32-color)))
+		   (push (index-array-push-extend index-array offset) indices))
+		 (incf theta step))
+	    finally (return (list* 2d-draw-list indices))))))
 
-(defun %draw-list-add-2d-circle-cmd (2d-draw-list model-mtx line-thickness color
-                                     center-x center-y radius number-of-segments
+(defun %draw-list-add-2d-circle-cmd (2d-draw-list model-mtx sf-line-thickness ub32-color
+                                     df-center-x df-center-y df-radius fixnum-number-of-segments
                                      &optional (cmd-constructor #'make-standard-draw-indexed-cmd))
   (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
   (declare (type function cmd-constructor))
+  (declare (type (unsigned-byte 32) ub32-color))
+  (declare (type double-float df-center-x df-center-y df-radius))
+  (declare (type fixnum fixnum-number-of-segments))
 
   (let* ((index-array (draw-list-index-array 2d-draw-list))
          (first-index (foreign-array-fill-pointer index-array))
          (vertex-array (draw-list-vertex-array 2d-draw-list))
          (vtx-offset (foreign-array-fill-pointer vertex-array)))
+    (with-draw-list-transaction (2d-draw-list first-index vtx-offset)
+      (unless (minusp df-radius)
+        (loop for i from 0 to fixnum-number-of-segments
+              with theta = 0.0d0
+              with step = (/ 2pi fixnum-number-of-segments)
+              do (let* ((coord-x (clampf (+ df-center-x (* df-radius (cos (cl:the double-float theta))))))
+                        (coord-y (clampf (+ df-center-y (* df-radius (sin (cl:the double-float theta)))))))
+                   (standard-2d-vertex-array-push-extend vertex-array coord-x coord-y ub32-color)
+                   (index-array-push-extend index-array i)
+                   (incf theta step))
+              finally (index-array-push-extend index-array 0))
+        (let ((cmd (funcall cmd-constructor
+                            2d-draw-list
+                            first-index (1+ fixnum-number-of-segments) vtx-offset
+                            model-mtx nil sf-line-thickness nil)))
+          (vector-push-extend cmd (draw-list-cmd-vector 2d-draw-list))
+          cmd)))))
 
-    (handler-case
-        (unless (minusp radius)
-          (assert (realp line-thickness))
-          (loop for i from 0 to number-of-segments
-                with theta = 0.0d0
-                with step = (/ 2pi number-of-segments)
-                do (let* ((coord-x (+ center-x (* radius (cos theta))))
-                          (coord-y (+ center-y (* radius (sin theta)))))
-                     (standard-2d-vertex-array-push-extend vertex-array coord-x coord-y color)
-                     (index-array-push-extend index-array i)
-                     (incf theta step))
-                finally (index-array-push-extend index-array 0))
-          (let ((cmd (funcall cmd-constructor
-                              2d-draw-list
-                              first-index (1+ number-of-segments) vtx-offset
-                              model-mtx nil (clampf line-thickness) nil)))
-            (vector-push-extend cmd (draw-list-cmd-vector 2d-draw-list))
-            cmd))
-      (error (c)
-        (warn (princ-to-string c))
-        (setf (foreign-array-fill-pointer vertex-array) vtx-offset
-              (foreign-array-fill-pointer index-array) first-index)
-        nil))))
-
-(defun %draw-list-add-2d-circle (2d-draw-list color
-                                 center-x center-y radius
-                                 number-of-segments)
-  ;; uses line list instead of line strip to avoid need for cmds
-  (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
-  (declare (type (unsigned-byte 32) color))
-  (declare (type real center-x center-y radius))
-  (declare (type (integer 0) number-of-segments))
-  (let* ((index-array (draw-list-index-array 2d-draw-list))
-         (vertex-array (draw-list-vertex-array 2d-draw-list))
+(defun %draw-list-add-3d-polyline-pseudo-cmd (3d-draw-list bool-closed? ub32-color seq-vertices)
+  ;; for line-list pipeline
+  (declare (type 3d-vertex-draw-list-mixin 3d-draw-list))
+  (declare (type boolean bool-closed?))
+  (declare (type (unsigned-byte 32) ub32-color))
+  (declare (type sequence seq-vertices))
+  ;; there must be at least one vertex to succeed
+  (let* ((index-array (draw-list-index-array 3d-draw-list))
+         (vertex-array (draw-list-vertex-array 3d-draw-list))
+	 (first-index (foreign-array-fill-pointer index-array))
          (vtx-offset (foreign-array-fill-pointer vertex-array)))
-    (standard-2d-vertex-array-push-extend vertex-array
-                                          (+ center-x (* radius #.(cos 0)))
-                                          (+ center-y (* radius #.(sin 0)))
-                                          color)
-    (loop for i from vtx-offset
-          repeat number-of-segments
-          with theta = 0
-          with step = (/ 2pi number-of-segments)
-          do (let* ((coord-x (+ center-x (* radius (cos (+ theta step)))))
-                    (coord-y (+ center-y (* radius (sin (+ theta step))))))
-               (index-array-push-extend index-array i)
-               (standard-2d-vertex-array-push-extend vertex-array coord-x coord-y color)
-               (index-array-push-extend index-array (1+ i))
-               (incf theta step)))))
+    (declare (type fixnum vtx-offset))
+    (with-draw-list-transaction (3d-draw-list first-index vtx-offset)
+      (etypecase seq-vertices
+	(list
+	 (loop for (x1 y1 z1) on (cdddr seq-vertices) by #'cdddr
+	       for (x0 y0 z0) on seq-vertices by #'cdddr
+	       with indices = ()
+	       do (setq x0 (clampf x0))
+		  (setq y0 (clampf y0))
+		  (setq z0 (clampf z0))
+		  (setq x1 (clampf x1))
+		  (setq y1 (clampf y1))
+		  (setq z1 (clampf z1))
+		  (let ((offset (standard-3d-vertex-array-push-extend vertex-array x0 y0 z0 ub32-color)))
+		    (push (index-array-push-extend index-array offset) indices))
+		  (let ((offset (standard-3d-vertex-array-push-extend vertex-array x1 y1 z1 ub32-color)))
+		    (push (index-array-push-extend index-array offset) indices))
+	       finally (when bool-closed?
+			 (push (index-array-push-extend index-array vtx-offset) indices))
+		       (return (list* 3d-draw-list indices))))))))
 
-(defun %draw-list-add-multicolor-3d-polyline-cmd-1
-    (3d-draw-list closed? model-mtx line-thickness vertices
+(defun %draw-list-add-3d-polyline-cmd (3d-draw-list model-mtx bool-closed? sf-line-thickness ub32-color
+				       seq-vertices
+				       &optional (cmd-constructor #'make-standard-draw-indexed-cmd))
+  (declare (type 3d-vertex-draw-list-mixin 3d-draw-list))
+  (declare (type function cmd-constructor))
+  (declare (type single-float sf-line-thickness))
+  (declare (type boolean bool-closed?))
+  (declare (type sequence seq-vertices))
+  ;; there must be at least one vertex to succeed
+  (let* ((index-array (draw-list-index-array 3d-draw-list))
+         (vertex-array (draw-list-vertex-array 3d-draw-list))
+         (vtx-offset (foreign-array-fill-pointer vertex-array))
+         (first-index (foreign-array-fill-pointer index-array))
+         (elem-count 0))
+    (declare (type fixnum elem-count))
+    (with-draw-list-transaction (3d-draw-list first-index vtx-offset)
+      (etypecase seq-vertices
+	(list
+	 (loop for (x y z) on seq-vertices by #'cdddr
+	       do (setq x (clampf x))
+		  (setq y (clampf y))
+		  (setq z (clampf z))
+		  (standard-3d-vertex-array-push-extend vertex-array x y z ub32-color)
+		  (index-array-push-extend index-array elem-count)
+		  (incf elem-count)
+	       finally (when bool-closed?
+			 (index-array-push-extend index-array 0)
+			 (incf elem-count))))
+	(array
+	 (let ((len-vertices (length seq-vertices)))
+	   (declare (type fixnum len-vertices))
+	   (loop for i from 0 to (- len-vertices 3) by 3
+		 do (let ((x (clampf (aref seq-vertices i)))
+			  (y (clampf (aref seq-vertices (1+ i))))
+			  (z (clampf (aref seq-vertices (+ i 2)))))
+		      (standard-3d-vertex-array-push-extend vertex-array x y z ub32-color)
+		      (index-array-push-extend index-array elem-count))
+		 finally (incf elem-count (/ len-vertices 3))
+			 (when bool-closed?
+			   (index-array-push-extend index-array 0)
+			   (incf elem-count))))))
+          (let ((cmd (funcall cmd-constructor
+                              3d-draw-list
+                              first-index elem-count vtx-offset
+                              model-mtx nil sf-line-thickness nil)))
+            (vector-push-extend cmd (draw-list-cmd-vector 3d-draw-list))
+            cmd))))
+
+(defun %draw-list-add-multicolor-3d-polyline-pseudo-cmd (3d-draw-list bool-closed? seq-vertices)
+  ;; uses line-list
+  (declare (type 3d-vertex-draw-list-mixin 3d-draw-list))
+  (declare (type boolean bool-closed?))
+  (declare (type sequence seq-vertices))
+  ;; there must be at least one vertex to succeed
+  (let* ((index-array (draw-list-index-array 3d-draw-list))
+         (vertex-array (draw-list-vertex-array 3d-draw-list))
+	 (first-index (foreign-array-fill-pointer index-array))
+         (vtx-offset (foreign-array-fill-pointer vertex-array)))
+    (declare (type fixnum vtx-offset))
+    (with-draw-list-transaction (3d-draw-list first-index vtx-offset)
+      (etypecase seq-vertices
+	(list
+	 (loop for (x1 y1 z1 color1) on (cddddr seq-vertices) by #'cddddr
+	       for (x0 y0 z0 color0) on seq-vertices by #'cddddr
+	       with indices = ()
+	       do (setq x0 (clampf x0))
+		  (setq y0 (clampf y0))
+		  (setq z0 (clampf z0))
+		  (setq color0 (canonicalize-color color0))
+		  (setq x1 (clampf x1))
+		  (setq y1 (clampf y1))
+		  (setq z1 (clampf z1))
+		  (setq color1 (canonicalize-color color1))
+		  (let ((offset (standard-3d-vertex-array-push-extend vertex-array x0 y0 z0 color0)))
+		    (push (index-array-push-extend index-array offset) indices))
+		  (let ((offset (standard-3d-vertex-array-push-extend vertex-array x1 y1 z1 color1)))
+		    (push (index-array-push-extend index-array offset) indices))
+	       finally (when bool-closed?
+			 (push (index-array-push-extend index-array vtx-offset) indices))
+		       (return (list* 3d-draw-list indices))))))))
+
+(defun %draw-list-add-multicolor-3d-polyline-cmd
+    (3d-draw-list model-mtx bool-closed? sf-line-thickness seq-vertices
      &optional (cmd-constructor #'make-standard-draw-indexed-cmd))
   (declare (type 3d-vertex-draw-list-mixin 3d-draw-list))
   (declare (type function cmd-constructor))
+  (declare (type single-float sf-line-thickness))
+  (declare (type boolean bool-closed?))
+  (declare (type sequence seq-vertices))
   ;; there must be at least one vertex to succeed
   (let* ((index-array (draw-list-index-array 3d-draw-list))
          (vertex-array (draw-list-vertex-array 3d-draw-list))
          (vtx-offset (foreign-array-fill-pointer vertex-array))
          (first-index (foreign-array-fill-pointer index-array))
          (elem-count 0))
-    (handler-case
-        (progn
-          (assert (realp line-thickness))
-          (loop for (x y z color) on vertices by #'cddddr
-                do (standard-3d-vertex-array-push-extend vertex-array x y z color)
-                   (index-array-push-extend index-array elem-count)
-                   (incf elem-count)
-                finally (when closed?
-                          (index-array-push-extend index-array 0)
-                          (incf elem-count)))
+    (declare (type fixnum elem-count))
+    (with-draw-list-transaction (3d-draw-list first-index vtx-offset)
+      (etypecase seq-vertices
+	(list
+	 (loop for (x y z color) on seq-vertices by #'cddddr
+	       do (setq x (clampf x))
+		  (setq y (clampf y))
+		  (setq z (clampf z))
+		  (setq color (canonicalize-color color))
+		  (standard-3d-vertex-array-push-extend vertex-array x y z color)
+		  (index-array-push-extend index-array elem-count)
+		  (incf elem-count)
+	       finally (when bool-closed?
+			 (index-array-push-extend index-array 0)
+			 (incf elem-count)))))
           (let ((cmd (funcall cmd-constructor
                               3d-draw-list
                               first-index elem-count vtx-offset
-                              model-mtx nil (clampf line-thickness) nil)))
+                              model-mtx nil sf-line-thickness nil)))
             (vector-push-extend cmd (draw-list-cmd-vector 3d-draw-list))
-            cmd))
-      (error (c)
-        (warn (princ-to-string c))
-        (setf (foreign-array-fill-pointer vertex-array) vtx-offset
-              (foreign-array-fill-pointer index-array) first-index)
-        nil))))
+            cmd))))
 
-(defun %draw-list-add-3d-polyline-cmd-1 (3d-draw-list model-mtx closed? line-thickness color vertices
-                                         &optional (cmd-constructor #'make-standard-draw-indexed-cmd))
-  (declare (type 3d-vertex-draw-list-mixin 3d-draw-list))
-  (declare (type function cmd-constructor))
-  ;; there must be at least one vertex to succeed
-  (let* ((index-array (draw-list-index-array 3d-draw-list))
-         (vertex-array (draw-list-vertex-array 3d-draw-list))
-         (vtx-offset (foreign-array-fill-pointer vertex-array))
-         (first-index (foreign-array-fill-pointer index-array))
-         (elem-count 0))
-    (handler-case
-        (progn
-          (assert (realp line-thickness))
-          (loop for (x y z) on vertices by #'cdddr
-                do (standard-3d-vertex-array-push-extend vertex-array x y z color)
-                   (index-array-push-extend index-array elem-count)
-                   (incf elem-count)
-                finally (when closed?
-                          (index-array-push-extend index-array 0)
-                          (incf elem-count)))
-          (let ((cmd (funcall cmd-constructor
-                              3d-draw-list
-                              first-index elem-count vtx-offset
-                              model-mtx nil (clampf line-thickness) nil)))
-            (vector-push-extend cmd (draw-list-cmd-vector 3d-draw-list))
-            cmd))
-      (error (c)
-        (warn (princ-to-string c))
-        (setf (foreign-array-fill-pointer vertex-array) vtx-offset
-              (foreign-array-fill-pointer index-array) first-index)
-        nil))))
-
-(defun %draw-list-add-filled-2d-triangle-list-cmd (2d-draw-list model-mtx color vertices
-                                                   &optional (cmd-constructor #'make-standard-draw-indexed-cmd))
+(defun %draw-list-add-filled-2d-triangle-list-pseudo-cmd (2d-draw-list ub32-color seq-vertices)
+  ;; triangle list
   (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
-  (declare (type function cmd-constructor))
+  (declare (type (unsigned-byte 32) ub32-color))
+  (declare (type sequence seq-vertices))
+  (let* ((index-array (draw-list-index-array 2d-draw-list))
+         (vertex-array (draw-list-vertex-array 2d-draw-list))
+	 (first-index (foreign-array-fill-pointer index-array))
+         (vtx-offset (foreign-array-fill-pointer vertex-array))
+         (number-of-vertices 0))
+    (declare (type fixnum number-of-vertices))
+    (with-draw-list-transaction (2d-draw-list first-index vtx-offset)
+      (etypecase seq-vertices
+	(list
+	 (loop for (x y) on seq-vertices by #'cddr
+	       for i from vtx-offset
+	       with indices = ()
+	       do (setq x (clampf x))
+		  (setq y (clampf y))
+		  (standard-2d-vertex-array-push-extend vertex-array x y ub32-color)
+		  (incf number-of-vertices)
+		  (push (index-array-push-extend index-array i) indices)
+	       finally (return (list* 2d-draw-list indices))))))))
+
+(defun %draw-list-add-filled-2d-triangle-list-cmd (2d-draw-list model-mtx ub32-color seq-vertices)
+  ;; triangle list
+  (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
+  (declare (type (unsigned-byte 32) ub32-color))
+  (declare (type sequence seq-vertices))
+  (let* ((index-array (draw-list-index-array 2d-draw-list))
+         (vertex-array (draw-list-vertex-array 2d-draw-list))
+         (vtx-offset (foreign-array-fill-pointer vertex-array))
+         (first-index (foreign-array-fill-pointer index-array))
+         (elem-count 0))
+    (declare (type fixnum elem-count))
+    (with-draw-list-transaction (2d-draw-list first-index vtx-offset)
+      (etypecase seq-vertices
+	(list
+	 (loop for (x0 y0 x1 y1 x2 y2) on seq-vertices by #'(lambda (list)
+							      (nthcdr 6 list))
+               for i from 0 by 3 below #.(- most-positive-fixnum 4)
+               do (setq x0 (clampf x0))
+		  (setq y0 (clampf y0))
+		  (setq x1 (clampf x1))
+		  (setq y1 (clampf y1))
+		  (setq x2 (clampf x2))
+		  (setq y2 (clampf y2))
+		  (standard-2d-vertex-array-push-extend vertex-array x0 y0 ub32-color)
+		  (index-array-push-extend index-array i)
+                  (standard-2d-vertex-array-push-extend vertex-array x1 y1 ub32-color)
+		  (index-array-push-extend index-array (1+ i))
+                  (standard-2d-vertex-array-push-extend vertex-array x2 y2 ub32-color)
+                  (index-array-push-extend index-array (+ i 2))
+                  (incf elem-count 3))))
+          (let ((cmd (make-standard-draw-indexed-cmd
+		      2d-draw-list
+		      first-index elem-count vtx-offset model-mtx
+		      nil *white-texture* nil nil nil)))
+            (vector-push-extend cmd (draw-list-cmd-vector 2d-draw-list))
+            cmd))))
+
+(defun %draw-list-add-filled-2d-triangle-strip/list-cmd (2d-draw-list model-mtx ub32-color seq-vertices)
+  (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
+  (declare (type (unsigned-byte 32) ub32-color))
+  (declare (type sequence seq-vertices))
+  ;; must be at least three vertices to succeed
   (let* ((index-array (draw-list-index-array 2d-draw-list))
          (vertex-array (draw-list-vertex-array 2d-draw-list))
          (vtx-offset (foreign-array-fill-pointer vertex-array))
          (first-index (foreign-array-fill-pointer index-array))
          (number-of-vertices 0))
-    (handler-case
-        (progn
-          (loop for (x y) on vertices by #'cddr
-                for i from 0
-                do (standard-2d-vertex-array-push-extend vertex-array x y color)
-                   (incf number-of-vertices)
-                   (index-array-push-extend index-array i))
-          (let ((cmd (funcall cmd-constructor
-                              2d-draw-list
-                              first-index number-of-vertices vtx-offset model-mtx
-                              nil *white-texture* nil)))
+    (declare (type fixnum number-of-vertices))
+    (with-draw-list-transaction (2d-draw-list first-index vtx-offset)
+      (etypecase seq-vertices
+	(list (loop for (x y) on seq-vertices by #'cddr
+		    for i from 0 below #.most-positive-fixnum
+		    do (setq x (clampf x))
+		       (setq y (clampf y))
+		       (standard-2d-vertex-array-push-extend vertex-array x y ub32-color)
+		       (index-array-push-extend index-array i)
+		       (incf number-of-vertices))))
+	  (assert (> number-of-vertices 3))
+          (let ((cmd (make-standard-draw-indexed-cmd
+		      2d-draw-list
+		      first-index number-of-vertices vtx-offset model-mtx
+		      nil *white-texture* nil nil nil)))
             (vector-push-extend cmd (draw-list-cmd-vector 2d-draw-list))
-            cmd))
-      (error (c)
-        (warn (princ-to-string c))
-        (setf (foreign-array-fill-pointer vertex-array) vtx-offset
-              (foreign-array-fill-pointer index-array) first-index)
-        nil))))
+            cmd))))
 
-(defun %draw-list-add-filled-2d-rectangle-list-cmd (2d-draw-list model-mtx color vertices
+(defun %draw-list-add-filled-2d-rectangle-list-pseudo-cmd (2d-draw-list ub32-color seq-vertices)
+  ;; triangle list
+  (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
+  (declare (type (unsigned-byte 32) ub32-color))
+  (declare (type sequence seq-vertices))
+  (let* ((index-array (draw-list-index-array 2d-draw-list))
+         (vertex-array (draw-list-vertex-array 2d-draw-list))
+         (first-index (foreign-array-fill-pointer index-array))
+         (vtx-offset (foreign-array-fill-pointer vertex-array))
+         (elem-count 0))
+    (declare (type fixnum elem-count))
+    (with-draw-list-transaction (2d-draw-list first-index vtx-offset)
+      (etypecase seq-vertices
+	(list
+	 (loop for (x0 y0 x1 y1) on seq-vertices by #'(lambda (list)
+							(nthcdr 4 list))
+               for i from vtx-offset by 4
+	       with indices = ()
+               do (setq x0 (clampf x0))
+		  (setq y0 (clampf y0))
+		  (setq x1 (clampf x1))
+		  (setq y1 (clampf y1))
+		  (standard-2d-vertex-array-push-extend vertex-array x0 y0 ub32-color)
+                  (standard-2d-vertex-array-push-extend vertex-array x0 y1 ub32-color)
+                  (standard-2d-vertex-array-push-extend vertex-array x1 y1 ub32-color)
+                  (standard-2d-vertex-array-push-extend vertex-array x1 y0 ub32-color)
+                  (push (index-array-push-extend index-array i) indices)
+                  (push (index-array-push-extend index-array (1+ i)) indices)
+                  (push (index-array-push-extend index-array (+ 2 i)) indices)
+                  (push (index-array-push-extend index-array i) indices)
+                  (push (index-array-push-extend index-array (+ 2 i)) indices)
+                  (push (index-array-push-extend index-array (+ 3 i)) indices)
+                  (incf elem-count 6)
+	       finally (list* 2d-draw-list indices)))))))
+
+(defun %draw-list-add-filled-2d-rectangle-list-cmd (2d-draw-list model-mtx ub32-color seq-vertices
                                                     &optional (cmd-constructor #'make-standard-draw-indexed-cmd))
+  ;; triangle-list
   (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
   (declare (type function cmd-constructor))
+  (declare (type (unsigned-byte 32) ub32-color))
+  (declare (type sequence seq-vertices))
   (let* ((index-array (draw-list-index-array 2d-draw-list))
          (vertex-array (draw-list-vertex-array 2d-draw-list))
          (vtx-offset (foreign-array-fill-pointer vertex-array))
          (first-index (foreign-array-fill-pointer index-array))
          (elem-count 0))
-    (handler-case
-        (progn
-          (loop for (x0 y0 x1 y1) on vertices by #'(lambda (list)
-                                                     (nthcdr 4 list))
-                for i from 0 by 4
-                do (standard-2d-vertex-array-push-extend vertex-array x0 y0 color)
-                   (standard-2d-vertex-array-push-extend vertex-array x0 y1 color)
-                   (standard-2d-vertex-array-push-extend vertex-array x1 y1 color)
-                   (standard-2d-vertex-array-push-extend vertex-array x1 y0 color)
-                   (index-array-push-extend index-array i)
-                   (index-array-push-extend index-array (1+ i))
-                   (index-array-push-extend index-array (+ 2 i))
-                   (index-array-push-extend index-array i)
-                   (index-array-push-extend index-array (+ 2 i))
-                   (index-array-push-extend index-array (+ 3 i))
-                   (incf elem-count 6))
+    (declare (type fixnum elem-count))
+    (with-draw-list-transaction (2d-draw-list first-index vtx-offset)
+      (etypecase seq-vertices
+	(list
+	 (loop for (x0 y0 x1 y1) on seq-vertices by #'(lambda (list)
+							(nthcdr 4 list))
+               for i from 0 by 4 below #.(- most-positive-fixnum 4)
+               do (setq x0 (clampf x0))
+		  (setq y0 (clampf y0))
+		  (setq x1 (clampf x1))
+		  (setq y1 (clampf y1))
+		  (standard-2d-vertex-array-push-extend vertex-array x0 y0 ub32-color)
+                  (standard-2d-vertex-array-push-extend vertex-array x0 y1 ub32-color)
+                  (standard-2d-vertex-array-push-extend vertex-array x1 y1 ub32-color)
+                  (standard-2d-vertex-array-push-extend vertex-array x1 y0 ub32-color)
+                  (index-array-push-extend index-array i)
+                  (index-array-push-extend index-array (1+ i))
+                  (index-array-push-extend index-array (+ 2 i))
+                  (index-array-push-extend index-array i)
+                  (index-array-push-extend index-array (+ 2 i))
+                  (index-array-push-extend index-array (+ 3 i))
+                  (incf elem-count 6))))
           (let ((cmd (funcall cmd-constructor
                               2d-draw-list
                               first-index elem-count vtx-offset model-mtx
                               nil *white-texture* nil)))
             (vector-push-extend cmd (draw-list-cmd-vector 2d-draw-list))
-            cmd))
-      (error (c)
-        (warn (princ-to-string c))
-        (setf (foreign-array-fill-pointer vertex-array) vtx-offset
-              (foreign-array-fill-pointer index-array) first-index)
-        nil))))
+            cmd))))
 
-;; used to implement add-text
-(defun %draw-list-add-textured-2d-rectangle-list-cmd (2d-draw-list model-mtx texture color vertices
-                                                      &optional (cmd-constructor #'make-standard-draw-indexed-cmd))
-  (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
-  (declare (type function cmd-constructor))
-  ;; must be at least 2 vertices to succeed
-  (let* ((index-array (draw-list-index-array 2d-draw-list))
-         (vertex-array (draw-list-vertex-array 2d-draw-list))
-         (vtx-offset (foreign-array-fill-pointer vertex-array))
-         (first-index (foreign-array-fill-pointer index-array))
-         (elem-count 0))
-    (handler-case
-        (progn
-          (loop for (x0 y0 u0 v0 x1 y1 u1 v1) on vertices by #'(lambda (list)
-                                                                 (nthcdr 8 list))
-                for i from 0 by 4
-                do (textured-2d-vertex-array-push-extend vertex-array x0 y0 u0 v0 color)
-                   (textured-2d-vertex-array-push-extend vertex-array x0 y1 u0 v1 color)
-                   (textured-2d-vertex-array-push-extend vertex-array x1 y1 u1 v1 color)
-                   (textured-2d-vertex-array-push-extend vertex-array x1 y0 u1 v0 color)
-                   (index-array-push-extend index-array i)
-                   (index-array-push-extend index-array (1+ i))
-                   (index-array-push-extend index-array (+ 2 i))
-                   (index-array-push-extend index-array i)
-                   (index-array-push-extend index-array (+ 2 i))
-                   (index-array-push-extend index-array (+ 3 i))
-                   (incf elem-count 6))
-          (let ((cmd (funcall cmd-constructor
-                              2d-draw-list
-                              first-index elem-count vtx-offset model-mtx
-                              nil texture nil)))
-            (vector-push-extend cmd (draw-list-cmd-vector 2d-draw-list))
-            cmd))
-      (error (c)
-        (warn (princ-to-string c))
-        (setf (foreign-array-fill-pointer vertex-array) vtx-offset
-              (foreign-array-fill-pointer index-array) first-index)
-        nil))))
 
-;; used to implement draw-text
-;; will render the whole list in one draw command
-(defun %draw-list-add-textured-2d-rectangle-list (2d-draw-list color vertices)
+(defun %draw-list-add-textured-2d-rectangle-list-pseudo-cmd (2d-draw-list ub32-color seq-vertices)
+  ;; used to implement draw-text
   (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
+  (declare (type sequence seq-vertices))
+  (declare (type (unsigned-byte 32) ub32-color))
   ;; must be at least 2 vertices to succeed
   (let* ((index-array (draw-list-index-array 2d-draw-list))
          (vertex-array (draw-list-vertex-array 2d-draw-list)))
-    (loop for (x0 y0 u0 v0 x1 y1 u1 v1) on vertices by #'(lambda (list)
-                                                           (nthcdr 8 list))
-          for i from 0 by 4
-          do (textured-2d-vertex-array-push-extend vertex-array x0 y0 u0 v0 color)
-             (textured-2d-vertex-array-push-extend vertex-array x0 y1 u0 v1 color)
-             (textured-2d-vertex-array-push-extend vertex-array x1 y1 u1 v1 color)
-             (textured-2d-vertex-array-push-extend vertex-array x1 y0 u1 v0 color)
-             (index-array-push-extend index-array i)
-             (index-array-push-extend index-array (1+ i))
-             (index-array-push-extend index-array (+ 2 i))
-             (index-array-push-extend index-array i)
-             (index-array-push-extend index-array (+ 2 i))
-             (index-array-push-extend index-array (+ 3 i)))
-    (values)))
+    (declare (type foreign-adjustable-array index-array vertex-array))
+    (let ((first-index (foreign-array-fill-pointer index-array))
+	  (vtx-offset (foreign-array-fill-pointer vertex-array)))
+      (with-draw-list-transaction (2d-draw-list first-index vtx-offset)
+	(etypecase seq-vertices
+	  (list
+	   (loop for (x0 y0 u0 v0 x1 y1 u1 v1) on seq-vertices by #'(lambda (list)
+								      (nthcdr 8 list))
+		 for i from 0 by 4 below #.(- most-positive-fixnum 3)
+		 with indices = ()
+		 do (setq x0 (clampf x0))
+		    (setq y0 (clampf y0))
+		    (setq u0 (clampf u0))
+		    (setq v0 (clampf v0))
+		    (setq x1 (clampf x1))
+		    (setq y1 (clampf y1))
+		    (setq u1 (clampf u1))
+		    (setq v1 (clampf v1))
+		    (textured-2d-vertex-array-push-extend vertex-array x0 y0 u0 v0 ub32-color)
+		    (textured-2d-vertex-array-push-extend vertex-array x0 y1 u0 v1 ub32-color)
+		    (textured-2d-vertex-array-push-extend vertex-array x1 y1 u1 v1 ub32-color)
+		    (textured-2d-vertex-array-push-extend vertex-array x1 y0 u1 v0 ub32-color)
+		    (push (index-array-push-extend index-array i) indices)
+		    (push (index-array-push-extend index-array (1+ i)) indices)
+		    (push (index-array-push-extend index-array (+ 2 i)) indices)
+		    (push (index-array-push-extend index-array i) indices)
+		    (push (index-array-push-extend index-array (+ 2 i)) indices)
+		    (push (index-array-push-extend index-array (+ 3 i)) indices)
+		 finally (return (list* 2d-draw-list indices)))))))))
 
-(defun %draw-list-add-filled-2d-polygon-cmd (2d-draw-list model-mtx color vertices
-                                             &optional (cmd-constructor #'make-standard-draw-indexed-cmd))
+(defun %draw-list-add-textured-2d-rectangle-list-cmd (2d-draw-list model-mtx texture ub32-color seq-vertices
+                                                      &optional (cmd-constructor #'make-standard-draw-indexed-cmd))
+  ;; used to implement add-text
   (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
   (declare (type function cmd-constructor))
+  (declare (type (unsigned-byte 32) ub32-color))
+  (declare (type sequence seq-vertices))
+  ;; must be at least 2 vertices to succeed
+  (let* ((index-array (draw-list-index-array 2d-draw-list))
+         (vertex-array (draw-list-vertex-array 2d-draw-list))
+         (vtx-offset (foreign-array-fill-pointer vertex-array))
+         (first-index (foreign-array-fill-pointer index-array))
+         (elem-count 0))
+    (declare (type fixnum elem-count))
+    (with-draw-list-transaction (2d-draw-list first-index vtx-offset)
+      (etypecase seq-vertices
+	(list
+	 (loop for (x0 y0 u0 v0 x1 y1 u1 v1) on seq-vertices by #'(lambda (list)
+								    (nthcdr 8 list))
+               for i from 0 by 4 below #.(- most-positive-fixnum 4)
+               do (setq x0 (clampf x0))
+		  (setq y0 (clampf y0))
+		  (setq u0 (clampf u0))
+		  (setq v0 (clampf v0))
+		  (setq x1 (clampf x1))
+		  (setq y1 (clampf y1))
+		  (setq u1 (clampf u1))
+		  (setq v1 (clampf v1))
+		  (textured-2d-vertex-array-push-extend vertex-array x0 y0 u0 v0 ub32-color)
+                  (textured-2d-vertex-array-push-extend vertex-array x0 y1 u0 v1 ub32-color)
+                  (textured-2d-vertex-array-push-extend vertex-array x1 y1 u1 v1 ub32-color)
+                  (textured-2d-vertex-array-push-extend vertex-array x1 y0 u1 v0 ub32-color)
+                  (index-array-push-extend index-array i)
+                  (index-array-push-extend index-array (1+ i))
+                  (index-array-push-extend index-array (+ 2 i))
+                  (index-array-push-extend index-array i)
+                  (index-array-push-extend index-array (+ 2 i))
+                  (index-array-push-extend index-array (+ 3 i))
+                  (incf elem-count 6))))
+      (assert (>= (foreign-array-fill-pointer vertex-array) (+ vtx-offset 4)))
+      (let ((cmd (funcall cmd-constructor
+			  2d-draw-list
+			  first-index elem-count vtx-offset model-mtx
+			  nil texture nil nil nil)))
+	(vector-push-extend cmd (draw-list-cmd-vector 2d-draw-list))
+	cmd))))
+
+(defun %draw-list-add-filled-2d-convex-polygon-pseudo-cmd (2d-draw-list ub32-color seq-vertices)
+  (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
+  (declare (type (unsigned-byte 32) ub32-color))
+  (declare (type sequence seq-vertices))
+  ;; must be at least 3 vertexes to succeed
+  (let* ((index-array (draw-list-index-array 2d-draw-list))
+         (vertex-array (draw-list-vertex-array 2d-draw-list))
+	 (first-index (foreign-array-fill-pointer index-array))
+         (vtx-offset (foreign-array-fill-pointer vertex-array))
+         (number-of-vertices 0))
+    (declare (type fixnum number-of-vertices))
+    (with-draw-list-transaction (2d-draw-list first-index vtx-offset)
+      (etypecase seq-vertices
+	(list
+	 (loop for i from vtx-offset below #.most-positive-fixnum
+	       for (x y) on seq-vertices by #'cddr
+	       with indices = ()
+	       do (setq x (clampf x))
+		  (setq y (clampf y))
+		  (standard-2d-vertex-array-push-extend vertex-array x y ub32-color)
+		  (incf number-of-vertices)
+	       when (>= i 2)
+		 do (push (index-array-push-extend index-array 0) indices)
+		    (push (index-array-push-extend index-array (1- i)) indices)
+		    (push (index-array-push-extend index-array i) indices)
+	       finally (return (list* 2d-draw-list indices))))))))
+      
+
+(defun %draw-list-add-filled-2d-convex-polygon-cmd (2d-draw-list model-mtx ub32-color seq-vertices)
+  (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
+  (declare (type (unsigned-byte 32) ub32-color))
+  (declare (type sequence seq-vertices))
   ;; must be at least 3 vertexes to succeed
   (let* ((index-array (draw-list-index-array 2d-draw-list))
          (vertex-array (draw-list-vertex-array 2d-draw-list))
          (vtx-offset (foreign-array-fill-pointer vertex-array))
          (first-index (foreign-array-fill-pointer index-array))
          (number-of-vertices 0))
-
-    (handler-case
-        (progn
-          (loop for i from 0
-                for (x y) on vertices by #'cddr
-
-                do (standard-2d-vertex-array-push-extend vertex-array x y color)
-                   (incf number-of-vertices)
-                when (>= i 2)
-                  do (index-array-push-extend index-array 0)
-                     (index-array-push-extend index-array (1- i))
-                     (index-array-push-extend index-array i))
-
-          (let ((cmd (funcall cmd-constructor
-                              2d-draw-list
-                              first-index (* 3 (- number-of-vertices 2)) vtx-offset model-mtx
-                              nil *white-texture* nil)))
+    (declare (type fixnum number-of-vertices))
+    (with-draw-list-transaction (2d-draw-list first-index vtx-offset)
+      (etypecase seq-vertices
+	(list
+	 (loop for i from 0 below #.most-positive-fixnum
+	       for (x y) on seq-vertices by #'cddr
+	       do (setq x (clampf x))
+		  (setq y (clampf y))
+		  (standard-2d-vertex-array-push-extend vertex-array x y ub32-color)
+		  (incf number-of-vertices)
+	       when (>= i 2)
+		 do (index-array-push-extend index-array 0)
+		    (index-array-push-extend index-array (1- i))
+		    (index-array-push-extend index-array i))))
+	  (assert (>= number-of-vertices 3))
+          (let ((cmd (make-standard-draw-indexed-cmd
+		      2d-draw-list
+		      first-index (* 3 (- number-of-vertices 2)) vtx-offset
+		      model-mtx nil *white-texture* nil nil nil)))
             (vector-push-extend cmd (draw-list-cmd-vector 2d-draw-list))
-            cmd))
-      (error (c)
-        (warn (princ-to-string c))
-        (setf (foreign-array-fill-pointer vertex-array) vtx-offset
-              (foreign-array-fill-pointer index-array) first-index)
-        nil))))
+            cmd))))
 
-(defun %draw-list-add-filled-3d-triangle-strip-cmd (3d-draw-list model-mtx color vertices
-                                                   &optional (cmd-constructor #'make-standard-draw-indexed-cmd))
+(defun %draw-list-add-filled-3d-triangle-strip/list-pseudo-cmd (3d-draw-list ub32-color seq-vertices)
   (declare (type 3d-vertex-draw-list-mixin 3d-draw-list))
-  (declare (type function cmd-constructor))
+  (declare (type (unsigned-byte 32) ub32-color))
+  (declare (type sequence seq-vertices))
+  ;; must be at least three vertices to succeed
+  (let* ((index-array (draw-list-index-array 3d-draw-list))
+         (vertex-array (draw-list-vertex-array 3d-draw-list))
+	 (first-index (foreign-array-fill-pointer index-array))
+         (vtx-offset (foreign-array-fill-pointer vertex-array))
+         (number-of-vertices 0))
+    (declare (type fixnum number-of-vertices))
+    (with-draw-list-transaction (3d-draw-list first-index vtx-offset)
+      (etypecase seq-vertices
+	(list (loop for (x y z) on seq-vertices by #'cdddr
+		    for i from vtx-offset below #.most-positive-fixnum
+		    with indices = ()
+		    do (setq x (clampf x))
+		       (setq y (clampf y))
+		       (setq z (clampf z))
+		       (standard-3d-vertex-array-push-extend vertex-array x y z ub32-color)
+		       (push (index-array-push-extend index-array i) indices)
+		       (incf number-of-vertices)
+		    finally (assert (> number-of-vertices 3))
+			    (return (list* 3d-draw-list indices))))))))
+
+(defun %draw-list-add-filled-3d-triangle-strip/list-cmd (3d-draw-list model-mtx ub32-color seq-vertices)
+  (declare (type 3d-vertex-draw-list-mixin 3d-draw-list))
+  (declare (type (unsigned-byte 32) ub32-color))
+  (declare (type sequence seq-vertices))
   ;; must be at least three vertices to succeed
   (let* ((index-array (draw-list-index-array 3d-draw-list))
          (vertex-array (draw-list-vertex-array 3d-draw-list))
          (vtx-offset (foreign-array-fill-pointer vertex-array))
          (first-index (foreign-array-fill-pointer index-array))
          (number-of-vertices 0))
-
-    (handler-case
-        (progn
-          (loop for (x y z) on vertices by #'cdddr
-                for i from 0
-                do (standard-3d-vertex-array-push-extend vertex-array x y z color)
-                   (index-array-push-extend index-array i)
-                   (incf number-of-vertices))
-          (let ((cmd (funcall cmd-constructor
-                              3d-draw-list
-                              first-index number-of-vertices vtx-offset model-mtx
-                              nil *white-texture* nil)))
+    (declare (type fixnum number-of-vertices))
+    (with-draw-list-transaction (3d-draw-list first-index vtx-offset)
+      (etypecase seq-vertices
+	(list (loop for (x y z) on seq-vertices by #'cdddr
+		    for i from 0 below #.most-positive-fixnum
+		    do (setq x (clampf x))
+		       (setq y (clampf y))
+		       (setq z (clampf z))
+		       (standard-3d-vertex-array-push-extend vertex-array x y z ub32-color)
+		       (index-array-push-extend index-array i)
+		       (incf number-of-vertices))))
+	  (assert (> number-of-vertices 3))
+          (let ((cmd (make-standard-draw-indexed-cmd
+		      3d-draw-list
+		      first-index number-of-vertices vtx-offset model-mtx
+		      nil *white-texture* nil nil nil)))
             (vector-push-extend cmd (draw-list-cmd-vector 3d-draw-list))
-            cmd))
-      (error (c)
-        (warn (princ-to-string c))
-        (setf (foreign-array-fill-pointer vertex-array) vtx-offset
-              (foreign-array-fill-pointer index-array) first-index)
-        nil))))
+            cmd))))
 
-(defun %draw-list-add-filled-3d-triangle-strip-with-normals-cmd
-    (3d-draw-list model-mtx color vertices
-     &optional (cmd-constructor #'make-standard-draw-indexed-cmd))
+(defun %draw-list-add-filled-3d-triangle-strip/list-with-normals-pseudo-cmd (3d-draw-list ub32-color seq-vertices)
   (declare (type 3d-vertex-draw-list-mixin 3d-draw-list))
-  (declare (type function cmd-constructor))
+  (declare (type (unsigned-byte 32) ub32-color))
+  (declare (type sequence seq-vertices))
+  ;; must be at least three vertices to succeed
+  (let* ((index-array (draw-list-index-array 3d-draw-list))
+         (vertex-array (draw-list-vertex-array 3d-draw-list))
+	 (first-index (foreign-array-fill-pointer index-array))
+         (vtx-offset (foreign-array-fill-pointer vertex-array)))
+    (with-draw-list-transaction (3d-draw-list first-index vtx-offset)
+      (etypecase seq-vertices
+	(list (loop for (x y z nx ny nz) on seq-vertices by #'cdddr
+		    for i from vtx-offset below #.most-positive-fixnum
+		    with indices = ()
+		    do (setq x (clampf x))
+		       (setq y (clampf y))
+		       (setq z (clampf z))
+		       (setq nx (clampf nx))
+		       (setq ny (clampf ny))
+		       (setq nz (clampf nz))
+		       (standard-3d-vertex-with-normal-array-push-extend vertex-array x y z nx ny nz ub32-color)
+		       (push (index-array-push-extend index-array i) indices)
+		    finally (return (list* 3d-draw-list indices))))))))
+
+(defun %draw-list-add-filled-3d-triangle-strip/list-with-normals-cmd
+    (3d-draw-list model-mtx ub32-color seq-vertices light-position)
+  (declare (type 3d-vertex-draw-list-mixin 3d-draw-list))
+  (declare (type (unsigned-byte 32) ub32-color))
+  (declare (type sequence seq-vertices))
   ;; must be at least three vertices to succeed
   (let* ((index-array (draw-list-index-array 3d-draw-list))
          (vertex-array (draw-list-vertex-array 3d-draw-list))
          (vtx-offset (foreign-array-fill-pointer vertex-array))
          (first-index (foreign-array-fill-pointer index-array))
          (number-of-vertices 0))
-
-    (handler-case
-        (progn
-          (loop for (x y z nx ny nz) on vertices by #'cdddr
-                for i from 0
-                do (standard-3d-vertex-with-normal-array-push-extend vertex-array x y z nx ny nz color)
-                   (incf number-of-vertices)
-                   (index-array-push-extend index-array i))
-          (let ((cmd (funcall cmd-constructor
-                              3d-draw-list
-                              first-index number-of-vertices vtx-offset model-mtx
-                              nil nil *white-texture*)))
+    (declare (type fixnum number-of-vertices))
+    (with-draw-list-transaction (3d-draw-list first-index vtx-offset)
+      (etypecase seq-vertices
+	(list (loop for (x y z nx ny nz) on seq-vertices by #'cdddr
+		    for i from 0 below #.most-positive-fixnum
+		    do (setq x (clampf x))
+		       (setq y (clampf y))
+		       (setq z (clampf z))
+		       (setq nx (clampf nx))
+		       (setq ny (clampf ny))
+		       (setq nz (clampf nz))
+		       (standard-3d-vertex-with-normal-array-push-extend vertex-array x y z nx ny nz ub32-color)
+		       (incf number-of-vertices)
+		       (index-array-push-extend index-array i))))
+          (let ((cmd (make-standard-draw-indexed-cmd
+		      3d-draw-list
+		      first-index number-of-vertices vtx-offset model-mtx
+		      nil *white-texture* nil nil light-position)))
             (vector-push-extend cmd (draw-list-cmd-vector 3d-draw-list))
-            cmd))
-      (error (c)
-        (warn (princ-to-string c))
-        (setf (foreign-array-fill-pointer vertex-array) vtx-offset
-              (foreign-array-fill-pointer index-array) first-index)
-        nil))))
+            cmd))))
 
-(defun %draw-list-add-textured-3d-triangle-strip-cmd (3d-draw-list model-mtx texture color vertices
-                                                      &optional (cmd-constructor #'make-standard-draw-indexed-cmd))
+(defun %draw-list-add-multicolor-3d-triangle-strip/list-with-normals-pseudo-cmd (3d-draw-list seq-vertices)
   (declare (type 3d-vertex-draw-list-mixin 3d-draw-list))
-  (declare (type function cmd-constructor))
+  (declare (type sequence seq-vertices))
+  ;; must be at least three vertices to succeed
+  (let* ((index-array (draw-list-index-array 3d-draw-list))
+         (vertex-array (draw-list-vertex-array 3d-draw-list))
+	 (first-index (foreign-array-fill-pointer index-array))
+         (vtx-offset (foreign-array-fill-pointer vertex-array)))
+    (with-draw-list-transaction (3d-draw-list first-index vtx-offset)
+      (etypecase seq-vertices
+	(list (loop for (x y z nx ny nz color) on seq-vertices by #'(lambda (list)
+								      (nthcdr 7 list))
+		    for i from vtx-offset below #.most-positive-fixnum
+		    with indices = ()
+		    do (setq x (clampf x))
+		       (setq y (clampf y))
+		       (setq z (clampf z))
+		       (setq nx (clampf nx))
+		       (setq ny (clampf ny))
+		       (setq nz (clampf nz))
+		       (setq color (canonicalize-color color))
+		       (standard-3d-vertex-with-normal-array-push-extend vertex-array x y z nx ny nz color)
+		       (push (index-array-push-extend index-array i) indices)
+		    finally (return (list* 3d-draw-list indices))))))))
+
+(defun %draw-list-add-multicolor-3d-triangle-strip/list-with-normals-cmd
+    (3d-draw-list model-mtx seq-vertices light-position)
+  (declare (type 3d-vertex-draw-list-mixin 3d-draw-list))
+  (declare (type sequence seq-vertices))
   ;; must be at least three vertices to succeed
   (let* ((index-array (draw-list-index-array 3d-draw-list))
          (vertex-array (draw-list-vertex-array 3d-draw-list))
          (vtx-offset (foreign-array-fill-pointer vertex-array))
          (first-index (foreign-array-fill-pointer index-array))
          (number-of-vertices 0))
-
-    (handler-case
-        (progn
-          (loop for (x y z u v) on vertices by #'(lambda (list)
-                                                   (nthcdr 5 list))
-                for i from 0
-                do (textured-3d-vertex-array-push-extend vertex-array x y z u v color)
-                   (incf number-of-vertices)
-                   (index-array-push-extend index-array i)
-                finally
-                   (setq number-of-vertices (1+ i)))
-          (let ((cmd (funcall cmd-constructor
-                              3d-draw-list
-                              first-index number-of-vertices vtx-offset model-mtx
-                              nil nil texture)))
+    (declare (type fixnum number-of-vertices))
+    (with-draw-list-transaction (3d-draw-list first-index vtx-offset)
+      (etypecase seq-vertices
+	(list (loop for (x y z nx ny nz color) on seq-vertices by #'(lambda (list)
+								      (nthcdr 7 list))
+		    for i from 0 below #.most-positive-fixnum
+		    do (setq x (clampf x))
+		       (setq y (clampf y))
+		       (setq z (clampf z))
+		       (setq nx (clampf nx))
+		       (setq ny (clampf ny))
+		       (setq nz (clampf nz))
+		       (setq color (canonicalize-color color))
+		       (standard-3d-vertex-with-normal-array-push-extend vertex-array x y z nx ny nz color)
+		       (incf number-of-vertices)
+		       (index-array-push-extend index-array i))))
+          (let ((cmd (make-standard-draw-indexed-cmd
+		      3d-draw-list
+		      first-index number-of-vertices vtx-offset model-mtx
+		      nil *white-texture* nil nil light-position)))
             (vector-push-extend cmd (draw-list-cmd-vector 3d-draw-list))
-            cmd))
-      (error (c)
-        (warn (princ-to-string c))
-        (setf (foreign-array-fill-pointer vertex-array) vtx-offset
-              (foreign-array-fill-pointer index-array) first-index)
-        nil))))
+            cmd))))
 
-(defun %draw-list-add-filled-sphere-cmd (3d-draw-list model-mtx color origin-x origin-y origin-z radius resolution light-position)
+(defun %draw-list-add-textured-3d-triangle-strip/list-pseudo-cmd (3d-draw-list ub32-color seq-vertices)
+  ;; set the draw-list-texture!
+  (declare (type 3d-vertex-draw-list-mixin 3d-draw-list))
+  (declare (type (unsigned-byte 32) ub32-color))
+  (declare (type sequence seq-vertices))
+  ;; must be at least three vertices to succeed
+  (let* ((index-array (draw-list-index-array 3d-draw-list))
+         (vertex-array (draw-list-vertex-array 3d-draw-list))
+	 (first-index (foreign-array-fill-pointer index-array))
+         (vtx-offset (foreign-array-fill-pointer vertex-array))
+         (number-of-vertices 0))
+    (declare (type fixnum number-of-vertices))
+    (with-draw-list-transaction (3d-draw-list first-index vtx-offset)
+      (etypecase seq-vertices
+	(list
+	 (loop for (x y z u v) on seq-vertices by #'(lambda (list)
+						      (nthcdr 5 list))
+	       for i from vtx-offset below #.most-positive-fixnum
+	       with indices = ()
+	       do (setq x (clampf x))
+		  (setq y (clampf y))
+		  (setq z (clampf z))
+		  (setq u (clampf u))
+		  (setq v (clampf v))
+		  (textured-3d-vertex-array-push-extend vertex-array x y z u v ub32-color)
+		  (push (index-array-push-extend index-array i) indices)
+		  (incf number-of-vertices)
+	       finally (assert (> number-of-vertices 3))
+		       (return (list* 3d-draw-list indices))))))))
+
+(defun %draw-list-add-textured-3d-triangle-strip/list-cmd (3d-draw-list model-mtx texture ub32-color seq-vertices)
+  (declare (type 3d-vertex-draw-list-mixin 3d-draw-list))
+  (declare (type (unsigned-byte 32) ub32-color))
+  (declare (type sequence seq-vertices))
+  ;; must be at least three vertices to succeed
+  (let* ((index-array (draw-list-index-array 3d-draw-list))
+         (vertex-array (draw-list-vertex-array 3d-draw-list))
+         (vtx-offset (foreign-array-fill-pointer vertex-array))
+         (first-index (foreign-array-fill-pointer index-array))
+         (number-of-vertices 0))
+    (declare (type fixnum number-of-vertices))
+    (with-draw-list-transaction (3d-draw-list first-index vtx-offset)
+      (etypecase seq-vertices
+	(list
+	 (loop for (x y z u v) on seq-vertices by #'(lambda (list)
+						      (nthcdr 5 list))
+               for i from 0 below #.(1- most-positive-fixnum)
+               do (setq x (clampf x))
+		  (setq y (clampf y))
+		  (setq z (clampf z))
+		  (setq u (clampf u))
+		  (setq v (clampf v))
+		  (textured-3d-vertex-array-push-extend vertex-array x y z u v ub32-color)
+                  (index-array-push-extend index-array i)
+               finally
+                  (setq number-of-vertices (1+ i)))))
+          (let ((cmd (make-standard-draw-indexed-cmd
+		      3d-draw-list
+		      first-index number-of-vertices vtx-offset model-mtx
+		      nil texture nil nil nil)))
+            (vector-push-extend cmd (draw-list-cmd-vector 3d-draw-list))
+            cmd))))
+
+(defun %draw-list-add-textured-3d-triangle-strip/list-with-normals-pseudo-cmd (3d-draw-list ub32-color seq-vertices)
+  ;; set the draw-list-texture!
+  (declare (type 3d-vertex-draw-list-mixin 3d-draw-list))
+  (declare (type (unsigned-byte 32) ub32-color))
+  (declare (type sequence seq-vertices))
+  ;; must be at least three vertices to succeed
+  (let* ((index-array (draw-list-index-array 3d-draw-list))
+         (vertex-array (draw-list-vertex-array 3d-draw-list))
+         (first-index (foreign-array-fill-pointer index-array))
+         (vtx-offset (foreign-array-fill-pointer vertex-array))
+         (number-of-vertices 0))
+    (declare (type fixnum number-of-vertices))
+    (with-draw-list-transaction (3d-draw-list first-index vtx-offset)
+      (etypecase seq-vertices
+	(list
+	 (loop for (x y z nx ny nz u v) on seq-vertices by #'(lambda (list)
+							       (nthcdr 8 list))
+	       for i from vtx-offset below #.most-positive-fixnum
+	       with indices = ()
+	       do (setq x (clampf x))
+		  (setq y (clampf y))
+		  (setq z (clampf z))
+		  (setq nx (clampf nx))
+		  (setq ny (clampf ny))
+		  (setq nz (clampf nz))
+		  (setq u (clampf u))
+		  (setq v (clampf v))
+		  (textured-3d-vertex-with-normal-array-push-extend vertex-array x y z nx ny nz u v ub32-color)
+		  (push (index-array-push-extend index-array i) indices)
+		  (incf number-of-vertices)
+	       finally (assert (> number-of-vertices 3))
+		       (return (list* 3d-draw-list indices))))))))
+
+(defun %draw-list-add-textured-3d-triangle-strip/list-with-normals-cmd
+    (3d-draw-list model-mtx texture ub32-color seq-vertices light-position)
+  (declare (type 3d-vertex-draw-list-mixin 3d-draw-list))
+  (declare (type (unsigned-byte 32) ub32-color))
+  (declare (type sequence seq-vertices))
+  ;; must be at least three vertices to succeed
+  (let* ((index-array (draw-list-index-array 3d-draw-list))
+         (vertex-array (draw-list-vertex-array 3d-draw-list))
+         (vtx-offset (foreign-array-fill-pointer vertex-array))
+         (first-index (foreign-array-fill-pointer index-array))
+         (number-of-vertices 0))
+    (declare (type fixnum number-of-vertices))
+    (with-draw-list-transaction (3d-draw-list first-index vtx-offset)
+      (etypecase seq-vertices
+	(list
+	 (loop for (x y z nx ny nz u v) on seq-vertices by #'(lambda (list)
+							       (nthcdr 8 list))
+               for i from 0 below #.(1- most-positive-fixnum)
+               do (setq x (clampf x))
+		  (setq y (clampf y))
+		  (setq z (clampf z))
+		  (setq nx (clampf nx))
+		  (setq ny (clampf ny))
+		  (setq nz (clampf nz))			    
+		  (setq u (clampf u))
+		  (setq v (clampf v))
+		  (textured-3d-vertex-with-normal-array-push-extend
+		   vertex-array x y z nx ny nz u v ub32-color)
+                  (index-array-push-extend index-array i)
+               finally
+                  (setq number-of-vertices (1+ i)))))
+          (let ((cmd (make-standard-draw-indexed-cmd
+		      3d-draw-list
+		      first-index number-of-vertices vtx-offset model-mtx
+		      nil texture nil nil light-position)))
+            (vector-push-extend cmd (draw-list-cmd-vector 3d-draw-list))
+            cmd))))
+
+(defun %draw-list-add-multicolor-3d-convex-polygon-with-normals-pseudo-cmd (3d-draw-list seq-vertices)
+  (declare (type 3d-vertex-with-normal-draw-list-mixin 3d-draw-list))
+  (declare (type sequence seq-vertices))
+  ;; must be at least 3 vertexes to succeed
+  (let* ((index-array (draw-list-index-array 3d-draw-list))
+         (vertex-array (draw-list-vertex-array 3d-draw-list))
+	 (first-index (foreign-array-fill-pointer index-array))
+	 (vtx-offset (foreign-array-fill-pointer vertex-array)))
+    (with-draw-list-transaction (3d-draw-list first-index vtx-offset)
+      (etypecase seq-vertices
+	(list
+	 (loop for i from vtx-offset below #.most-positive-fixnum
+	       with indices = ()
+	       for (x y z nx ny nz color) on seq-vertices by #'(lambda (list)
+								 (nthcdr 7 list))
+	       do (standard-3d-vertex-with-normal-array-push-extend
+		   vertex-array (clampf x) (clampf y) (clampf z) (clampf nx) (clampf ny) (clampf nz)
+		   (canonicalize-color color))
+	       when (>= i 2)
+		 do (push (index-array-push-extend index-array 0) indices)
+		    (push (index-array-push-extend index-array (1- i)) indices)
+		    (push (index-array-push-extend index-array i) indices)
+	       finally (return (list* 3d-draw-list indices))))
+	(array
+	 (loop for i from vtx-offset below most-positive-fixnum
+	       for j from 0 by 7
+	       with indices = ()
+	       do (standard-3d-vertex-with-normal-array-push-extend
+		   vertex-array
+		   (clampf (aref seq-vertices j))
+		   (clampf (aref seq-vertices (1+ j)))
+		   (clampf (aref seq-vertices (+ j 2)))
+		   (clampf (aref seq-vertices (+ j 3)))
+		   (clampf (aref seq-vertices (+ j 4)))
+		   (clampf (aref seq-vertices (+ j 5)))
+		   (canonicalize-color (aref seq-vertices (+ j 6))))
+	       when (>= i 2)
+		 do (push (index-array-push-extend index-array vtx-offset) indices)
+		    (push (index-array-push-extend index-array (1- i)) indices)
+		    (push (index-array-push-extend index-array i) indices)
+	       finally (return (list* 3d-draw-list indices))))))))
+
+(defun %draw-list-add-multicolor-3d-convex-polygon-with-normals-cmd (3d-draw-list model-mtx seq-vertices light-position)
+  (declare (type 3d-vertex-with-normal-draw-list-mixin 3d-draw-list))
+  (declare (type sequence seq-vertices))
+  ;; must be at least 3 vertexes to succeed
+  (let* ((index-array (draw-list-index-array 3d-draw-list))
+         (vertex-array (draw-list-vertex-array 3d-draw-list))
+	 (first-index (foreign-array-fill-pointer index-array))
+	 (vtx-offset (foreign-array-fill-pointer vertex-array))
+	 (number-of-vertices 0))
+    (declare (type fixnum number-of-vertices))
+    (with-draw-list-transaction (3d-draw-list first-index vtx-offset)
+      (etypecase seq-vertices
+	(list
+	 (loop for i from 0 below #.most-positive-fixnum
+	       with indices = ()
+	       for (x y z nx ny nz color) on seq-vertices by #'(lambda (list)
+								 (nthcdr 7 list))
+	       do (standard-3d-vertex-with-normal-array-push-extend
+		   vertex-array (clampf x) (clampf y) (clampf z) (clampf nx) (clampf ny) (clampf nz)
+		   (canonicalize-color color))
+		  (incf number-of-vertices)
+	       when (>= i 2)
+		 do (push (index-array-push-extend index-array 0) indices)
+		    (push (index-array-push-extend index-array (1- i)) indices)
+		    (push (index-array-push-extend index-array i) indices)
+	       finally (return (list* 3d-draw-list indices))))
+	(array
+	 (loop for i from vtx-offset below most-positive-fixnum
+	       for j from 0 by 7
+	       with indices = ()
+	       do (standard-3d-vertex-with-normal-array-push-extend
+		   vertex-array
+		   (clampf (aref seq-vertices j))
+		   (clampf (aref seq-vertices (1+ j)))
+		   (clampf (aref seq-vertices (+ j 2)))
+		   (clampf (aref seq-vertices (+ j 3)))
+		   (clampf (aref seq-vertices (+ j 4)))
+		   (clampf (aref seq-vertices (+ j 5)))
+		   (canonicalize-color (aref seq-vertices (+ j 6))))
+		  (incf number-of-vertices)
+	       when (>= i 2)
+		 do (index-array-push-extend index-array 0)
+		    (index-array-push-extend index-array (1- i))
+		    (index-array-push-extend index-array i))))
+	  (let ((cmd (make-standard-draw-indexed-cmd
+		      3d-draw-list
+		      first-index number-of-vertices vtx-offset model-mtx
+		      nil *white-texture* nil nil light-position)))
+            (vector-push-extend cmd (draw-list-cmd-vector 3d-draw-list))
+            cmd))))
+
+(defun %draw-list-add-multicolor-3d-convex-polygon-pseudo-cmd (3d-draw-list seq-vertices)
+  (declare (type 3d-vertex-draw-list-mixin 3d-draw-list))
+  (declare (type sequence seq-vertices))
+  ;; must be at least 3 vertexes to succeed
+  (let* ((index-array (draw-list-index-array 3d-draw-list))
+         (vertex-array (draw-list-vertex-array 3d-draw-list)))
+    (declare (foreign-adjustable-array index-array vertex-array))
+    (let ((first-index (foreign-array-fill-pointer index-array))
+	  (vtx-offset (foreign-array-fill-pointer vertex-array)))
+      (with-draw-list-transaction (3d-draw-list first-index vtx-offset)
+	(etypecase seq-vertices
+	  (list
+	   (loop for i from vtx-offset below #.most-positive-fixnum
+		 for (x y z color) on seq-vertices by #'(lambda (list)
+							  (nthcdr 4 list))
+		 with indices = ()
+		 do (standard-3d-vertex-array-push-extend
+		     vertex-array (clampf x) (clampf y) (clampf z) (canonicalize-color color))
+		 when (>= i 2)
+		   do (push (index-array-push-extend index-array vtx-offset) indices)
+		      (push (index-array-push-extend index-array (1- i)) indices)
+		      (push (index-array-push-extend index-array i) indices)
+		 finally (return (list* 3d-draw-list indices))))
+	  (array
+	   (loop for i from vtx-offset below #.most-positive-fixnum
+		 for k from 0 by 4
+		 with indices = ()
+		 do (standard-3d-vertex-array-push-extend
+		     vertex-array
+		     (clampf (aref seq-vertices k))
+		     (clampf (aref seq-vertices (1+ k)))
+		     (clampf (aref seq-vertices (+ k 2)))
+		     (canonicalize-color (elt seq-vertices (+ k 3))))
+		 when (>= i 2)
+		   do (push (index-array-push-extend index-array vtx-offset) indices)
+		      (push (index-array-push-extend index-array (1- i)) indices)
+		      (push (index-array-push-extend index-array i) indices)
+		 finally (return (list* 3d-draw-list indices)))))))))
+
+(defun %draw-list-add-multicolor-3d-convex-polygon-cmd (3d-draw-list model-mtx seq-vertices light-position)
+  (declare (type 3d-vertex-with-normal-draw-list-mixin 3d-draw-list))
+  (declare (type sequence seq-vertices))
+  ;; must be at least 3 vertexes to succeed
+  (let* ((index-array (draw-list-index-array 3d-draw-list))
+         (vertex-array (draw-list-vertex-array 3d-draw-list))
+	 (first-index (foreign-array-fill-pointer index-array))
+	 (vtx-offset (foreign-array-fill-pointer vertex-array))
+	 (number-of-vertices 0))
+    (declare (type fixnum number-of-vertices))
+    (with-draw-list-transaction (3d-draw-list first-index vtx-offset)
+      (etypecase seq-vertices
+	(list
+	 (loop for i from 0 below #.most-positive-fixnum
+	       with indices = ()
+	       for (x y z color) on seq-vertices by #'(lambda (list)
+							(nthcdr 4 list))
+	       do (standard-3d-vertex-array-push-extend
+		   vertex-array (clampf x) (clampf y) (clampf z)
+		   (canonicalize-color color))
+		  (incf number-of-vertices)
+	       when (>= i 2)
+		 do (push (index-array-push-extend index-array 0) indices)
+		    (push (index-array-push-extend index-array (1- i)) indices)
+		    (push (index-array-push-extend index-array i) indices)
+	       finally (return (list* 3d-draw-list indices))))
+	(array
+	 (loop for i from vtx-offset below most-positive-fixnum
+	       for j from 0 by 4
+	       with indices = ()
+	       do (standard-3d-vertex-array-push-extend
+		   vertex-array
+		   (clampf (aref seq-vertices j))
+		   (clampf (aref seq-vertices (1+ j)))
+		   (clampf (aref seq-vertices (+ j 2)))
+		   (canonicalize-color (aref seq-vertices (+ j 3))))
+		  (incf number-of-vertices)
+	       when (>= i 2)
+		 do (index-array-push-extend index-array 0)
+		    (index-array-push-extend index-array (1- i))
+		    (index-array-push-extend index-array i))))
+	  (let ((cmd (make-standard-draw-indexed-cmd
+		      3d-draw-list
+		      first-index number-of-vertices vtx-offset model-mtx
+		      nil *white-texture* nil nil light-position)))
+            (vector-push-extend cmd (draw-list-cmd-vector 3d-draw-list))
+            cmd))))
+
+(defun %draw-list-add-filled-3d-convex-polygon-with-normals-pseudo-cmd (3d-draw-list ub32-color seq-vertices)
+  (declare (type 3d-vertex-with-normal-draw-list-mixin 3d-draw-list))
+  (declare (type sequence seq-vertices))
+  (declare (type (unsigned-byte 32) ub32-color))
+  ;; must be at least 3 vertexes to succeed
+  (let* ((index-array (draw-list-index-array 3d-draw-list))
+         (vertex-array (draw-list-vertex-array 3d-draw-list))
+	 (first-index (foreign-array-fill-pointer index-array))
+	 (vtx-offset (foreign-array-fill-pointer vertex-array)))
+    (with-draw-list-transaction (3d-draw-list first-index vtx-offset)
+      (etypecase seq-vertices
+	(list
+	 (loop for i from vtx-offset below #.most-positive-fixnum
+	       for (x y z nx ny nz) on seq-vertices by #'(lambda (list)
+							   (nthcdr 6 list))
+	       with indices = ()
+	       do (standard-3d-vertex-with-normal-array-push-extend
+		   vertex-array (clampf x) (clampf y) (clampf z)
+		   (clampf nx) (clampf ny) (clampf nz) ub32-color)
+	       when (>= i 2)
+		 do (push (index-array-push-extend index-array vtx-offset) indices)
+		    (push (index-array-push-extend index-array (1- i)) indices)
+		    (push (index-array-push-extend index-array i) indices)
+	       finally (return (list* 3d-draw-list indices))))
+	(array
+	 (loop for i from vtx-offset below #.most-positive-fixnum
+	       for j from 0 by 6
+	       with indices = ()
+	       do (standard-3d-vertex-with-normal-array-push-extend
+		   vertex-array
+		   (clampf (aref seq-vertices i))
+		   (clampf (aref seq-vertices (1+ i)))
+		   (clampf (aref seq-vertices (+ i 2)))
+		   (clampf (aref seq-vertices (+ i 3)))
+		   (clampf (aref seq-vertices (+ i 4)))
+		   (clampf (aref seq-vertices (+ i 5)))
+		   ub32-color)
+	       when (>= i 2)
+		 do (push (index-array-push-extend index-array vtx-offset) indices)
+		    (push (index-array-push-extend index-array (1- i)) indices)
+		    (push (index-array-push-extend index-array i) indices)
+	       finally (return (list* 3d-draw-list indices))))))))
+
+(defun %draw-list-add-filled-3d-convex-polygon-with-normals-cmd
+    (3d-draw-list model-mtx ub32-color seq-vertices light-position)
+  (declare (type 3d-vertex-with-normal-draw-list-mixin 3d-draw-list))
+  (declare (type sequence seq-vertices))
+  (declare (type (unsigned-byte 32) ub32-color))
+  ;; must be at least 3 vertexes to succeed
+  (let* ((index-array (draw-list-index-array 3d-draw-list))
+         (vertex-array (draw-list-vertex-array 3d-draw-list))
+	 (first-index (foreign-array-fill-pointer index-array))
+	 (vtx-offset (foreign-array-fill-pointer vertex-array))
+	 (number-of-vertices 0))
+    (declare (type fixnum number-of-vertices))
+    (with-draw-list-transaction (3d-draw-list first-index vtx-offset)
+      (etypecase seq-vertices
+	(list
+	 (loop for i from 0 below #.most-positive-fixnum
+	       for (x y z nx ny nz) on seq-vertices by #'(lambda (list)
+							   (nthcdr 6 list))
+	       do (standard-3d-vertex-with-normal-array-push-extend
+		   vertex-array (clampf x) (clampf y) (clampf z)
+		   (clampf nx) (clampf ny) (clampf nz) ub32-color)
+		  (incf number-of-vertices)
+	       when (>= i 2)
+		 do (index-array-push-extend index-array 0)
+		    (index-array-push-extend index-array (1- i))
+		    (index-array-push-extend index-array i)))
+	(array
+	 (loop for i from 0 by 6
+	       do (standard-3d-vertex-with-normal-array-push-extend
+		   vertex-array
+		   (clampf (aref seq-vertices i))
+		   (clampf (aref seq-vertices (1+ i)))
+		   (clampf (aref seq-vertices (+ i 2)))
+		   (clampf (aref seq-vertices (+ i 3)))
+		   (clampf (aref seq-vertices (+ i 4)))
+		   (clampf (aref seq-vertices (+ i 5)))
+		   ub32-color)
+		  (incf number-of-vertices)
+	       when (>= i 2)
+		 do (index-array-push-extend index-array 0)
+		    (index-array-push-extend index-array (1- i))
+		    (index-array-push-extend index-array i))))
+	  (let ((cmd (make-standard-draw-indexed-cmd
+		      3d-draw-list
+		      first-index number-of-vertices vtx-offset model-mtx
+		      nil *white-texture* nil nil light-position)))
+            (vector-push-extend cmd (draw-list-cmd-vector 3d-draw-list))
+            cmd))))
+
+(defun %draw-list-add-filled-3d-convex-polygon-pseudo-cmd (3d-draw-list ub32-color seq-vertices)
+  (declare (type 3d-vertex-with-normal-draw-list-mixin 3d-draw-list))
+  (declare (type sequence seq-vertices))
+  (declare (type (unsigned-byte 32) ub32-color))
+  ;; must be at least 3 vertexes to succeed
+  (let* ((index-array (draw-list-index-array 3d-draw-list))
+         (vertex-array (draw-list-vertex-array 3d-draw-list))
+	 (first-index (foreign-array-fill-pointer index-array))
+	 (vtx-offset (foreign-array-fill-pointer vertex-array)))
+    (with-draw-list-transaction (3d-draw-list first-index vtx-offset)
+      (etypecase seq-vertices
+	(list
+	 (loop for i from vtx-offset below #.most-positive-fixnum
+	       for (x y z) on seq-vertices by #'cdddr
+	       with indices = ()
+	       do (standard-3d-vertex-array-push-extend
+		   vertex-array (clampf x) (clampf y) (clampf z) ub32-color)
+	       when (>= i 2)
+		 do (push (index-array-push-extend index-array vtx-offset) indices)
+		    (push (index-array-push-extend index-array (1- i)) indices)
+		    (push (index-array-push-extend index-array i) indices)
+	       finally (return (list* 3d-draw-list indices))))
+	(array
+	 (assert (> (length seq-vertices) 3))
+	 (loop for j from 0 by 3
+	       for i from vtx-offset below #.most-positive-fixnum
+	       with indices = ()
+	       do (standard-3d-vertex-array-push-extend
+		   vertex-array
+		   (clampf (aref seq-vertices i))
+		   (clampf (aref seq-vertices (1+ i)))
+		   (clampf (aref seq-vertices (+ i 2)))
+		   ub32-color)
+	       when (>= i 2)
+		 do (push (index-array-push-extend index-array vtx-offset) indices)
+		    (push (index-array-push-extend index-array (1- i)) indices)
+		    (push (index-array-push-extend index-array i) indices)
+	       finally (return (list* 3d-draw-list indices))))))))
+
+(defun %draw-list-add-filled-3d-convex-polygon-cmd (3d-draw-list model-mtx ub32-color seq-vertices)
+  (declare (type 3d-vertex-with-normal-draw-list-mixin 3d-draw-list))
+  (declare (type sequence seq-vertices))
+  (declare (type (unsigned-byte 32) ub32-color))
+  ;; must be at least 3 vertexes to succeed
+  (let* ((index-array (draw-list-index-array 3d-draw-list))
+         (vertex-array (draw-list-vertex-array 3d-draw-list))
+	 (first-index (foreign-array-fill-pointer index-array))
+	 (vtx-offset (foreign-array-fill-pointer vertex-array))
+	 (number-of-vertices 0))
+    (declare (type fixnum number-of-vertices))
+    (with-draw-list-transaction (3d-draw-list first-index vtx-offset)
+      (etypecase seq-vertices
+	(list
+	 (loop for i from 0 below #.most-positive-fixnum
+	       for (x y z) on seq-vertices by #'cdddr
+	       with indices = ()
+	       do (standard-3d-vertex-array-push-extend
+		   vertex-array (clampf x) (clampf y) (clampf z) ub32-color)
+		  (incf number-of-vertices)
+	       when (>= i 2)
+		 do (push (index-array-push-extend index-array 0) indices)
+		    (push (index-array-push-extend index-array (1- i)) indices)
+		    (push (index-array-push-extend index-array i) indices)))
+	(array
+	 (assert (> (length seq-vertices) 3))
+	 (loop for i from 0 below #.most-positive-fixnum
+	       for j from 0 by 3
+	       with indices = ()
+	       do (standard-3d-vertex-array-push-extend
+		   vertex-array
+		   (clampf (aref seq-vertices j))
+		   (clampf (aref seq-vertices (1+ j)))
+		   (clampf (aref seq-vertices (+ j 2)))
+		   ub32-color)
+		  (incf number-of-vertices)
+	       when (>= i 2)
+		 do (push (index-array-push-extend index-array 0) indices)
+		    (push (index-array-push-extend index-array (1- i)) indices)
+		    (push (index-array-push-extend index-array i) indices))))
+	  (let ((cmd (make-standard-draw-indexed-cmd
+		      3d-draw-list
+		      first-index number-of-vertices vtx-offset model-mtx
+		      nil *white-texture* nil nil nil)))
+            (vector-push-extend cmd (draw-list-cmd-vector 3d-draw-list))
+            cmd))))
+	  
+
+(defun %draw-list-add-filled-sphere-pseudo-cmd (3d-draw-list
+						ub32-color
+						df-origin-x
+						df-origin-y
+						df-origin-z
+						df-radius
+						fixnum-resolution)
+  (declare (type 3d-vertex-with-normal-draw-list-mixin 3d-draw-list))
+  (declare (type (unsigned-byte 32) ub32-color))
+  (declare (type double-float df-origin-x df-origin-y df-origin-z df-radius))
+  (declare (type fixnum fixnum-resolution))
+  (let* ((va (draw-list-vertex-array 3d-draw-list))
+         (ia (draw-list-index-array 3d-draw-list)))
+    (declare (type foreign-adjustable-array ia va))
+    (let ((first-index (foreign-array-fill-pointer ia))
+	  (vtx-offset (foreign-array-fill-pointer va)))
+      (with-draw-list-transaction (3d-draw-list first-index vtx-offset)
+	(when (> df-radius 0.0d0)
+	  (let* ((sector-count fixnum-resolution)
+		 (stack-count (floor fixnum-resolution 2))
+		 (sector-step (/ 2pi sector-count))
+		 (stack-step (/ pi stack-count))
+		 (elem-count 0))
+	    (declare (type fixnum elem-count stack-count sector-count))
+            (loop for i from 0
+		  repeat stack-count
+		  do (let* ((stack-angle (- #.(/ pi 2) (* i stack-step))))
+		       (declare (type double-float stack-angle))
+		       (let ((xy (* df-radius (cos stack-angle)))
+			     (z (+ (* df-radius (sin stack-angle)) df-origin-z)))
+			 (loop for j from 0 to sector-count
+			       do (let* ((sector-angle (* j sector-step)))
+				    (declare (type double-float sector-angle))
+				    (let ((x (+ (* xy (cos sector-angle)) df-origin-x))
+					  (y (+ (* xy (sin sector-angle)) df-origin-y)))
+				      (declare (type double-float x y))
+				      (let ((nx (clampf (/ (- x df-origin-x) df-radius)))
+					    (ny (clampf (/ (- y df-origin-y) df-radius)))
+					    (nz (clampf (/ (- z df-origin-z) df-radius))))
+
+					(standard-3d-vertex-with-normal-array-push-extend
+					 va (clampf x) (clampf y) (clampf z) nx ny nz ub32-color))))))))
+
+            (loop for i from 0
+		  repeat stack-count
+		  with k1 with k2
+		  with indices = ()
+		  do (setq k1 (* i (1+ sector-count))
+			   k2 (+ k1 sector-count 1))
+
+                     (loop for j from 0 below sector-count
+			   when (not (= i 0))
+                             do (push (index-array-push-extend ia (+ vtx-offset k1)) indices)
+				(push (index-array-push-extend ia (+ vtx-offset k2)) indices)
+				(push (index-array-push-extend ia (+ vtx-offset (1+ k1))) indices)
+				(incf elem-count 3)
+			   when (not (= i (1- stack-count)))
+                             do (push (index-array-push-extend ia (+ vtx-offset (1+ k1))) indices)
+				(push (index-array-push-extend ia (+ vtx-offset k2)) indices)
+				(push (index-array-push-extend ia (+ vtx-offset (1+ k2))) indices)
+				(incf elem-count 3)
+			   do (incf k1)
+			      (incf k2)
+			   finally (return (list* 3d-draw-list indices))))))))))
+	
+
+(defun %draw-list-add-filled-sphere-cmd (3d-draw-list model-mtx
+					 ub32-color
+					 df-origin-x
+					 df-origin-y
+					 df-origin-z
+					 df-radius
+					 fixnum-resolution
+					 light-position)
+  (declare (type 3d-vertex-with-normal-draw-list-mixin 3d-draw-list))
+  (declare (type (unsigned-byte 32) ub32-color))
+  (declare (type double-float df-origin-x df-origin-y df-origin-z df-radius))
+  (declare (type fixnum fixnum-resolution))
   (let* ((va (draw-list-vertex-array 3d-draw-list))
          (ia (draw-list-index-array 3d-draw-list))
          (vtx-offset (foreign-array-fill-pointer va))
          (first-index (foreign-array-fill-pointer ia)))
+    (with-draw-list-transaction (3d-draw-list first-index vtx-offset)
+      (when (> df-radius 0.0d0)
+	(let* ((sector-count fixnum-resolution)
+               (stack-count (floor fixnum-resolution 2))
+               (sector-step (/ 2pi sector-count))
+               (stack-step (/ pi stack-count))
+               (elem-count 0))
+	  (declare (type fixnum elem-count sector-count stack-count))
+          (loop for i from 0 to stack-count
+                do (let* ((stack-angle (- #.(/ pi 2) (* i stack-step))))
+		     (declare (type double-float stack-angle))
+		     (let ((xy (* df-radius (cos stack-angle)))
+			   (z (+ (* df-radius (sin stack-angle)) df-origin-z)))
+		       (loop for j from 0 to sector-count
+			     do (let* ((sector-angle (* j sector-step)))
+				  (declare (type double-float sector-angle))
+				  (let ((x (+ (* xy (cos sector-angle)) df-origin-x))
+					(y (+ (* xy (sin sector-angle)) df-origin-y)))
+				    (declare (type double-float x y))
+				    (let ((nx (clampf (/ (- x df-origin-x) df-radius)))
+					  (ny (clampf (/ (- y df-origin-y) df-radius)))
+					  (nz (clampf (/ (- z df-origin-z) df-radius))))
 
-    (handler-case
-        (progn
-          (let* ((sector-count resolution)
-                 (stack-count (/ resolution 2))
-                 (sector-step (/ 2pi sector-count))
-                 (stack-step (/ pi stack-count))
-                 (elem-count 0))
+				      (standard-3d-vertex-with-normal-array-push-extend
+				       va (clampf x) (clampf y) (clampf z) nx ny nz ub32-color))))))))
 
-            (loop for i from 0 to stack-count
-                  do (let* ((stack-angle (- #.(/ pi 2) (* i stack-step)))
-                            (xy (* radius (cos stack-angle)))
-                            (z (+ (* radius (sin stack-angle)) origin-z)))
-                       (loop for j from 0 to sector-count
-                             do (let* ((sector-angle (* j sector-step))
-                                       (x (+ (* xy (cos sector-angle)) origin-x))
-                                       (y (+ (* xy (sin sector-angle)) origin-y))
-                                       (nx (/ (- x origin-x) radius))
-                                       (ny (/ (- y origin-y) radius))
-                                       (nz (/ (- z origin-z) radius)))
+          (loop for i from 0
+		repeat stack-count
+                with k1 with k2
+                do (setq k1 (* i (1+ sector-count))
+                         k2 (+ k1 sector-count 1))
 
-                                  (standard-3d-vertex-with-normal-array-push-extend va x y z nx ny nz color)))))
+                   (loop for j from 0 below sector-count
+                         when (not (= i 0))
+                           do (index-array-push-extend ia k1)
+                              (index-array-push-extend ia k2)
+                              (index-array-push-extend ia (1+ k1))
+                              (incf elem-count 3)
+                         when (not (= i (1- stack-count)))
+                           do (index-array-push-extend ia (1+ k1))
+                              (index-array-push-extend ia k2)
+                              (index-array-push-extend ia (1+ k2))
+                              (incf elem-count 3)
+                         do (incf k1)
+			    (incf k2)))
 
-            (loop for i from 0 below stack-count
-                  with k1 with k2
-                  do (setq k1 (* i (1+ sector-count))
-                           k2 (+ k1 sector-count 1))
-
-                     (loop for j from 0 below sector-count
-                           when (not (zerop i))
-                             do (index-array-push-extend ia k1)
-                                (index-array-push-extend ia k2)
-                                (index-array-push-extend ia (1+ k1))
-                                (incf elem-count 3)
-                           when (not (eq i (1- stack-count)))
-                             do (index-array-push-extend ia (1+ k1))
-                                (index-array-push-extend ia k2)
-                                (index-array-push-extend ia (1+ k2))
-                                (incf elem-count 3)
-                           do (incf k1)
-                              (incf k2)))
-
-            (let ((cmd (make-standard-draw-indexed-cmd
-                        3d-draw-list
-                        first-index elem-count vtx-offset
-                        model-mtx
-                        nil *white-texture* nil nil light-position)))
-              (vector-push-extend cmd (draw-list-cmd-vector 3d-draw-list))
-              cmd)))
-      (error (c)
-        (warn (princ-to-string c))
-        (setf (foreign-array-fill-pointer va) vtx-offset
-              (foreign-array-fill-pointer ia) first-index)
-        nil))))
-
-(defun compact-draw-list (draw-list &optional (cmd-constructor #'make-standard-draw-indexed-cmd))
-  (block nil
-    (if (not (draw-list-needs-compaction? draw-list))
-
-        (return draw-list)
-
-        (let* ((cmd-vector (draw-list-cmd-vector draw-list))
-               (new-draw-list (make-instance (class-of draw-list)))
-               (new-index-array (draw-list-index-array new-draw-list))
-               (new-vertex-array (draw-list-vertex-array new-draw-list))
-               (old-index-array (draw-list-index-array draw-list))
-               (old-vertex-array (draw-list-vertex-array draw-list))
-               (fp-old-vertex-array (foreign-array-fill-pointer old-vertex-array))
-               (vertex-type-size (foreign-array-foreign-type-size old-vertex-array))
-               (index-type (foreign-array-foreign-type old-index-array)))
-
-          (%prim-reserve new-draw-list
-                         fp-old-vertex-array
-                         (foreign-array-fill-pointer old-index-array)
-                         (foreign-array-foreign-type-size old-vertex-array)
-                         (foreign-array-foreign-type-size old-index-array))
-
-
-          (cond ((zerop (fill-pointer cmd-vector))
-                 ;; case #1: (for point list and line list)
-                 ;; it does not have cmds (and never did) (the drawindexed parameters are stored elsewhere)
-                 ;; memcpy segments and recreate index-array
-
-                 (let ((i 0)
-                       (prev-index nil)
-                       (this-index nil)
-                       (count 0)
-                       (old-array-segment-start-offset nil)
-                       (new-array-segment-start-offset nil))
-
-                   (tagbody
-                    again
-                      (when (eq i fp-old-vertex-array)
-                        (go exit))
-
-                      ;; these index arrays are in possibly non-consecutive increasing order
-                      ;; and we put them in consecutive increasing order
-                      (setq this-index (mem-aref old-index-array index-type i))
-
-                      (unless new-array-segment-start-offset
-                        (setq new-array-segment-start-offset i))
-                      (unless old-array-segment-start-offset
-                        (setq old-array-segment-start-offset this-index))
-
-                      (when prev-index
-                        (incf count)
-                        (unless (eq prev-index (1- this-index))
-                          ;; discontinuity, copy the segment
-                          (memcpy (inc-pointer (foreign-array-ptr new-vertex-array)
-                                               (* new-array-segment-start-offset vertex-type-size))
-                                  (inc-pointer (foreign-array-ptr old-vertex-array)
-                                               (* old-array-segment-start-offset vertex-type-size))
-                                  (* count vertex-type-size))
-
-                          (incf new-array-segment-start-offset count)
-                          (setq old-array-segment-start-offset this-index)
-
-                          (setq count 0)
-                          (setq prev-index nil)
-                          (go again)))
-
-                      ;; no discontinuity
-                      (setq prev-index this-index) ;; same as (incf prev-index).
-                      (index-array-push-extend new-index-array i)
-                      (incf i)
-                      (go again)
-
-                    exit
-                      (foreign-free (foreign-array-ptr old-index-array))
-                      (foreign-free (foreign-array-ptr old-vertex-array))
-                      (return new-draw-list))))
-
-
-
-                (t ;; case #2: usually for line_strip, triangle_strip, triangle_list or any draw-list with cmds
-                 (loop for cmd across cmd-vector
-                       with new-vtx-offset = -1
-                       with translation-table-table = (make-hash-table :test #'eql)
-                       with translation-table = nil
-                       when cmd
-                         do ;; cmd-first-index clues us in to whether this is a reinstanced cmd
-                            ;; if so use the translation table which exists from previous instance
-                            (setq translation-table (gethash (cmd-first-idx cmd) translation-table-table))
-                            (unless translation-table
-                              (setf (gethash (cmd-first-idx cmd) translation-table-table)
-                                    (setq translation-table (make-hash-table :test #'eql))))
-                            (loop for i from (cmd-first-idx cmd)
-                                  repeat (cmd-elem-count cmd)
-                                  with cmd-vtx-offset = (cmd-vtx-offset cmd)
-                                  with translation = nil
-                                  with orig-idx
-                                  do (setq orig-idx (mem-aref (foreign-array-ptr old-index-array) index-type i))
-                                  when (setq translation (gethash orig-idx translation-table))
-                                    do ;; if there is a translation of index, add it to index-array at fill-pointer
-                                       (index-array-push-extend new-index-array translation)
-                                  unless translation
-                                    do ;; copy one vertex into new vertex array at index (1+ new-vtx-offset)
-                                       ;; no vertex should be copied twice, but some may not be copied at all
-                                       ;; it doesn't matter what the vertex-array fill-pointer is. we'll adjust
-                                       ;; that at the end
-                                       (memcpy (inc-pointer (foreign-array-ptr new-vertex-array)
-                                                            (* (incf new-vtx-offset) vertex-type-size))
-                                               (inc-pointer (foreign-array-ptr old-vertex-array)
-                                                            (* (+ cmd-vtx-offset orig-idx) vertex-type-size))
-                                               (* 1 vertex-type-size))
-                                       ;; put new index into new index array at fill-pointer
-                                       (index-array-push-extend new-index-array new-vtx-offset)
-                                       ;; record the translation
-                                       (setf (gethash orig-idx translation-table) new-vtx-offset)
-                                  finally ;; copy the cmd, except update the first-index and vtx-offset
-                                          (vector-push-extend (funcall cmd-constructor
-                                                                       new-draw-list
-                                                                       (foreign-array-fill-pointer new-index-array)
-                                                                       (cmd-elem-count cmd)
-                                                                       ;; the vertex array fp hasn't been updated yet
-                                                                       ;; and we want to use it as is anyway
-                                                                       ;; we'll update it below for use in the next cmd
-                                                                       (foreign-array-fill-pointer new-vertex-array)
-                                                                       (cmd-model-mtx cmd)
-                                                                       (cmd-color-override cmd)
-                                                                       (cmd-texture cmd)
-                                                                       (cmd-line-thickness cmd)
-                                                                       (cmd-point-size cmd))
-                                                              (draw-list-cmd-vector new-draw-list))
-                                          ;; finally update the vertex array fp so that vertex-pushes work in the future
-                                          (setf (foreign-array-fill-pointer new-vertex-array) (1+ new-vtx-offset)))
-                       finally
-                          (foreign-free (foreign-array-ptr old-index-array))
-                          (foreign-free (foreign-array-ptr old-vertex-array))
-                          (return new-draw-list))))))))
+          (let ((cmd (make-standard-draw-indexed-cmd
+                      3d-draw-list
+                      first-index elem-count vtx-offset
+                      model-mtx
+                      nil *white-texture* nil nil light-position)))
+	    (vector-push-extend cmd (draw-list-cmd-vector 3d-draw-list))
+	    cmd))))))

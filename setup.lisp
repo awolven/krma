@@ -31,3 +31,4 @@
 (defvar *default-point-size* 4.0f0)
 (defvar *default-line-thickness* 2.0f0)
 (defvar *default-number-of-segments* 64)
+(defvar *default-light-position* (vec3 10000 10000 10000))

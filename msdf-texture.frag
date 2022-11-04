@@ -4,12 +4,13 @@
 layout(set = 2 , binding = 0) uniform sampler2D image;
 
 layout(push_constant) uniform pushConstant {
-  layout(offset = 92) float pxRange;
   layout(offset = 96) vec4 color;
+  layout(offset = 112) float pxRange;
 } pc;
 
 layout(location = 0) in vec4 vert_color;
 layout(location = 1) in vec2 uv;
+layout(location = 2) flat in uint primType;
 
 layout(location = 0) out vec4 out_color;
 

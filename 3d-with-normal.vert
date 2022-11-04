@@ -7,10 +7,11 @@ layout(set = 0, binding = 0) uniform uniformBuffer {
 
 layout(push_constant) uniform pushConstant {
   layout(offset = 0) mat4 model;
-  layout(offset = 64) uint colorOverride;
-  layout(offset = 68) float pointSize;
-  layout(offset = 72) bool overrideColor;
-  layout(offset = 80)vec3 lightPosition;
+  layout(offset = 64) vec3 lightPosition; // 16
+  layout(offset = 80) float pointSize; // 20
+  layout(offset = 84) uint type; // 21
+  layout(offset = 88) uint colorOverride; // 22
+  layout(offset = 92) bool overrideColor; // 23
 } pc;
 
 layout(location = 0) in vec3 inPosition;
