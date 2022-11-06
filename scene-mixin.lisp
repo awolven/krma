@@ -30,7 +30,7 @@
 (defclass standard-scene (krma-essential-scene-mixin) ())
 
 
-(defun update-2d-camera (scene &optional
+(defmethod update-2d-camera (scene &optional
 				 (proj (mortho-vulkan 0 (main-window-width *app*)
 						      (main-window-height *app*) 0 0 1))
 				 (view (meye 4)))
@@ -43,7 +43,7 @@
     (setf 2d-camera-view-matrix view)
     (values)))
 
-(defun update-3d-camera (scene &optional
+(defmethod update-3d-camera (scene &optional
 				 (proj (mperspective-vulkan 45 (/ (main-window-width *app*)
 								  (main-window-height *app*))
 							    +default-znear+ +default-zfar+)
@@ -118,12 +118,12 @@
   (declare (type krma-essential-scene-mixin scene))
   (declare (type real x y))
   ;; we try to run code which potentially errors outside of render-thread
-  ;; the body of rm-dispatch-to-render-thread becomes a closure
+  ;; the body of rm-dispatch-to-render-thread-with-handle becomes a closure
   (setq color (canonicalize-color color))
   (setq x (clampf x))
   (setq y (clampf y))
   (setq point-size (clampf point-size))
-  (rm-dispatch-to-render-thread (scene draw-data handle)
+  (rm-dispatch-to-render-thread-with-handle (scene draw-data handle)
     (%draw-data-add-2d-point-primitive draw-data handle model-matrix point-size color x y)))
 
 (defun scene-add-2d-point-to-group (scene group point-size color x y)
@@ -134,8 +134,8 @@
   (setq x (clampf x))
   (setq y (clampf y))
   (setq point-size (clampf point-size))
-  (rm-dispatch-to-render-thread (scene draw-data handle)
-    (%draw-data-add-2d-point-pseudo draw-data handle group point-size color x y)))
+  (rm-dispatch-to-render-thread (scene draw-data)
+    (%draw-data-add-2d-point-to-group draw-data group point-size color x y)))
 
 (defun scene-draw-2d-point (scene point-size color x y)
   (declare (type krma-essential-scene-mixin scene))
@@ -154,7 +154,7 @@
   (setq y (clampf y))
   (setq z (clampf z))
   (setq point-size (clampf point-size))
-  (rm-dispatch-to-render-thread (scene draw-data handle)
+  (rm-dispatch-to-render-thread-with-handle (scene draw-data handle)
     (%draw-data-add-3d-point-primitive draw-data handle model-matrix point-size color x y z)))
 
 (defun scene-add-3d-point-to-group (scene group point-size color x y z)
@@ -166,8 +166,8 @@
   (setq y (clampf y))
   (setq z (clampf z))
   (setq point-size (clampf point-size))
-  (rm-dispatch-to-render-thread (scene draw-data handle)
-    (%draw-data-add-3d-point-pseudo draw-data handle group point-size color x y z)))
+  (rm-dispatch-to-render-thread (scene draw-data)
+    (%draw-data-add-3d-point-to-group draw-data group point-size color x y z)))
 
 (defun scene-draw-3d-point (scene point-size color x y z)
   (declare (type krma-essential-scene-mixin scene))
@@ -186,7 +186,7 @@
   (setq x1 (clampf x1))
   (setq y1 (clampf y1))
   (setq line-thickness (clampf line-thickness))
-  (rm-dispatch-to-render-thread (scene draw-data handle)
+  (rm-dispatch-to-render-thread-with-handle (scene draw-data handle)
     (%draw-data-add-2d-line-primitive draw-data handle model-matrix line-thickness color x0 y0 x1 y1)))
 
 (defun scene-add-2d-line-to-group (scene group line-thickness color x0 y0 x1 y1)
@@ -199,8 +199,8 @@
   (setq x1 (clampf x1))
   (setq y1 (clampf y1))
   (setq line-thickness (clampf line-thickness))
-  (rm-dispatch-to-render-thread (scene draw-data handle)
-    (%draw-data-add-2d-line-pseudo draw-data handle group line-thickness color x0 y0 x1 y1)))
+  (rm-dispatch-to-render-thread (scene draw-data)
+    (%draw-data-add-2d-line-to-group draw-data group line-thickness color x0 y0 x1 y1)))
 
 (defun scene-draw-2d-line (scene line-thickness color x0 y0 x1 y1)
   (declare (type krma-essential-scene-mixin scene))
@@ -221,7 +221,7 @@
   (setq y1 (clampf y1))
   (setq z1 (clampf z1))
   (setq line-thickness (clampf line-thickness))
-  (rm-dispatch-to-render-thread (scene draw-data handle)
+  (rm-dispatch-to-render-thread-with-handle (scene draw-data handle)
     (%draw-data-add-3d-line-primitive draw-data handle model-matrix line-thickness color x0 y0 z0 x1 y1 z1)))
 
 (defun scene-add-3d-line-to-group (scene group line-thickness color x0 y0 z0 x1 y1 z1)
@@ -236,8 +236,8 @@
   (setq y1 (clampf y1))
   (setq z1 (clampf z1))
   (setq line-thickness (clampf line-thickness))
-  (rm-dispatch-to-render-thread (scene draw-data handle)
-    (%draw-data-add-3d-line-pseudo draw-data handle group line-thickness color x0 y0 z0 x1 y1 z1)))
+  (rm-dispatch-to-render-thread (scene draw-data)
+    (%draw-data-add-3d-line-to-group draw-data group line-thickness color x0 y0 z0 x1 y1 z1)))
 
 (defun scene-draw-3d-line (scene line-thickness color x0 y0 z0 x1 y1 z1)
   (declare (type krma-essential-scene-mixin scene))
@@ -255,7 +255,7 @@
   (declare (type sequence vertices))
   (setq color (canonicalize-color color))
   (setq line-thickness (clampf line-thickness))
-  (rm-dispatch-to-render-thread (scene draw-data handle)
+  (rm-dispatch-to-render-thread-with-handle (scene draw-data handle)
     (%draw-data-add-2d-polyline-primitive draw-data handle model-mtx closed? line-thickness color vertices)))
 
 (defun scene-add-2d-polyline-to-group (scene group closed? line-thickness color vertices)
@@ -266,8 +266,8 @@
   (assert (typep group 'atom))
   (setq color (canonicalize-color color))
   (setq line-thickness (clampf line-thickness))
-  (rm-dispatch-to-render-thread (scene draw-data handle)
-    (%draw-data-add-2d-polyline-pseudo draw-data handle group closed? line-thickness color vertices)))
+  (rm-dispatch-to-render-thread (scene draw-data)
+    (%draw-data-add-2d-polyline-to-group draw-data group closed? line-thickness color vertices)))
 
 (defun scene-draw-2d-polyline (scene closed? line-thickness color vertices)
   (declare (type krma-essential-scene-mixin scene))
@@ -289,7 +289,7 @@
   (setq x2 (clampf x2))
   (setq y2 (clampf y2))
   (setq line-thickness (clampf line-thickness))
-  (rm-dispatch-to-render-thread (scene draw-data handle)
+  (rm-dispatch-to-render-thread-with-handle (scene draw-data handle)
     (%draw-data-add-2d-polyline-primitive draw-data handle model-mtx t line-thickness color
 					  (list x0 y0 x1 y1 x2 y2))))
 
@@ -305,8 +305,8 @@
   (setq x2 (clampf x2))
   (setq y2 (clampf y2))
   (setq line-thickness (clampf line-thickness))
-  (rm-dispatch-to-render-thread (scene draw-data handle)
-    (%draw-data-add-2d-polyline-pseudo draw-data handle group t line-thickness color
+  (rm-dispatch-to-render-thread (scene draw-data)
+    (%draw-data-add-2d-polyline-to-group draw-data group t line-thickness color
 				       (list x0 y0 x1 y1 x2 y2))))
 
 (defun scene-draw-2d-triangle (scene line-thickness color x0 y0 x1 y1 x2 y2)
@@ -326,7 +326,7 @@
   (setq x1 (clampf x1))
   (setq y1 (clampf y1))
   (setq line-thickness (clampf line-thickness))
-  (rm-dispatch-to-render-thread (scene draw-data handle)
+  (rm-dispatch-to-render-thread-with-handle (scene draw-data handle)
     (%draw-data-add-2d-polyline-primitive draw-data handle model-mtx t line-thickness color
 					  (list x0 y0 x0 y1 x1 y1 x1 y0))))
 					  
@@ -341,8 +341,8 @@
   (setq x1 (clampf x1))
   (setq y1 (clampf y1))
   (setq line-thickness (clampf line-thickness))
-  (rm-dispatch-to-render-thread (scene draw-data handle)
-    (%draw-data-add-2d-polyline-pseudo draw-data handle group t line-thickness color
+  (rm-dispatch-to-render-thread (scene draw-data)
+    (%draw-data-add-2d-polyline-to-group draw-data group t line-thickness color
 				       (list x0 y0 x0 y1 x1 y1 x1 y0))))
 
 (defun scene-draw-2d-rectangle (scene line-thickness color x0 y0 x1 y1)
@@ -363,7 +363,7 @@
   (declare (type boolean closed?))
   (declare (type sequence vertices))
   (setq line-thickness (clampf line-thickness))
-  (rm-dispatch-to-render-thread (scene draw-data handle)
+  (rm-dispatch-to-render-thread-with-handle (scene draw-data handle)
     (%draw-data-add-multicolor-2d-polyline-primitive draw-data handle model-mtx closed? line-thickness vertices)))
 
 (defun scene-add-multicolor-2d-polyline-to-group (scene group closed? line-thickness vertices)
@@ -373,8 +373,8 @@
   (declare (type sequence vertices))
   (assert (typep group 'atom))
   (setq line-thickness (clampf line-thickness))
-  (rm-dispatch-to-render-thread (scene draw-data handle)
-    (%draw-data-add-multicolor-2d-polyline-pseudo draw-data handle group closed? line-thickness vertices)))
+  (rm-dispatch-to-render-thread (scene draw-data)
+    (%draw-data-add-multicolor-2d-polyline-to-group draw-data group closed? line-thickness vertices)))
 
 (defun scene-draw-multicolor-2d-polyline (scene closed? line-thickness vertices)
   (declare (type krma-essential-scene-mixin scene))
@@ -399,7 +399,7 @@
   (setq end-angle (coerce end-angle 'double-float))
   (setq color (canonicalize-color color))
   (setq line-thickness (clampf line-thickness))
-  (rm-dispatch-to-render-thread (scene draw-data handle)
+  (rm-dispatch-to-render-thread-with-handle (scene draw-data handle)
     (%draw-data-add-2d-circular-arc-primitive draw-data handle model-mtx closed? line-thickness color
 					      center-x center-y radius start-angle end-angle
 					      number-of-segments)))
@@ -419,8 +419,8 @@
   (setq end-angle (coerce end-angle 'double-float))
   (setq color (canonicalize-color color))
   (setq line-thickness (clampf line-thickness))
-  (rm-dispatch-to-render-thread (scene draw-data handle)
-    (%draw-data-add-2d-circular-arc-pseudo draw-data handle group closed? line-thickness color
+  (rm-dispatch-to-render-thread (scene draw-data)
+    (%draw-data-add-2d-circular-arc-to-group draw-data group closed? line-thickness color
 					   center-x center-y radius start-angle end-angle
 					   number-of-segments)))
 
@@ -450,15 +450,15 @@
   (setq center-y (coerce center-y 'double-float))
   (setq radius (coerce radius 'double-float))
   (setq line-thickness (clampf line-thickness))
-  (rm-dispatch-to-render-thread (scene draw-data handle)
+  (rm-dispatch-to-render-thread-with-handle (scene draw-data handle)
     (%draw-data-add-2d-circle-primitive draw-data handle
 					model-mtx line-thickness color
 					center-x center-y radius
 					number-of-segments)))
 
 (defun scene-add-2d-circle-to-group (scene group line-thickness color
-				     center-x center-y radius
-				     &optional (number-of-segments 64))
+				                             center-x center-y radius
+				                             &optional (number-of-segments 64))
   (declare (type krma-essential-scene-mixin scene))
   (declare (type real center-x center-y radius line-thickness))
   (declare (type (integer 1 #.most-positive-fixnum) number-of-segments))
@@ -468,11 +468,11 @@
   (setq center-y (coerce center-y 'double-float))
   (setq radius (coerce radius 'double-float))
   (setq line-thickness (clampf line-thickness))
-  (rm-dispatch-to-render-thread (scene draw-data handle)
-    (%draw-data-add-2d-circle-pseudo draw-data handle
-				     group line-thickness color
-				     center-x center-y radius
-				     number-of-segments)))
+  (rm-dispatch-to-render-thread (scene draw-data)
+    (%draw-data-add-2d-circle-to-group draw-data
+				                               group line-thickness color
+				                               center-x center-y radius
+				                               number-of-segments)))
 
 (defun scene-draw-2d-circle (scene line-thickness color
 			     center-x center-y radius
@@ -493,7 +493,7 @@
   (declare (type sequence vertices))
   (setq color (canonicalize-color color))
   (setq line-thickness (clampf line-thickness))
-  (rm-dispatch-to-render-thread (scene draw-data handle)
+  (rm-dispatch-to-render-thread-with-handle (scene draw-data handle)
     (%draw-data-add-3d-polyline-primitive draw-data handle model-mtx closed? line-thickness color vertices)))
 
 (defun scene-add-3d-polyline-to-group (scene group closed? line-thickness color vertices)
@@ -503,8 +503,8 @@
   (assert (typep group 'atom))
   (setq color (canonicalize-color color))
   (setq line-thickness (clampf line-thickness))
-  (rm-dispatch-to-render-thread (scene draw-data handle)
-    (%draw-data-add-3d-polyline-pseudo draw-data handle group closed? line-thickness color vertices)))
+  (rm-dispatch-to-render-thread (scene draw-data)
+    (%draw-data-add-3d-polyline-to-group draw-data group closed? line-thickness color vertices)))
 
 (defun scene-draw-3d-polyline (scene closed? line-thickness color vertices)
   (declare (type krma-essential-scene-mixin scene))
@@ -521,7 +521,7 @@
   (declare (type boolean closed?))
   (declare (type sequence vertices))
   (setq line-thickness (clampf line-thickness))
-  (rm-dispatch-to-render-thread (scene draw-data handle)
+  (rm-dispatch-to-render-thread-with-handle (scene draw-data handle)
     (%draw-data-add-multicolor-3d-polyline-primitive draw-data handle model-mtx closed? line-thickness vertices)))
 
 (defun scene-add-multicolor-3d-polyline-to-group (scene group closed? line-thickness vertices)
@@ -531,8 +531,8 @@
   (declare (type sequence vertices))
   (assert (typep group 'atom))
   (setq line-thickness (clampf line-thickness))
-  (rm-dispatch-to-render-thread (scene draw-data handle)
-    (%draw-data-add-multicolor-3d-polyline-pseudo draw-data handle group closed? line-thickness vertices)))
+  (rm-dispatch-to-render-thread (scene draw-data)
+    (%draw-data-add-multicolor-3d-polyline-to-group draw-data group closed? line-thickness vertices)))
 
 (defun scene-draw-multicolor-3d-polyline (scene closed? line-thickness vertices)
   (declare (type krma-essential-scene-mixin scene))
@@ -547,7 +547,7 @@
   (declare (type krma-essential-scene-mixin scene))
   (declare (type sequence vertices))
   (setq color (canonicalize-color color))
-  (rm-dispatch-to-render-thread (scene draw-data handle)
+  (rm-dispatch-to-render-thread-with-handle (scene draw-data handle)
     (%draw-data-add-filled-2d-triangle-list-primitive draw-data handle model-mtx color vertices)))
 
 (defun scene-add-filled-2d-triangle-list-to-group (scene group color vertices)
@@ -555,8 +555,8 @@
   (declare (type sequence vertices))
   (assert (typep group 'atom))
   (setq color (canonicalize-color color))
-  (rm-dispatch-to-render-thread (scene draw-data handle)
-    (%draw-data-add-filled-2d-triangle-list-pseudo draw-data handle group color vertices)))
+  (rm-dispatch-to-render-thread (scene draw-data)
+    (%draw-data-add-filled-2d-triangle-list-to-group draw-data group color vertices)))
 
 (defun scene-draw-filled-2d-triangle-list (scene color vertices)
   (declare (type krma-essential-scene-mixin scene))
@@ -569,7 +569,7 @@
   (declare (type krma-essential-scene-mixin scene))
   (declare (type sequence vertices))
   (setq color (canonicalize-color color))
-  (rm-dispatch-to-render-thread (scene draw-data handle)
+  (rm-dispatch-to-render-thread-with-handle (scene draw-data handle)
     (%draw-data-add-filled-2d-triangle-strip-primitive draw-data handle model-mtx color vertices)))
 
 (defun scene-draw-filled-2d-triangle-strip (scene color vertices)
@@ -579,14 +579,14 @@
     (declare (type immediate-mode-draw-data draw-data))
     (let ((draw-list (draw-data-2d-triangle-strip-draw-list draw-data)))
       ;; we add the primitive/cmd without a handle:
-      (%draw-list-add-filled-2d-triangle-strip/list-cmd draw-list nil (canonicalize-color color) vertices))))
+      (%draw-list-add-filled-2d-triangle-strip/list draw-list nil (canonicalize-color color) vertices))))
 
 ;; filled-2d-rectangle-list
 (defun scene-add-filled-2d-rectangle-list (scene model-mtx color vertices)
   (declare (type krma-essential-scene-mixin scene))
   (declare (type sequence vertices))
   (setq color (canonicalize-color color))
-  (rm-dispatch-to-render-thread (scene draw-data handle)
+  (rm-dispatch-to-render-thread-with-handle (scene draw-data handle)
     (%draw-data-add-filled-2d-rectangle-list-primitive draw-data handle model-mtx color vertices)))
 
 (defun scene-add-filled-2d-rectangle-list-to-group (scene group color vertices)
@@ -594,8 +594,8 @@
   (declare (type sequence vertices))
   (assert (typep group 'atom))
   (setq color (canonicalize-color color))
-  (rm-dispatch-to-render-thread (scene draw-data handle)
-    (%draw-data-add-filled-2d-rectangle-list-pseudo draw-data handle group color vertices)))
+  (rm-dispatch-to-render-thread (scene draw-data)
+    (%draw-data-add-filled-2d-rectangle-list-to-group draw-data group color vertices)))
 
 (defun scene-draw-filled-2d-rectangle-list (scene color vertices)
   (declare (type krma-essential-scene-mixin scene))
@@ -608,7 +608,7 @@
   (declare (type krma-essential-scene-mixin scene))
   (declare (type sequence vertices))
   (setq color (canonicalize-color color))
-  (rm-dispatch-to-render-thread (scene draw-data handle)
+  (rm-dispatch-to-render-thread-with-handle (scene draw-data handle)
     (%draw-data-add-textured-2d-rectangle-list-primitive draw-data handle model-mtx texture color vertices)))
 
 (defun scene-add-textured-2d-rectangle-list-to-group (scene group texture color vertices)
@@ -616,8 +616,8 @@
   (declare (type sequence vertices))
   (assert (typep group 'atom))
   (setq color (canonicalize-color color))
-  (rm-dispatch-to-render-thread (scene draw-data handle)
-    (%draw-data-add-textured-2d-rectangle-list-pseudo draw-data handle group texture color vertices)))
+  (rm-dispatch-to-render-thread (scene draw-data)
+    (%draw-data-add-textured-2d-rectangle-list-to-group draw-data group texture color vertices)))
 
 (defun scene-draw-textured-2d-rectangle-list (scene texture color vertices)
   (declare (type krma-essential-scene-mixin scene))
@@ -629,7 +629,7 @@
   (declare (type krma-essential-scene-mixin scene))
   (declare (type sequence vertices))
   (setq color (canonicalize-color color))
-  (rm-dispatch-to-render-thread (scene draw-data handle)
+  (rm-dispatch-to-render-thread-with-handle (scene draw-data handle)
     (%draw-data-add-filled-2d-convex-polygon-primitive draw-data handle model-mtx color vertices)))
 
 (defun scene-add-filled-2d-convex-polygon-to-group (scene group color vertices)
@@ -637,8 +637,8 @@
   (declare (type sequence vertices))
   (assert (typep group 'atom))
   (setq color (canonicalize-color color))
-  (rm-dispatch-to-render-thread (scene draw-data handle)
-    (%draw-data-add-filled-2d-convex-polygon-pseudo draw-data handle group color vertices)))
+  (rm-dispatch-to-render-thread (scene draw-data)
+    (%draw-data-add-filled-2d-convex-polygon-to-group draw-data group color vertices)))
 
 (defun scene-draw-filled-2d-convex-polygon (scene color vertices)
   (declare (type krma-essential-scene-mixin scene))
@@ -674,7 +674,7 @@
   (setq center-y (coerce center-y 'double-float))
   (setq radius (coerce radius 'double-float))
   (let ((vertices (compute-circle-vertices number-of-segments center-x center-y radius)))
-    (rm-dispatch-to-render-thread (scene draw-data handle)
+    (rm-dispatch-to-render-thread-with-handle (scene draw-data handle)
       (%draw-data-add-filled-2d-convex-polygon-primitive draw-data handle model-mtx color vertices))))
 
 (defun scene-add-filled-2d-circle-to-group (scene group color
@@ -688,8 +688,8 @@
   (setq center-y (coerce center-y 'double-float))
   (setq radius (coerce radius 'double-float))
   (let ((vertices (compute-circle-vertices number-of-segments center-x center-y radius)))
-    (rm-dispatch-to-render-thread (scene draw-data handle)
-      (%draw-data-add-filled-2d-convex-polygon-pseudo draw-data handle group color vertices))))
+    (rm-dispatch-to-render-thread (scene draw-data)
+      (%draw-data-add-filled-2d-convex-polygon-to-group draw-data group color vertices))))
 
 (defun scene-draw-filled-2d-circle (scene color
 				    center-x center-y radius
@@ -703,33 +703,12 @@
   (let ((vertices (compute-circle-vertices number-of-segments center-x center-y radius)))
     (%draw-data-draw-filled-2d-convex-polygon (im-draw-data scene) (canonicalize-color color) vertices)))
 
-;; filled-3d-triangle-strip
-(defun scene-add-filled-3d-triangle-strip (scene model-mtx color vertices)
-  (declare (type krma-essential-scene-mixin scene))
-  (declare (type sequence vertices))
-  (setq color (canonicalize-color color))
-  (rm-dispatch-to-render-thread (scene draw-data handle)
-    (%draw-data-add-filled-3d-triangle-strip-primitive draw-data handle model-mtx color vertices)))
-
-;; there are no groups for 3d-triangle-strip because strips always need to use cmds
-;; maybe we can put group in cmd and in the renderer, if group is present use group model-matrix etc
-;; instead of cmd-model-mtx
-
-(defun scene-draw-filled-3d-triangle-strip (scene color vertices)
-  (declare (type krma-essential-scene-mixin scene))
-  (declare (type sequence vertices))
-  (let ((draw-data (im-draw-data scene)))
-    (declare (type immediate-mode-draw-data draw-data))
-    (let ((draw-list (draw-data-3d-triangle-strip-draw-list draw-data)))
-      ;; we add the primitive/cmd without a handle:
-      (%draw-list-add-filled-3d-triangle-strip/list-cmd draw-list nil (canonicalize-color color) vertices))))
-
 ;; filled-3d-triangle-list-flat
 (defun scene-add-filled-3d-triangle-list-flat (scene model-mtx color vertices)
   (declare (type krma-essential-scene-mixin scene))
   (declare (type sequence vertices))
   (setq color (canonicalize-color color))
-  (rm-dispatch-to-render-thread (scene draw-data handle)
+  (rm-dispatch-to-render-thread-with-handle (scene draw-data handle)
     (%draw-data-add-filled-3d-triangle-list-primitive draw-data handle model-mtx color vertices)))
 
 (defun scene-add-filled-3d-triangle-list-flat-to-group (scene group color vertices)
@@ -737,8 +716,8 @@
   (declare (type sequence vertices))
   (assert (typep group 'atom))
   (setq color (canonicalize-color color))
-  (rm-dispatch-to-render-thread (scene draw-data handle)
-    (%draw-data-add-filled-3d-triangle-list-pseudo draw-data handle group color vertices)))
+  (rm-dispatch-to-render-thread (scene draw-data)
+    (%draw-data-add-filled-3d-triangle-list-to-group draw-data group color vertices)))
 
 (defun scene-draw-filled-3d-triangle-list-flat (scene color vertices)
   (declare (type krma-essential-scene-mixin scene))
@@ -750,7 +729,7 @@
   (declare (type krma-essential-scene-mixin scene))
   (declare (type sequence vertices))
   (setq color (canonicalize-color color))
-  (rm-dispatch-to-render-thread (scene draw-data handle)
+  (rm-dispatch-to-render-thread-with-handle (scene draw-data handle)
     (%draw-data-add-filled-3d-triangle-list-with-normals-primitive
      draw-data handle model-mtx color vertices light-position)))
 
@@ -759,8 +738,8 @@
   (declare (type sequence vertices))
   (assert (typep group 'atom))
   (setq color (canonicalize-color color))
-  (rm-dispatch-to-render-thread (scene draw-data handle)
-    (%draw-data-add-filled-3d-triangle-list-with-normals-pseudo draw-data handle group color vertices)))
+  (rm-dispatch-to-render-thread (scene draw-data)
+    (%draw-data-add-filled-3d-triangle-list-with-normals-to-group draw-data group color vertices)))
 
 (defun scene-draw-filled-3d-triangle-list-diffuse (scene color vertices)
   (declare (type krma-essential-scene-mixin scene))
@@ -772,7 +751,7 @@
   (declare (type krma-essential-scene-mixin scene))
   (declare (type sequence vertices))
   (setq color (canonicalize-color color))
-  (rm-dispatch-to-render-thread (scene draw-data handle)
+  (rm-dispatch-to-render-thread-with-handle (scene draw-data handle)
     (%draw-data-add-filled-3d-triangle-strip-primitive draw-data handle model-mtx color vertices)))
 
 ;; triangle strips do not have pseudo-cmds and therefore will
@@ -785,7 +764,7 @@
     (declare (type immediate-mode-draw-data draw-data))
     (let ((draw-list (draw-data-3d-triangle-strip-draw-list draw-data)))
       ;; we add the primitive/cmd without a handle:
-      (%draw-list-add-filled-3d-triangle-strip/list-cmd
+      (%draw-list-add-filled-3d-triangle-strip/list
        draw-list nil (canonicalize-color color) vertices))))
 
 ;; filled-3d-triangle-strip-diffuse
@@ -793,12 +772,9 @@
   (declare (type krma-essential-scene-mixin scene))
   (declare (type sequence vertices))
   (setq color (canonicalize-color color))
-  (rm-dispatch-to-render-thread (scene draw-data handle)
+  (rm-dispatch-to-render-thread-with-handle (scene draw-data handle)
     (%draw-data-add-filled-3d-triangle-strip-with-normals-primitive
      draw-data handle model-mtx color vertices light-position)))
-
-;; triangle strips do not have pseudo-cmds and therefore will
-;; not have scene-add-filled-3d-triangle-strip-diffuse-to-group
 
 (defun scene-draw-filled-3d-triangle-strip-diffuse (scene color vertices)
   (declare (type krma-essential-scene-mixin scene))
@@ -807,7 +783,7 @@
     (declare (type immediate-mode-draw-data draw-data))
     (let ((draw-list (draw-data-3d-triangle-strip-with-normals-draw-list draw-data)))
       ;; we add the primitive/cmd without a handle:
-      (%draw-list-add-filled-3d-triangle-strip/list-with-normals-cmd
+      (%draw-list-add-filled-3d-triangle-strip/list-with-normals
        draw-list nil (canonicalize-color color) vertices nil))))
 
 ;; filled-3d-convex-polygon-diffuse
@@ -815,7 +791,7 @@
   (declare (type krma-essential-scene-mixin scene))
   (declare (type sequence vertices))
   (setq color (canonicalize-color color))
-  (rm-dispatch-to-render-thread (scene draw-data handle)
+  (rm-dispatch-to-render-thread-with-handle (scene draw-data handle)
     (%draw-data-add-filled-3d-convex-polygon-with-normals-primitive
      draw-data handle model-mtx color vertices light-position)))
 
@@ -824,8 +800,8 @@
   (declare (type sequence vertices))
   (assert (typep group 'atom))
   (setq color (canonicalize-color color))
-  (rm-dispatch-to-render-thread (scene draw-data handle)
-    (%draw-data-add-filled-3d-convex-polygon-with-normals-pseudo draw-data group color vertices)))
+  (rm-dispatch-to-render-thread (scene draw-data)
+    (%draw-data-add-filled-3d-convex-polygon-with-normals-to-group draw-data group color vertices)))
 
 (defun scene-draw-filled-3d-convex-polygon-diffuse (scene color vertices)
   (declare (type krma-essential-scene-mixin scene))
@@ -838,7 +814,7 @@
   (declare (type krma-essential-scene-mixin scene))
   (declare (type sequence vertices))
   (setq color (canonicalize-color color))
-  (rm-dispatch-to-render-thread (scene draw-data handle)
+  (rm-dispatch-to-render-thread-with-handle (scene draw-data handle)
     (%draw-data-add-filled-3d-convex-polygon-primitive draw-data handle model-mtx color vertices)))
 
 (defun scene-add-filled-3d-convex-polygon-flat-to-group (scene group color vertices)
@@ -846,8 +822,8 @@
   (declare (type sequence vertices))
   (assert (typep group 'atom))
   (setq color (canonicalize-color color))
-  (rm-dispatch-to-render-thread (scene draw-data handle)
-    (%draw-data-add-filled-3d-convex-polygon-pseudo draw-data handle group color vertices)))
+  (rm-dispatch-to-render-thread (scene draw-data)
+    (%draw-data-add-filled-3d-convex-polygon-to-group draw-data group color vertices)))
 
 (defun scene-draw-filled-3d-convex-polygon-flat (scene color vertices)
   (declare (type krma-essential-scene-mixin scene))
@@ -860,7 +836,7 @@
 (defun scene-add-multicolor-3d-convex-polygon-diffuse (scene model-mtx vertices light-position)
   (declare (type krma-essential-scene-mixin scene))
   (declare (type sequence vertices))
-  (rm-dispatch-to-render-thread (scene draw-data handle)
+  (rm-dispatch-to-render-thread-with-handle (scene draw-data handle)
     (%draw-data-add-multicolor-3d-convex-polygon-with-normals-primitive  
      draw-data handle model-mtx vertices light-position)))
 
@@ -868,8 +844,8 @@
   (declare (type krma-essential-scene-mixin scene))
   (declare (type sequence vertices))
   (assert (typep group 'atom))
-  (rm-dispatch-to-render-thread (scene draw-data handle)
-    (%draw-data-add-multicolor-3d-convex-polygon-with-normals-pseudo draw-data group vertices)))
+  (rm-dispatch-to-render-thread (scene draw-data)
+    (%draw-data-add-multicolor-3d-convex-polygon-with-normals-to-group draw-data group vertices)))
 
 (defun scene-draw-multicolor-3d-convex-polygon-diffuse (scene vertices)
   (declare (type krma-essential-scene-mixin scene))
@@ -882,15 +858,15 @@
 (defun scene-add-multicolor-3d-convex-polygon-flat (scene model-mtx vertices)
   (declare (type krma-essential-scene-mixin scene))
   (declare (type sequence vertices))
-  (rm-dispatch-to-render-thread (scene draw-data handle)
+  (rm-dispatch-to-render-thread-with-handle (scene draw-data handle)
     (%draw-data-add-multicolor-3d-convex-polygon-primitive draw-data handle model-mtx vertices)))
 
 (defun scene-add-multicolor-3d-convex-polygon-flat-to-group (scene group vertices)
   (declare (type krma-essential-scene-mixin scene))
   (declare (type sequence vertices))
   (assert (typep group 'atom))
-  (rm-dispatch-to-render-thread (scene draw-data handle)
-    (%draw-data-add-multicolor-3d-convex-polygon-pseudo draw-data handle group vertices)))
+  (rm-dispatch-to-render-thread (scene draw-data)
+    (%draw-data-add-multicolor-3d-convex-polygon-to-group draw-data group vertices)))
 
 (defun scene-draw-multicolor-3d-convex-polygon-flat (scene vertices)
   (declare (type krma-essential-scene-mixin scene))
@@ -903,7 +879,7 @@
   (declare (type krma-essential-scene-mixin scene))
   (declare (type sequence vertices))
   (setq color (canonicalize-color color))
-  (rm-dispatch-to-render-thread (scene draw-data handle)
+  (rm-dispatch-to-render-thread-with-handle (scene draw-data handle)
     (%draw-data-add-textured-3d-triangle-list-primitive draw-data handle model-mtx texture color vertices)))
 
 (defun scene-add-textured-3d-triangle-list-flat-to-group (scene group texture color vertices)
@@ -911,8 +887,8 @@
   (declare (type sequence vertices))
   (assert (typep group 'atom))
   (setq color (canonicalize-color color))
-  (rm-dispatch-to-render-thread (scene draw-data handle)
-    (%draw-data-add-textured-3d-triangle-list-pseudo draw-data handle group texture color vertices)))
+  (rm-dispatch-to-render-thread (scene draw-data)
+    (%draw-data-add-textured-3d-triangle-list-to-group draw-data group texture color vertices)))
 
 (defun scene-draw-textured-3d-triangle-list-flat (scene texture color vertices)
   (declare (type krma-essential-scene-mixin scene))
@@ -925,7 +901,7 @@
   (declare (type krma-essential-scene-mixin scene))
   (declare (type sequence vertices))
   (setq color (canonicalize-color color))
-  (rm-dispatch-to-render-thread (scene draw-data handle)
+  (rm-dispatch-to-render-thread-with-handle (scene draw-data handle)
     (%draw-data-add-textured-3d-triangle-strip-primitive draw-data handle model-mtx texture color vertices)))
 
 (defun scene-draw-textured-3d-triangle-strip-flat (scene texture color vertices)
@@ -935,7 +911,7 @@
     (declare (type immediate-mode-draw-data draw-data))
     (let ((draw-list (draw-data-3d-triangle-strip-draw-list draw-data)))
       ;; we add the primitive/cmd without a handle:
-      (%draw-list-add-textured-3d-triangle-strip/list-cmd
+      (%draw-list-add-textured-3d-triangle-strip/list
        draw-list nil texture (canonicalize-color color) vertices))))
 
 (defun scene-add-filled-sphere-diffuse
@@ -949,7 +925,7 @@
   (setq origin-z (coerce origin-z 'double-float))
   (setq radius (coerce radius 'double-float))
   (setq color (canonicalize-color color))
-  (rm-dispatch-to-render-thread (scene draw-data handle)
+  (rm-dispatch-to-render-thread-with-handle (scene draw-data handle)
     (%draw-data-add-filled-sphere-primitive
      draw-data handle model-mtx color origin-x origin-y origin-z radius resolution light-position)))
 
@@ -963,9 +939,9 @@
   (setq origin-z (coerce origin-z 'double-float))
   (setq radius (coerce radius 'double-float))
   (setq color (canonicalize-color color))
-  (rm-dispatch-to-render-thread (scene draw-data handle)
-    (%draw-data-add-filled-sphere-pseudo
-     draw-data handle group color origin-x origin-y origin-z radius resolution)))
+  (rm-dispatch-to-render-thread (scene draw-data)
+    (%draw-data-add-filled-sphere-to-group
+     draw-data group color origin-x origin-y origin-z radius resolution)))
 
 (defun scene-draw-filled-sphere-diffuse (scene color origin-x origin-y origin-z radius resolution)
   (declare (type krma-essential-scene-mixin scene))
@@ -1033,7 +1009,7 @@
 	   (pos-y (clampf pos-y))
 	   (color (canonicalize-color color))
            (vertices (compute-text-coordinates pos-x pos-y string glyph-table scale-w scale-h)))
-    (rm-dispatch-to-render-thread (scene draw-data handle)
+    (rm-dispatch-to-render-thread-with-handle (scene draw-data handle)
       (%draw-data-add-text-quad-list-primitive draw-data handle
 					       model-matrix
 					       font color
@@ -1048,13 +1024,13 @@
     (let* ((glyph-table (slot-value data '3b-bmfont-common::chars))
            (scale-w (3b-bmfont-common:scale-w data))
            (scale-h (3b-bmfont-common:scale-h data))
-	   (pos-x (clampf pos-x))
-	   (pos-y (clampf pos-y))
-	   (color (canonicalize-color color))
+	         (pos-x (clampf pos-x))
+	         (pos-y (clampf pos-y))
+	         (color (canonicalize-color color))
            (vertices (compute-text-coordinates pos-x pos-y string glyph-table scale-w scale-h)))
-      (rm-dispatch-to-render-thread (scene draw-data handle)
-	(%draw-data-add-text-quad-list-pseudo draw-data handle
-					      group
+      (rm-dispatch-to-render-thread (scene draw-data)
+	      (%draw-data-add-text-quad-list-to-group draw-data
+					                                    group
                                               font color
                                               vertices)))))
 
@@ -1071,35 +1047,72 @@
            (vertices (compute-text-coordinates pos-x pos-y string glyph-table scale-w scale-h)))
       (%draw-data-draw-text-quad-list (im-draw-data scene) font (canonicalize-color color) vertices))))
 
-(defun %reinstance-cmd (cmd model-mtx line-thickness color-override point-size light-position)
+(declaim (inline %resinstance-cmd))
+(defun %reinstance-cmd (cmd constructor model-mtx sf-line-thickness sf-point-size ub32-color-override light-position)
   (declare (type standard-draw-indexed-cmd cmd))
-  (declare (type (or real null) line-thickness))
+  (declare (type function constructor))
+  (declare (type (or single-float null) sf-line-thickness sf-point-size))
+  (declare (type (or (unsigned-byte 32) null) ub32-color-override))
   (let ((first-idx (cmd-first-idx cmd))
         (elem-count (cmd-elem-count cmd))
         (vtx-offset (cmd-vtx-offset cmd))
         (draw-list (cmd-draw-list cmd))
-        (texture (cmd-texture cmd))
-        (model-mtx (if model-mtx model-mtx (cmd-model-mtx cmd)))
-        (line-thickness (if line-thickness (clampf line-thickness) (cmd-line-thickness cmd)))
-        (color-override (if color-override (canonicalize-color color-override) (cmd-color-override cmd)))
-	(point-size (if point-size (clampf point-size) (cmd-point-size cmd)))
-	(light-position (if light-position light-position (cmd-light-position cmd))))
-    (let ((cmd (make-standard-draw-indexed-cmd 
-                draw-list
-                first-idx elem-count vtx-offset
-                model-mtx color-override texture line-thickness point-size light-position)))
+        (texture (cmd-texture cmd)))
+    (setq model-mtx (or model-mtx (cmd-model-mtx cmd)))
+    (setq sf-line-thickness (or sf-line-thickness (cmd-line-thickness cmd)))
+    (setq ub32-color-override (or ub32-color-override (cmd-color-override cmd)))
+    (setq sf-point-size (or sf-point-size (cmd-point-size cmd)))
+    (setq light-position (or light-position (cmd-light-position cmd)))
+    (let ((cmd (funcall constructor
+                        draw-list
+                        first-idx elem-count vtx-offset
+                        model-mtx ub32-color-override texture sf-line-thickness sf-point-size light-position)))
       (vector-push-extend cmd (draw-list-cmd-vector draw-list))
       cmd)))
 
+(declaim (inline %reinstance-primitive-1))
+(defun %reinstance-primitive-1 (ht new-handle handle
+                                model-mtx sf-line-thickness sf-point-size ub32-color-override light-position font)
+  (let ((cmd (gethash handle ht)))
+    (if (listp cmd)
+        (warn "while in %reinstance-primitve-1 ...couldn't find primitive ~S to reinstance" handle)
+        (let ((constructor #'make-standard-draw-indexed-cmd))
+          (declare (type function constructor))
+          (when font
+            (setq constructor #'(lambda (&rest args)
+                                  (apply #'make-text-draw-indexed-cmd font args))))
+          (setf (gethash new-handle ht)
+                (%reinstance-cmd cmd constructor
+                                 model-mtx sf-line-thickness ub32-color-override sf-point-size light-position))))))
 
-;; the following "primitive" modifiers only work on retained mode primitives using handle
+(defun reinstance-primitive-1 (draw-data new-handle handle
+                               &key (model-matrix nil)
+                                 (point-size nil)
+                                 (line-thickness nil)
+                                 (color-override nil)
+                                 (light-position nil)
+                                 (font nil))
+  (declare (type retained-mode-draw-data draw-data))
+  (let ((ht (draw-data-handle-hash-table draw-data)))
+    (%reinstance-primitive-1
+     ht new-handle handle
+     model-matrix (clampf line-thickness) (clampf point-size) (canonicalize-color color-override) light-position font)))
+
+
 (defun reinstance-primitive (scene handle
                              &key (model-matrix nil)
-			       (point-size nil)
+                               (point-size nil)
                                (line-thickness nil)
                                (color-override nil)
-			       (light-position nil))
+                               (light-position nil)
+                               (font nil))
   (declare (type krma-essential-scene-mixin scene))
+  (when point-size
+    (setq point-size (clampf point-size)))
+  (when line-thickness
+    (setq line-thickness (clampf line-thickness)))
+  (when color-override
+    (setq color-override (canonicalize-color color-override)))
   (let ((draw-data (rm-draw-data scene)))
     (let ((dd0 (svref draw-data 0))
           (dd1 (svref draw-data 1)))
@@ -1109,30 +1122,35 @@
             (wq0 (draw-data-work-queue dd0))
             (wq1 (draw-data-work-queue dd1))
             (new-handle (gen-rm-handle)))
-        (flet ((reinstance! (ht)
-                 (let ((cmd (gethash handle ht)))
-                   (if cmd
-                       (if (listp cmd)
-			   ;; pseudo-primitives cannot be reinstanced
-                           (warn "failed to reinstance ~S" handle)
-                           (setf (gethash new-handle ht)
-                                 (%reinstance-cmd
-				  cmd model-matrix line-thickness color-override point-size light-position)))
-                       (warn "failed to reinstance ~S" handle)))))
+        (sb-concurrency:enqueue #'(lambda ()
+                                    (%reinstance-primitive-1 ht0 new-handle handle
+                                                             model-matrix line-thickness point-size color-override
+                                                             light-position font))
+                                wq0)
+        (sb-concurrency:enqueue #'(lambda ()
+                                    (%reinstance-primitive-1 ht1 new-handle handle
+                                                             model-matrix line-thickness point-size color-override
+                                                             light-position font))
+                                wq1)
+        new-handle))))
 
-          (sb-concurrency:enqueue #'(lambda ()
-                                      (reinstance! ht0))
-                                  wq0)
-          (sb-concurrency:enqueue #'(lambda ()
-                                      (reinstance! ht1))
-                                  wq1)
-          new-handle)))))
+(declaim (inline %primitive-set-color-1))
+(defun %primitive-set-color-1 (ht handle ub32-color)
+  (let ((cmd (gethash handle ht)))
+    (if (listp cmd)
+        (warn "while in %primitive-set-color-1 ...could not find primitive ~S to set color." handle)
+        (setf (cmd-color-override cmd) ub32-color))))
+
+(defun primitive-set-color-1 (draw-data handle color)
+  (declare (type retained-mode-draw-data draw-data))
+  (let ((ht (draw-data-handle-hash-table draw-data)))
+    (%primitive-set-color-1 ht handle (canonicalize-color color))))
 
 ;; need to be able to modify existing primitives
 (defun primitive-set-color (scene handle color)
   (declare (type krma-essential-scene-mixin scene))
-  (let ((draw-data (rm-draw-data scene))
-	(color (canonicalize-color color)))
+  (let ((draw-data (rm-draw-data scene)))
+    (setq color (canonicalize-color color))
     (let ((dd0 (svref draw-data 0))
           (dd1 (svref draw-data 1)))
       (declare (type retained-mode-draw-data dd0 dd1))
@@ -1140,28 +1158,21 @@
             (ht1 (draw-data-handle-hash-table dd1))
             (wq0 (draw-data-work-queue dd0))
             (wq1 (draw-data-work-queue dd1)))
-        (flet ((update-color! (ht)
-                 (let ((cmd (gethash handle ht)))
-                   (if (null cmd)
-                       (warn "could not find primitive ~S to set color." handle)
-                       (if (listp cmd)
-                           (loop for index in (cdr cmd)
-                                 do (let* ((index-array (draw-list-index-array (car cmd)))
-                                           (vertex-array (draw-list-vertex-array (car cmd)))
-                                           (vtx-type (foreign-array-foreign-type vertex-array))
-                                           (vtx-type-size (foreign-array-foreign-type-size vertex-array))
-                                           (vtx-offset (mem-aref index-array
-                                                                 (foreign-array-foreign-type index-array)
-                                                                 index))
-					   (pointer (inc-pointer (foreign-array-ptr vertex-array)
-								 (* vtx-offset vtx-type-size))))
+        (sb-concurrency:enqueue #'(lambda () (%primitive-set-color-1 ht0 handle color)) wq0)
+        (sb-concurrency:enqueue #'(lambda () (%primitive-set-color-1 ht1 handle color)) wq1)
+        (values)))))
 
-                                      (setf (foreign-slot-value pointer vtx-type 'col)
-                                            color)))
-                           (setf (cmd-color-override cmd) color))))))
-          (sb-concurrency:enqueue #'(lambda () (update-color! ht0)) wq0)
-          (sb-concurrency:enqueue #'(lambda () (update-color! ht1)) wq1)
-          (values))))))
+(declaim (inline %primitive-set-light-position-1))
+(defun %primitive-set-light-position-1 (ht handle pos)
+  (let ((cmd (gethash handle ht)))
+    (if (listp cmd)
+        (warn "while in %primitive-set-light-position-1 ...could not find primitive ~S to set light position." handle)
+        (setf (cmd-light-position cmd) pos))))
+
+(defun primitive-set-light-position-1 (draw-data handle pos)
+  (declare (type retained-mode-draw-data draw-data))
+  (let ((ht (draw-data-handle-hash-table draw-data)))
+    (%primitive-set-light-position-1 ht handle pos)))
 
 (defun primitive-set-light-position (scene handle pos)
   (declare (type krma-essential-scene-mixin scene))
@@ -1173,16 +1184,21 @@
             (ht1 (draw-data-handle-hash-table dd1))
             (wq0 (draw-data-work-queue dd0))
             (wq1 (draw-data-work-queue dd1)))
-        (flet ((update-light-pos! (ht)
-                 (let ((cmd (gethash handle ht)))
-                   (if (null cmd)
-                       (warn "could not find primitive ~S to set light position." handle)
-                       (if (listp cmd)
-			   (warn "cannot set light position of pseudo-primitive ~s." handle)
-			   (setf (cmd-light-position cmd) pos))))))
-          (sb-concurrency:enqueue #'(lambda () (update-light-pos! ht0)) wq0)
-          (sb-concurrency:enqueue #'(lambda () (update-light-pos! ht1)) wq1)
-          (values))))))
+        (sb-concurrency:enqueue #'(lambda () (%primitive-set-light-position-1 ht0 handle pos)) wq0)
+        (sb-concurrency:enqueue #'(lambda () (%primitive-set-light-position-1 ht1 handle pos)) wq1)
+        (values)))))
+
+(declaim (inline %primitive-set-transform-1))
+(defun %primitive-set-transform-1 (ht handle matrix)
+  (let ((cmd (gethash handle ht)))
+    (if (listp cmd)
+        (warn "while in %primitive-set-transform-1 ...could not find primitive to set transform ~S." handle)
+        (setf (cmd-model-mtx cmd) matrix))))
+
+(defun primitive-set-transform-1 (draw-data handle matrix)
+  (declare (type retained-mode-draw-data draw-data))
+  (let ((ht (draw-data-handle-hash-table draw-data)))
+    (%primitive-set-transform-1 ht handle matrix)))
 
 ;; replaces model-mtx in cmd by this matrix
 (defun primitive-set-transform (scene handle matrix)
@@ -1195,14 +1211,24 @@
             (ht1 (draw-data-handle-hash-table dd1))
             (wq0 (draw-data-work-queue dd0))
             (wq1 (draw-data-work-queue dd1)))
-        (flet ((update-matrix! (ht)
-                 (let ((cmd (gethash handle ht)))
-                   (if (listp cmd)
-                       (warn "could not set transform for pseudo-primitive ~S." handle)
-                       (setf (cmd-model-mtx cmd) matrix)))))
-          (sb-concurrency:enqueue #'(lambda () (update-matrix! ht0)) wq0)
-          (sb-concurrency:enqueue #'(lambda () (update-matrix! ht1)) wq1)
-          (values))))))
+        (sb-concurrency:enqueue #'(lambda () (%primitive-set-transform-1 ht0 handle matrix)) wq0)
+        (sb-concurrency:enqueue #'(lambda () (%primitive-set-transform-1 ht1 handle matrix)) wq1)
+        (values)))))
+
+(declaim (inline %primitive-apply-transform-1))
+(defun %primitive-apply-transform-1 (ht handle matrix)
+  (let ((cmd (gethash handle ht)))
+    (if (listp cmd)
+        (warn "while in %primitive-apple-transform-1 ...could not find primitive to apply transform ~S." handle)
+        (let ((existing (cmd-model-mtx cmd)))
+          (if existing
+              (setf (cmd-model-mtx cmd) (funcall *multiply-matrix-function* matrix existing))
+              (setf (cmd-model-mtx cmd) matrix))))))
+
+(defun primitive-apply-transform-1 (draw-data handle matrix)
+  (declare (type retained-mode-draw-data draw-data))
+  (let ((ht (draw-data-handle-hash-table draw-data)))
+    (%primitive-apply-transform-1 ht handle matrix)))
 
 ;; multiplies new matrix against old matrix and replaces model-mtx in cmd
 (defun primitive-apply-transform (scene handle matrix)
@@ -1215,18 +1241,29 @@
             (ht1 (draw-data-handle-hash-table dd1))
             (wq0 (draw-data-work-queue dd0))
             (wq1 (draw-data-work-queue dd1)))
-        (flet ((multiply-matrix! (ht)
-                 (let ((cmd (gethash handle ht)))
-                   (if (listp cmd)
-                       (warn "could not apply transform for pseudo-primitive ~S." handle)
-                       (setf (cmd-model-mtx cmd) (funcall *multiply-matrix-function* matrix (cmd-model-mtx cmd)))))))
-          (sb-concurrency:enqueue #'(lambda () (multiply-matrix! ht0)) wq0)
-          (sb-concurrency:enqueue #'(lambda () (multiply-matrix! ht1)) wq1)
-          (values))))))
+        (sb-concurrency:enqueue #'(lambda () (%primitive-apply-transform-1 ht0 handle matrix)) wq0)
+        (sb-concurrency:enqueue #'(lambda () (%primitive-apply-transform-1 ht1 handle matrix)) wq1)
+        (values)))))
+
+(declaim (inline %primitive-set-line-thickness-1))
+(defun %primitive-set-line-thickness-1 (ht handle sf-thickness)
+  (declare (type single-float sf-thickness))
+  (let ((cmd (gethash handle ht)))
+    (if (listp cmd)
+        (warn "while in %primitive-set-line-thickness-1 ...could not find primitive to update line thickness ~S."
+              handle)
+        (setf (cmd-line-thickness cmd) sf-thickness))))
+
+(defun primitive-set-line-thickness-1 (draw-data handle thickness)
+  (declare (type retained-mode-draw-data draw-data))
+  (let ((ht (draw-data-handle-hash-table draw-data)))
+    (%primitive-set-line-thickness-1 ht handle (clampf thickness))))
+
 
 (defun primitive-set-line-thickness (scene handle thickness)
   (declare (type krma-essential-scene-mixin scene))
   (declare (type real thickness))
+  (setq thickness (clampf thickness))
   (let ((draw-data (rm-draw-data scene)))
     (let ((dd0 (svref draw-data 0))
           (dd1 (svref draw-data 1)))
@@ -1235,67 +1272,183 @@
             (ht1 (draw-data-handle-hash-table dd1))
             (wq0 (draw-data-work-queue dd0))
             (wq1 (draw-data-work-queue dd1)))
-        (flet ((update-thickness! (ht)
-                 (let ((cmd (gethash handle ht)))
-                   (if (listp cmd)
-                       (warn "could not update line thickness for pseudo-primitive ~S." handle)
-                       (setf (cmd-line-thickness cmd) thickness)))))
-          (sb-concurrency:enqueue #'(lambda () (update-thickness! ht0)) wq0)
-          (sb-concurrency:enqueue #'(lambda () (update-thickness! ht1)) wq1)
-          (values))))))
+        (sb-concurrency:enqueue #'(lambda () (%primitive-set-line-thickness-1 ht0 handle thickness)) wq0)
+        (sb-concurrency:enqueue #'(lambda () (%primitive-set-line-thickness-1 ht1 handle thickness)) wq1)
+        (values)))))
 
-(defun delete-primitive (scene handle)
+(defun %delete-primitive-1 (ht handle)
+  (handler-case
+      (let ((cmd (gethash handle ht)))
+        (if (listp cmd)
+            (warn "while in %delete-primitive-1 ...could not find primitive to delete ~S" handle)
+            (let* ((draw-list (cmd-draw-list cmd))
+                   (cmd-vector (draw-list-cmd-vector draw-list)))
+              (loop for entry across cmd-vector
+                    for i from 0
+                    when (eq cmd entry)
+                      do (setf (aref cmd-vector i) nil)
+                         (setf (draw-list-needs-compaction? draw-list) t)
+                         (remhash handle ht)
+                         (return)))))
+    (error (c)
+      (warn (concatenate 'string "while in %delete-primitive-1 ..." (princ-to-string c)))
+      nil)))
+
+(defun delete-primitive-1 (draw-data handle)
+  (let ((ht (draw-data-handle-hash-table draw-data)))
+    (%delete-primitive-1 ht handle)))
+
+(defun delete-primitives (scene list-of-handles)
   (declare (type krma-essential-scene-mixin scene))
   (let ((draw-data (rm-draw-data scene)))
     (let ((dd0 (svref draw-data 0))
           (dd1 (svref draw-data 1)))
       (declare (type retained-mode-draw-data dd0 dd1))
-      (let ((ht0 (draw-data-handle-hash-table dd0))
-            (ht1 (draw-data-handle-hash-table dd1))
-            (wq0 (draw-data-work-queue dd0))
-            (wq1 (draw-data-work-queue dd1)))
-        (flet ((delete-handle-from! (ht)
-                 (let ((cmd (gethash handle ht)))
-                   (if (not cmd)
-                       (warn "could not find primitive ~S" handle)
-                       (if (listp cmd)
-                           ;; point lists and line lists: rebuild index-array and remove handle
-                           ;; todo: use memcpy if these index-arrays are big
-			   (let* ((old-index-array (draw-list-index-array (car cmd)))
-                                  (ptr (foreign-array-ptr old-index-array))
-                                  (type (foreign-array-foreign-type old-index-array))
-                                  (new-index-array
-                                    (make-index-array
-                                     (foreign-array-allocated-count old-index-array)
-                                     (foreign-array-foreign-type old-index-array)
-                                     0
-                                     (foreign-alloc
-                                      (foreign-array-foreign-type old-index-array)
-                                      :count (foreign-array-allocated-count old-index-array))
-                                     (foreign-type-size (foreign-array-foreign-type old-index-array)))))
-                             ;; copy indexes
-                             (loop for i from 0 below (foreign-array-fill-pointer old-index-array)
-                                   unless (member i (cdr cmd))
-                                     do (index-array-push-extend new-index-array (mem-aref ptr type i)))
-                             (setf (draw-list-index-array (car cmd)) new-index-array)
-                             (setf (draw-list-needs-compaction? (car cmd)) t)
-                             (foreign-free (foreign-array-ptr old-index-array))
-                             (remhash handle ht))
+      (let ((wq0 (draw-data-work-queue dd0))
+            (wq1 (draw-data-work-queue dd1))
+            (ht0 (draw-data-handle-hash-table dd0))
+            (ht1 (draw-data-handle-hash-table dd1)))
+        (sb-concurrency:enqueue #'(lambda ()
+                                    (loop for handle in list-of-handles
+                                          do (%delete-primitive-1 ht0 handle)))
+                                wq0)
+        (sb-concurrency:enqueue #'(lambda ()
+                                    (loop for handle in list-of-handles
+                                          do (%delete-primitive-1 ht1 handle)))
+                                wq1)))))
 
-                           ;; other primitives: delete cmd and remove handle
-                           (let* ((draw-list (cmd-draw-list cmd))
-                                  (cmd-vector (draw-list-cmd-vector draw-list)))
-                             (loop for entry across cmd-vector
-                                   for i from 0
-                                   when (eq cmd entry)
-                                     do (setf (aref cmd-vector i) nil)
-                                        (setf (draw-list-needs-compaction? draw-list) t)
-                                        (remhash handle ht)
-                                        (return))))))))
-          (sb-concurrency:enqueue #'(lambda ()
-                                      (delete-handle-from! ht0))
-                                  wq0)
-          (sb-concurrency:enqueue #'(lambda ()
-                                      (delete-handle-from! ht1))
-                                  wq1)
-          (values))))))
+(defun delete-primitive (scene handle)
+  (declare (type krma-essential-scene-mixin scene))
+  (delete-primitives scene (list handle)))
+
+(defun delete-groups-1 (draw-data list-of-groups)
+  (declare (type retained-mode-draw-data draw-data))
+  (handler-case
+      (progn
+        (flet ((free-group-draw-lists (ht)
+                 (unless ht
+                   (warn "ht is null"))
+                 (let ((key-list ()))
+                   ;; this ought to be fast since we maphash these tables at render time also
+                   ;; and haven't a performance problem yet (knock on wood)
+                   (maphash #'(lambda (key draw-list)
+                                (when (find (car key) list-of-groups)
+                                  (push key key-list)
+                                  (let ((ia (draw-list-index-array draw-list))
+                                        (va (draw-list-vertex-array draw-list)))
+                                    (declare (type foreign-adjustable-array ia va))
+                                    (foreign-free (foreign-array-ptr ia))
+                                    (foreign-free (foreign-array-ptr va))
+                                    nil)))
+                            ht)
+                   (mapcar #'(lambda (key)
+                               (remhash key ht))
+                           key-list))))
+          (with-slots (2d-point-list-draw-list-table
+                       2d-line-list-draw-list-table
+                       2d-triangle-list-draw-list-table
+                       2d-triangle-list-draw-list-for-text-table
+                       3d-point-list-draw-list-table
+                       3d-line-list-draw-list-table
+                       3d-triangle-list-draw-list-table
+                       3d-triangle-list-with-normals-draw-list-table)
+              draw-data
+
+            (free-group-draw-lists 2d-point-list-draw-list-table)
+            (free-group-draw-lists 2d-line-list-draw-list-table)
+            (free-group-draw-lists 2d-triangle-list-draw-list-table)
+            (free-group-draw-lists 2d-triangle-list-draw-list-for-text-table)
+            (free-group-draw-lists 3d-point-list-draw-list-table)
+            (free-group-draw-lists 3d-line-list-draw-list-table)
+            (free-group-draw-lists 3d-triangle-list-draw-list-table)
+            (free-group-draw-lists 3d-triangle-list-with-normals-draw-list-table))
+
+          (let ((groups (draw-data-group-hash-table draw-data)))
+            (unless groups
+              (warn "groups is null"))
+            (mapcar #'(lambda (group)
+                        (remhash group groups))
+                    list-of-groups))))
+    (error (c)
+      (warn (concatenate 'string "while in delete-groups-1 ..." (princ-to-string c))))))
+
+(defun delete-groups (scene list-of-groups)
+  (declare (type krma-essential-scene-mixin scene))
+  (rm-dispatch-to-render-thread (scene draw-data)
+    (delete-groups-1 draw-data list-of-groups)))
+
+(defun delete-group (scene group)
+  (assert (typep group 'atom))
+  (delete-groups scene (list group)))
+
+(declaim (inline %group-set-color-override-1))
+(defun %group-set-color-override-1 (draw-data atom-group ub32-color)
+  (let ((group (gethash atom-group (draw-data-group-hash-table draw-data))))
+    (if group
+        (setf (group-color-override group) ub32-color)
+        (warn "while in %group-set-color-override-1 ...no group named ~S" atom-group))))
+
+(defun group-set-color-override-1 (draw-data group color)
+  (assert (typep group 'atom))
+  (%group-set-color-override-1 draw-data group (canonicalize-color color)))
+
+(defun group-set-color-override (scene group color)
+  (declare (type krma-essential-scene-mixin scene))
+  (assert (typep group 'atom))
+  (setq color (canonicalize-color color))
+  (rm-dispatch-to-render-thread (scene draw-data)
+    (%group-set-color-override-1 draw-data group color)))
+
+(declaim (inline %group-set-model-matrix-1))
+(defun %group-set-model-matrix-1 (draw-data atom-group matrix)
+  (let ((group (gethash atom-group (draw-data-group-hash-table draw-data))))
+    (if group
+        (setf (group-model-matrix group) matrix)
+        (warn "while in %group-set-model-matrix-1 ...no group named ~S" atom-group))))
+
+(defun group-set-model-matrix-1 (draw-data group matrix)
+  (assert (typep group 'atom))
+  (%group-set-model-matrix-1 draw-data group matrix))
+
+(defun group-set-model-matrix (scene group matrix)
+  (declare (type krma-essential-scene-mixin scene))
+  (assert (typep group 'atom))
+  (rm-dispatch-to-render-thread (scene draw-data)
+    (%group-set-model-matrix-1 draw-data group matrix)))
+
+(declaim (inline %group-apply-model-matrix-1))
+(defun %group-apply-model-matrix-1 (draw-data atom-group matrix)
+  (let ((group (gethash atom-group (draw-data-group-hash-table draw-data))))
+    (if group
+        (let ((existing (group-model-matrix group)))
+          (if existing
+              (setf (group-model-matrix group) (funcall *multiply-matrix-function* matrix existing))
+              (setf (group-model-matrix group) matrix)))
+        (warn "while in %group-apply-model-matrix-1 ...no group named ~S" atom-group))))
+
+(defun group-apply-model-matrix-1 (draw-data group matrix)
+  (assert (typep group 'atom))
+  (%group-apply-model-matrix-1 draw-data group matrix))
+
+(defun group-apply-model-matrix (scene group matrix)
+  (declare (type krma-essential-scene-mixin scene))
+  (assert (typep group 'atom))
+  (rm-dispatch-to-render-thread (scene draw-data)
+    (%group-apply-model-matrix-1 draw-data group matrix)))
+
+(declaim (inline %group-set-light-position-1))
+(defun %group-set-light-position-1 (draw-data atom-group light-position)
+  (let ((group (gethash atom-group (draw-data-group-hash-table draw-data))))
+    (if group
+        (setf (group-light-position group) light-position)
+        (warn "while in %group-set-light-position-1 ...no group named ~S" atom-group))))
+
+(defun group-set-light-position-1 (draw-data group light-position)
+  (assert (typep group 'atom))
+  (%group-set-light-position-1 draw-data group light-position))
+
+(defun group-set-light-position (scene group position)
+  (declare (type krma-essential-scene-mixin scene))
+  (assert (typep group 'atom))
+  (rm-dispatch-to-render-thread (scene draw-data)
+    (%group-set-light-position-1 draw-data group position)))

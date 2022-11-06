@@ -6,175 +6,276 @@
 
 (defpackage :krma
   (:use :cl :cffi #-darwin :vk #-darwin :%vk :$glfw :3d-vectors :3d-matrices)
-  (:export #:krma-application-mixin
-	   #:krma-essential-scene-mixin
-	   #:canonicalize-color
-	   #:application-scene
-	   #:mortho-vulkan
-	   #:mperspective-vulkan
-	   #:index-array
-           #:make-index-array
-           #:foreign-array-ptr
-           #:foreign-array-fill-pointer
-           #:foreign-array-foreign-type
-           #:foreign-array-foreign-type-size
-           #:index-array-push-extend
-           #:textured-2d-vertex
-           #:textured-2d-vertex-array
-           #:make-textured-2d-vertex-array
-           #:textured-2d-vertex-array-push-extend
-           #:standard-2d-vertex-array-push-extend
-           #:textured-3d-vertex
-           #:textured-3d-vertex-array
-           #:make-textured-3d-vertex-array
-           #:textured-3d-vertex-array-push-extend
-           #:standard-3d-vertex-array-push-extend
-           #:textured-3d-vertex-with-normal
-           #:textured-3d-vertex-with-normal-array
-           #:standard-3d-vertex-with-normal-array-push-extend
-           #:textured-3d-vertex-with-normal-array-push-extend
-
-           #:standard-draw-data
-           #:3d-point-list-draw-list
-           #:3d-line-list-draw-list
-           #:3d-line-strip-draw-list
-           #:3d-triangle-list-draw-list
-           #:3d-triangle-strip-draw-list
-           #:2d-point-list-draw-list
-           #:2d-line-list-draw-list
-           #:2d-line-strip-draw-list
-           #:2d-triangle-list-draw-list
-           #:2d-triangle-strip-draw-list
-
-           #:draw-data-3d-point-list-draw-list
-           #:draw-data-3d-line-list-draw-list
-           #:draw-data-3d-line-strip-draw-list
-           #:draw-data-3d-triangle-list-draw-list
-           #:draw-data-3d-triangle-strip-draw-list
-           #:draw-data-2d-point-list-draw-list
-           #:draw-data-2d-line-list-draw-list
-           #:draw-data-2d-line-strip-draw-list
-           #:draw-data-2d-triangle-list-draw-list
-           #:draw-data-2d-triangle-strip-draw-list
-           #:draw-data-work-queue
+  (:import-from :vk #:main)
+  (:export #:mortho-vulkan
+           #:mperspective-vulkan
 
            #:im-draw-data
            #:rm-draw-data
 
-           #:draw-list-index-array
-           #:draw-list-vertex-array
-           #:draw-list-index-buffer
-           #:draw-list-vertex-buffer
-           #:draw-list-cmd-vector
-
-           #:2d-vertex-draw-list
-           #:3d-vertex-draw-list
-           #:3d-vertex-with-normal-draw-list
-
-           #:essential-draw-indexed-cmd
-           #:standard-draw-indexed-cmd
-
-           #:cmd-first-idx
-           #:cmd-elem-count
-           #:cmd-vtx-offset
-           #:cmd-draw-list
-
-           #:cmd-model-mtx
-           #:cmd-color-override
-           #:cmd-texture
-           #:cmd-line-thickness
-           #:cmd-point-size
-
-           #:%prim-reserve
-
-           #:make-textured-2d-draw-indexed-cmd
-
-           #:essential-scene-mixin
-           #:application-with-essential-scene-mixin
-           #:scene ;; do i really need to export this?
+           #:krma-application-mixin
+           #:krma-essential-scene-mixin
+           #:krma-test-application
+           #:maybe-defer-debug
+           #:update-2d-camera
+           #:update-3d-camera
+           #:render-scene
+           #:pipeline-store-mixin
            #:application-scene
-	   #:scene-light-position
+           #:application-pipeline-store
+           #:scene-light-position
+           #:main-window-width
+           #:main-window-height
+           #:immediate-mode-work-function-1
+           #:application-exit?
 
-           #:add-2d-point ;; working
+           ;; easy add/draw functions
+           #:add-2d-point ;;
+           #:group-add-2d-point
            #:draw-2d-point
+
            #:add-3d-point
+           #:group-add-3d-point
            #:draw-3d-point
-           #:add-2d-line ;; working
-           #:add-3d-line ;; working
-           #:add-multicolor-2d-polyline ;; working
+
+           #:add-2d-line ;;
+           #:group-add-2d-line
+           #:draw-2d-line
+
+           #:add-3d-line ;;
+           #:group-add-3d-line
+           #:draw-3d-line
+
+           #:add-multicolor-2d-polyline ;;
+           #:group-add-multicolor-2d-polyline
            #:draw-multicolor-2d-polyline
-           #:add-2d-polyline ;; working
-           #:add-2d-triangle ;; working
+
+           #:add-2d-polyline ;;
+           #:group-add-2d-polyline
+           #:draw-2d-polyline
+
+           #:add-2d-triangle ;;
+           #:group-add-2d-triangle
            #:draw-2d-triangle
-           #:add-2d-rectangle ;; working
+
+           #:add-2d-rectangle ;;
+           #:group-add-2d-rectangle
            #:draw-2d-rectangle
-           #:add-2d-circular-arc ;; working
-           #:add-2d-circle ;; working
+
+           #:add-2d-circular-arc ;;
+           #:group-add-2d-circular-arc
+           #:draw-2d-circular-arc
+
+           #:add-2d-circle ;;
+           #:group-add-2d-circle
+           #:draw-2d-circle
+
+           #:add-filled-2d-circle
+           #:group-add-filled-2d-circle
+           #:draw-filled-2d-circle
+
            #:add-multicolor-3d-polyline
+           #:group-add-multicolor-3d-polyline
+           #:draw-mutlicolor-3d-polyline
+
            #:add-3d-polyline
-           #:add-filled-2d-triangle-list ;; working
-           #:add-filled-2d-triangle-strip
+           #:group-add-3d-polyline
+           #:draw-3d-polyline
+
+           #:add-filled-2d-triangle-list ;;
+           #:group-add-filled-2d-triangle-list
+           #:draw-filled-2d-triangle-list
+
+           #:add-filled-2d-rectangle-list
+           #:group-add-filled-3d-rectangle-list
+           #:draw-filled-2d-rectangle-list
+
            #:add-textured-2d-triangle-list
-           #:add-textured-2d-triangle-strip
-           #:add-filled-2d-rectangle-list ;; working
-           #:add-textured-2d-rectangle-list ;; so far so good.
-           #:add-filled-2d-polygon ;; working
+           #:group-add-textured-2d-rectangle-list
+           #:draw-textured-2d-rectangle-list
+
+           #:add-filled-2d-convex-polygon
+           #:group-add-filled-2d-convex-polygon
+           #:draw-filled-2d-convex-polygon
+
            #:add-filled-3d-triangle-list
+           #:group-add-filled-3d-triangle-list
+           #:draw-filled-3d-triangle-listo
+
            #:add-filled-3d-triangle-strip
-           #:add-filled-3d-triangle-list-with-normals
-           #:add-filled-3d-triangle-strip-with-normals
+           #:draw-filled-3d-triangle-strip
+
            #:add-textured-3d-triangle-list
+           #:group-add-textured-3d-triangle-list
+           #:draw-textured-3d-triangle-list
+
            #:add-textured-3d-triangle-strip
+           #:draw-textured-3d-triangle-strip
+
+           #:add-filled-sphere
+           #:group-add-filled-sphere
+           #:draw-filled-sphere
+
+           #:add-text
+           #:group-add-text
+           #:scene-draw-text
 
            #:*white-texture*
            #:*default-point-size*
            #:*default-line-thickness*
+           #:*default-light-position*
            #:*multiply-matrix-function*
 
+           ;; add/draw functions with positional arguments
            #:scene-add-2d-point
+           #:scene-add-2d-point-to-group
            #:scene-draw-2d-point
+
            #:scene-add-3d-point
            #:scene-draw-3d-point
+           #:scene-draw-3d-point-to-group
+
            #:scene-add-2d-line
+           #:scene-add-2d-line-to-group
+           #:scene-draw-2d-line
+
            #:scene-add-3d-line
-	   #:scene-draw-3d-line
-           #:scene-add-multicolor-2d-polyline-1
-           #:scene-draw-multicolor-2d-polyline-1
-           #:scene-add-2d-polyline-1
+           #:scene-add-3d-line-to-group
+           #:scene-draw-3d-line
+
+           #:scene-add-2d-polyline
+           #:scene-add-2d-polyline-to-group
+           #:scene-draw-2d-polyline
+
            #:scene-add-2d-triangle
+           #:scene-add-2d-triangle-to-group
            #:scene-draw-2d-triangle
+
            #:scene-add-2d-rectangle
+           #:scene-add-2d-rectangle-to-group
            #:scene-draw-2d-rectangle
+
+           #:scene-add-multicolor-2d-polyline
+           #:scene-add-multicolor-2d-polyline-to-group
+           #:scene-draw-multicolor-2d-polyline
+
            #:scene-add-2d-circular-arc
+           #:scene-add-2d-circular-arc-to-group
+           #:scene-draw-2d-circulat-arc
+
            #:scene-add-2d-circle
-           #:scene-add-multicolor-3d-polyline-1
-           #:scene-add-3d-polyline-1
-	   #:scene-add-3d-polyline-2
-	   #:scene-draw-3d-polyline-1
+           #:scene-add-2d-circle-to-group
+           #:scene-draw-2d-circle
+
+           #:scene-add-3d-polyline
+           #:scene-add-3d-polyline-to-group
+           #:scene-draw-3d-polyline
+
+           #:scene-add-multicolor-3d-polyline
+           #:scene-add-multicolor-3d-polyline-to-group
+           #:scene-draw-multicolor-3d-polyline
+
            #:scene-add-filled-2d-triangle-list
+           #:scene-add-filled-2d-triangle-list-to-group
+           #:scene-draw-filled-2d-triangle-list
+
+           #:scene-draw-filled-2d-triangle-strip
+           #:scene-draw-filled-2d-triangle-strip
+
+           #:scene-add-filled-2d-rectangle-list
+           #:scene-add-filled-2d-rectangle-list-to-group
+           #:scene-draw-filled-2d-rectangle-list
+
+           #:scene-add-textured-2d-rectangle-list
+           #:scene-add-textured-2d-rectangle-list-to-group
+           #:scene-draw-textured-2d-rectangle-list
+
            #:scene-add-filled-2d-triangle-strip
            #:scene-add-textured-2d-triangle-list
+           #:scene-add-textured-2d-triangle-list-to-group
+           #:scene-draw-textured-2d-triangle-list
            #:scene-add-textured-2d-triangle-strip
-           #:scene-add-filled-2d-rectangle-list
-           #:scene-add-textured-2d-rectangle-list
-           #:scene-add-filled-2d-polygon
-           #:scene-add-filled-3d-triangle-list
-           #:scene-add-filled-3d-triangle-strip
-           #:scene-add-filled-3d-triangle-list-with-normals
-           #:scene-add-filled-3d-triangle-strip-with-normals
-           #:scene-add-textured-3d-triangle-list
-           #:scene-add-textured-3d-triangle-strip
-	   #:scene-draw-multicolor-3d-convex-polygon-diffuse
-	   #:scene-draw-multicolor-3d-convex-polygon-flat
-	   #:scene-draw-filled-3d-convex-polygon-diffuse
-	   #:scene-draw-filled-3d-convex-polygon-flat
+
+           #:scene-add-filled-2d-convex-polygon
+           #:scene-add-filled-2d-convex-polygon-to-group
+           #:scene-draw-filled-2d-convex-polygon
+
+           #:scene-add-filled-2d-circle
+           #:scene-add-filled-2d-circle-to-group
+           #:scene-draw-filled-2d-circle
+
+           #:scene-add-filled-3d-triangle-list-flat
+           #:scene-add-filled-3d-triangle-list-flat-to-group
+           #:scene-draw-filled-3d-triangle-list-flat
+
+           #:scene-add-filled-3d-triangle-list-diffuse
+           #:scene-add-filled-3d-triangle-list-diffuse-to-group
+           #:scene-draw-filled-3d-triangle-list-diffuse
+
+           #:scene-add-filled-3d-triangle-strip-flat
+           #:scene-draw-filled-3d-triangle-strip-flat
+
+           #:scene-add-filled-3d-triangle-strip-diffuse
+           #:scene-draw-filled-3d-triangle-strip-diffuse
+
+           #:scene-add-filled-3d-convex-polygon-diffuse
+           #:scene-add-filled-3d-convex-polygon-diffuse-to-group
+           #:scene-draw-filled-2d-convex-polygon-diffuse
+
+           #:scene-add-filled-3d-convex-polygon-flat
+           #:scene-add-filled-3d-convex-polygon-flat-to-group
+           #:scene-draw-filled-2d-convex-polygon-flat
+
+           #:scene-add-multicolor-3d-convex-polygon-diffuse
+           #:scene-add-mutlicolor-3d-convex-polygon-diffuse-to-group
+           #:scene-draw-multicolor-2d-convex-polygon-diffuse
+
+           #:scene-add-multicolor-3d-convex-polygon-flat
+           #:scene-add-mutlicolor-3d-convex-polygon-flat-to-group
+           #:scene-draw-multicolor-2d-convex-polygon-flat
+
+           #:scene-add-textured-3d-triangle-list-flat
+           #:scene-add-textured-3d-triangle-list-flat-to-group
+           #:scene-draw-textured-3d-triangle-list-flat
+
+           #:scene-add-textured-3d-triangle-strip-flat
+           #:scene-draw-textured-3d-triangle-strip-flat
+
+           #:scene-add-filled-sphere-diffuse
+           #:scene-add-filled-sphere-diffuse-to-group
+           #:scene-draw-filled-sphere-diffuse
+
+           #:scene-add-text
+           #:scene-add-text-to-group
+           #:scene-draw-text
 
            #:reinstance-primitive
+           #:reinstance-primitive-1
            #:primitive-set-color
+           #:primitive-set-color-1
            #:primitive-set-transform
+           #:primitive-set-transform-1
            #:primitive-apply-transform
+           #:primitive-apply-transform-1
            #:primitive-set-line-thickness
+           #:primitive-set-line-thickness-1
+           #:delete-primitives
            #:delete-primitive
+           #:delete-primitive-1
 
-           #:compact-draw-list
+           #:delete-groups
+           #:delete-groups-1
+           #:delete-group
+
+           #:group-set-color-override
+           #:group-set-color-override-1
+
+           #:group-set-model-matrix
+           #:group-set-model-matrix-1
+
+           #:group-apply-model-matrix
+           #:group-apply-model-matrix-1
+
+           #:group-set-light-position
+           #:group-set-light-position-1
            ))

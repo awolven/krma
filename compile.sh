@@ -1,6 +1,6 @@
 #!/bin/bash
-#GLSL_COMPILER=/cygdrive/c/VulkanSDK/1.2.189.2/Bin/glslangValidator.exe
-GLSL_COMPILER=~/vulkan/1.3.231.0/x86_64/bin/glslangValidator
+GLSL_COMPILER=/cygdrive/c/VulkanSDK/1.2.189.2/Bin/glslangValidator.exe
+#GLSL_COMPILER=~/vulkan/1.3.231.0/x86_64/bin/glslangValidator
 set -x
 $GLSL_COMPILER -V standard-2d.vert -o standard-2d.vert.spv
 $GLSL_COMPILER -V standard-3d.vert -o standard-3d.vert.spv

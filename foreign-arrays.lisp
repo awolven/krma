@@ -141,15 +141,15 @@
     (with-slots (ptr fill-pointer allocated-count) textured-2d-vertex-array
       (unless (< fill-pointer allocated-count)
         (let ((new-count (* 2 allocated-count)))
-	  (declare (type fixnum new-count))
-	  (let ((new-array (foreign-alloc vertex-type :count new-count))
-		(old-array ptr))
-	    (memcpy new-array old-array
-		    (* (cl:the (integer 0 #.(floor most-positive-fixnum 512)) fill-pointer)
-		       (cl:the (integer 0 512) vertex-type-size)))
-	    (setf ptr new-array)
-	    (setf allocated-count new-count)
-	    (foreign-free old-array))))
+	      (declare (type fixnum new-count))
+	      (let ((new-array (foreign-alloc vertex-type :count new-count))
+		        (old-array ptr))
+	        (memcpy new-array old-array
+		            (* (cl:the (integer 0 #.(floor most-positive-fixnum 512)) fill-pointer)
+		               (cl:the (integer 0 512) vertex-type-size)))
+	        (setf ptr new-array)
+	        (setf allocated-count new-count)
+	        (foreign-free old-array))))
       (let ((ptr (mem-aptr ptr vertex-type fill-pointer)))
         ;; setf foreign-slot-value has got to be slow
         ;; especially when it can't reason about the type at compile time.

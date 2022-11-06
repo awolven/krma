@@ -3,6 +3,11 @@
 
 layout(set = 2 , binding = 0) uniform sampler2D texSampler;
 
+layout(push_constant) uniform pushConstant {
+  layout(offset = 96) vec4 color;
+  layout(offset = 112) float pxRange;
+} pc;
+
 layout(location = 0) in vec4 fragColor;
 layout(location = 1) in vec2 fragTexCoord;
 layout(location = 2) flat in uint primType;
