@@ -189,37 +189,37 @@
 (defun (setf textured-3d-vertex-x) (value ptr)
   (declare (type single-float value))
   (declare (type sb-sys:system-area-pointer ptr))
-  (cffi::mem-set value ptr :float (load-time-value (foreign-slot-offset '(:struct textured-3d-vertex) 'x))))
+  (cffi::mem-set value ptr :float (load-time-value (foreign-slot-offset '(:struct textured-3d-vertex-with-normal) 'x))))
 
 (declaim (inline (setf textured-2d-vertex-y)))
 (defun (setf textured-3d-vertex-y) (value ptr)
   (declare (type single-float value))
   (declare (type sb-sys:system-area-pointer ptr))
-  (cffi::mem-set value ptr :float (load-time-value (foreign-slot-offset '(:struct textured-3d-vertex) 'y))))
+  (cffi::mem-set value ptr :float (load-time-value (foreign-slot-offset '(:struct textured-3d-vertex-with-normal) 'y))))
 
 (declaim (inline (setf textured-2d-vertex-z)))
 (defun (setf textured-3d-vertex-z) (value ptr)
   (declare (type single-float value))
   (declare (type sb-sys:system-area-pointer ptr))
-  (cffi::mem-set value ptr :float (load-time-value (foreign-slot-offset '(:struct textured-3d-vertex) 'z))))
+  (cffi::mem-set value ptr :float (load-time-value (foreign-slot-offset '(:struct textured-3d-vertex-with-normal) 'z))))
 
 (declaim (inline (setf textured-2d-vertex-u)))
 (defun (setf textured-3d-vertex-u) (value ptr)
   (declare (type single-float value))
   (declare (type sb-sys:system-area-pointer ptr))
-  (cffi::mem-set value ptr :float (load-time-value (foreign-slot-offset '(:struct textured-3d-vertex) 'u))))
+  (cffi::mem-set value ptr :float (load-time-value (foreign-slot-offset '(:struct textured-3d-vertex-with-normal) 'u))))
 
 (declaim (inline (setf textured-2d-vertex-v)))
 (defun (setf textured-3d-vertex-v) (value ptr)
   (declare (type single-float value))
   (declare (type sb-sys:system-area-pointer ptr))
-  (cffi::mem-set value ptr :float (load-time-value (foreign-slot-offset '(:struct textured-3d-vertex) 'v))))
+  (cffi::mem-set value ptr :float (load-time-value (foreign-slot-offset '(:struct textured-3d-vertex-with-normal) 'v))))
 
 (declaim (inline (setf textured-2d-vertex-col)))
 (defun (setf textured-3d-vertex-col) (value ptr)
   (declare (type (unsigned-byte 32) value))
   (declare (type sb-sys:system-area-pointer ptr))
-  (cffi::mem-set value ptr :unsigned-int (load-time-value (foreign-slot-offset '(:struct textured-3d-vertex) 'col))))
+  (cffi::mem-set value ptr :uint32 (load-time-value (foreign-slot-offset '(:struct textured-3d-vertex-with-normal) 'col))))
 
 ;;(declaim (inline textured-3d-array-push-extend))
 (defun textured-3d-vertex-array-push-extend (vertex-array sf-x sf-y sf-z sf-u sf-v ub32-color)
@@ -264,7 +264,7 @@
   (z :float)
   (u :float)
   (v :float)
-  (col :unsigned-int)
+  (col :uint32)
   (nx :float)
   (ny :float)
   (nz :float))
@@ -299,10 +299,10 @@
 
 (declaim (inline textured-3d-vertex-with-normal-array-push-extend))
 (defun textured-3d-vertex-with-normal-array-push-extend (vertex-array
-							 sf-x sf-y sf-z
-							 sf-nx sf-ny sf-nz
-							 sf-u sf-v
-							 ub32-color)
+							                             sf-x sf-y sf-z
+							                             sf-nx sf-ny sf-nz
+							                             sf-u sf-v
+							                             ub32-color)
   (declare (type textured-3d-vertex-with-normal-array vertex-array))
   (declare (type single-float sf-x sf-y sf-z sf-nx sf-ny sf-nz sf-u sf-v))
   (declare (type (unsigned-byte 32) ub32-color))
@@ -311,16 +311,16 @@
     (with-slots (ptr fill-pointer allocated-count) vertex-array
       (unless (< fill-pointer allocated-count)
         (let* ((new-count (* 2 allocated-count)))
-	  (declare (type fixnum new-count))
-	  (let ((new-array (foreign-alloc vertex-type :count new-count))
-		(old-array ptr))
+	      (declare (type fixnum new-count))
+	      (let ((new-array (foreign-alloc vertex-type :count new-count))
+		        (old-array ptr))
 	    	    
 
-	    (memcpy new-array old-array (* (cl:the (integer 0 #.(floor most-positive-fixnum 512)) fill-pointer)
-					   (cl:the (integer 0 512) vertex-type-size)))
-	    (setf ptr new-array)
-	    (setf allocated-count new-count)
-	    (foreign-free old-array))))
+	        (memcpy new-array old-array (* (cl:the (integer 0 #.(floor most-positive-fixnum 512)) fill-pointer)
+					                       (cl:the (integer 0 512) vertex-type-size)))
+	        (setf ptr new-array)
+	        (setf allocated-count new-count)
+	        (foreign-free old-array))))
       (let ((ptr (mem-aptr ptr vertex-type fill-pointer)))
         (setf (textured-3d-vertex-x ptr) sf-x
               (textured-3d-vertex-y ptr) sf-y
@@ -328,10 +328,10 @@
               (textured-3d-vertex-u ptr) sf-u
               (textured-3d-vertex-v ptr) sf-v
               (textured-3d-vertex-col ptr) ub32-color
-              (textured-3d-vertex-with-normal-nx ptr) sf-nx
-              (textured-3d-vertex-with-normal-ny ptr) sf-ny
-              (textured-3d-vertex-with-normal-nz ptr) sf-nz)
-	(prog1 fill-pointer
+              (textured-3d-vertex-with-normal-nx ptr) 1.0f0 ;;sf-nx
+              (textured-3d-vertex-with-normal-ny ptr) 1.0f0 ;; sf-ny
+              (textured-3d-vertex-with-normal-nz ptr) 1.0f0 #+NIL sf-nz)
+	    (prog1 fill-pointer
           (incf fill-pointer))))))
 
 ;;(declaim (inline standard-3d-vertex-with-normal-array-push-extend))

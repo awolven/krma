@@ -9,6 +9,7 @@
   (:import-from :vk #:main)
   (:export #:mortho-vulkan
            #:mperspective-vulkan
+           #:main
 
            #:im-draw-data
            #:rm-draw-data
@@ -28,6 +29,7 @@
            #:main-window-height
            #:immediate-mode-work-function-1
            #:application-exit?
+           #:scene-class
 
            ;; easy add/draw functions
            #:add-2d-point ;;
@@ -132,8 +134,8 @@
            #:scene-draw-2d-point
 
            #:scene-add-3d-point
+           #:scene-add-3d-point-to-group
            #:scene-draw-3d-point
-           #:scene-draw-3d-point-to-group
 
            #:scene-add-2d-line
            #:scene-add-2d-line-to-group
@@ -161,7 +163,7 @@
 
            #:scene-add-2d-circular-arc
            #:scene-add-2d-circular-arc-to-group
-           #:scene-draw-2d-circulat-arc
+           #:scene-draw-2d-circular-arc
 
            #:scene-add-2d-circle
            #:scene-add-2d-circle-to-group
@@ -220,19 +222,19 @@
 
            #:scene-add-filled-3d-convex-polygon-diffuse
            #:scene-add-filled-3d-convex-polygon-diffuse-to-group
-           #:scene-draw-filled-2d-convex-polygon-diffuse
+           #:scene-draw-filled-3d-convex-polygon-diffuse
 
            #:scene-add-filled-3d-convex-polygon-flat
            #:scene-add-filled-3d-convex-polygon-flat-to-group
-           #:scene-draw-filled-2d-convex-polygon-flat
+           #:scene-draw-filled-3d-convex-polygon-flat
 
            #:scene-add-multicolor-3d-convex-polygon-diffuse
-           #:scene-add-mutlicolor-3d-convex-polygon-diffuse-to-group
-           #:scene-draw-multicolor-2d-convex-polygon-diffuse
+           #:scene-add-multicolor-3d-convex-polygon-diffuse-to-group
+           #:scene-draw-multicolor-3d-convex-polygon-diffuse
 
            #:scene-add-multicolor-3d-convex-polygon-flat
-           #:scene-add-mutlicolor-3d-convex-polygon-flat-to-group
-           #:scene-draw-multicolor-2d-convex-polygon-flat
+           #:scene-add-multicolor-3d-convex-polygon-flat-to-group
+           #:scene-draw-multicolor-3d-convex-polygon-flat
 
            #:scene-add-textured-3d-triangle-list-flat
            #:scene-add-textured-3d-triangle-list-flat-to-group

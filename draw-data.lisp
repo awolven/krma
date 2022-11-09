@@ -391,12 +391,12 @@
 
 (defun %draw-data-add-multicolor-3d-polyline-to-group (draw-data atom-group closed? sf-line-thickness vertices)
   (declare (type retained-mode-draw-data draw-data))
-  (let* ((draw-list-table (draw-data-2d-line-list-draw-list-table draw-data))
+  (let* ((draw-list-table (draw-data-3d-line-list-draw-list-table draw-data))
 	     (group-hash-table (draw-data-group-hash-table draw-data))
 	     (key (list atom-group sf-line-thickness))
 	     (draw-list (or (gethash key draw-list-table)
 			            (setf (gethash key draw-list-table)
-			                  (make-instance '2d-vertex-draw-list
+			                  (make-instance '3d-vertex-draw-list
 					                         :line-thickness sf-line-thickness
 					                         :group (or (gethash atom-group group-hash-table)
 							                            (setf (gethash atom-group group-hash-table)
@@ -409,7 +409,7 @@
   (let* ((draw-list-table (draw-data-2d-line-list-draw-list-table draw-data))
 	     (draw-list (or (gethash sf-line-thickness draw-list-table)
 			            (setf (gethash sf-line-thickness draw-list-table)
-			                  (make-instance '2d-vertex-draw-list :line-thickness sf-line-thickness)))))
+			                  (make-instance '3d-vertex-draw-list :line-thickness sf-line-thickness)))))
     (%draw-list-draw-multicolor-3d-polyline draw-list closed? vertices)
     (values)))
 
@@ -424,12 +424,12 @@
 
 (defun %draw-data-add-3d-polyline-to-group (draw-data atom-group closed? sf-line-thickness color vertices)
   (declare (type retained-mode-draw-data draw-data))
-  (let* ((draw-list-table (draw-data-2d-line-list-draw-list-table draw-data))
+  (let* ((draw-list-table (draw-data-3d-line-list-draw-list-table draw-data))
 	     (group-hash-table (draw-data-group-hash-table draw-data))
 	     (key (list atom-group sf-line-thickness))
 	     (draw-list (or (gethash key draw-list-table)
 			            (setf (gethash key draw-list-table)
-			                  (make-instance '2d-vertex-draw-list
+			                  (make-instance '3d-vertex-draw-list
 					                         :line-thickness sf-line-thickness
 					                         :group (or (gethash atom-group group-hash-table)
 							                            (setf (gethash atom-group group-hash-table)
@@ -439,10 +439,10 @@
 
 (defun %draw-data-draw-3d-polyline (draw-data closed? sf-line-thickness color vertices)
   (declare (type immediate-mode-draw-data draw-data))
-  (let* ((draw-list-table (draw-data-2d-line-list-draw-list-table draw-data))
+  (let* ((draw-list-table (draw-data-3d-line-list-draw-list-table draw-data))
 	     (draw-list (or (gethash sf-line-thickness draw-list-table)
 			            (setf (gethash sf-line-thickness draw-list-table)
-			                  (make-instance '2d-vertex-draw-list :line-thickness sf-line-thickness)))))
+			                  (make-instance '3d-vertex-draw-list :line-thickness sf-line-thickness)))))
     (%draw-list-draw-3d-polyline draw-list closed? color vertices)
     (values)))
 
@@ -612,7 +612,7 @@
 	     (key *white-texture*)
 	     (draw-list (or (gethash key draw-list-table)
 			            (setf (gethash key draw-list-table)
-			                  (make-instance '3d-vertex-draw-list
+			                  (make-instance '3d-vertex-with-normal-draw-list
 					                         :texture *white-texture*)))))
     (%draw-list-draw-filled-3d-convex-polygon draw-list color vertices)
     (values)))
@@ -663,7 +663,7 @@
 
 (defun %draw-data-add-filled-3d-convex-polygon-with-normals-to-group (draw-data atom-group ub32-color vertices)
   (declare (type retained-mode-draw-data draw-data))
-  (let* ((draw-list-table (draw-data-3d-triangle-list-draw-list-table draw-data))
+  (let* ((draw-list-table (draw-data-3d-triangle-list-with-normals-draw-list-table draw-data))
 	     (group-hash-table (draw-data-group-hash-table draw-data))
 	     (key (list atom-group *white-texture*))
 	     (draw-list (or (gethash key draw-list-table)
@@ -678,11 +678,11 @@
 
 (defun %draw-data-draw-filled-3d-convex-polygon-with-normals (draw-data ub32-color vertices)
   (declare (type immediate-mode-draw-data draw-data))
-  (let* ((draw-list-table (draw-data-3d-triangle-list-draw-list-table draw-data))
+  (let* ((draw-list-table (draw-data-3d-triangle-list-with-normals-draw-list-table draw-data))
 	     (key *white-texture*)
 	     (draw-list (or (gethash key draw-list-table)
 			            (setf (gethash key draw-list-table)
-			                  (make-instance '3d-vertex-draw-list :texture *white-texture*)))))
+			                  (make-instance '3d-vertex-with-normal-draw-list :texture *white-texture*)))))
     (%draw-list-draw-filled-3d-convex-polygon-with-normals draw-list ub32-color vertices)
     (values)))
 
@@ -729,7 +729,7 @@
 
 (defun %draw-data-add-filled-3d-triangle-list-to-group (draw-data atom-group color vertices)
   (declare (type retained-mode-draw-data draw-data))
-  (let* ((draw-list-table (draw-data-2d-triangle-list-draw-list-table draw-data))
+  (let* ((draw-list-table (draw-data-3d-triangle-list-draw-list-table draw-data))
 	     (group-hash-table (draw-data-group-hash-table draw-data))
 	     (key (list atom-group *white-texture*))
 	     (draw-list (or (gethash key draw-list-table)
@@ -778,7 +778,7 @@
 	     (key (list atom-group *white-texture*))
 	     (draw-list (or (gethash key draw-list-table)
 			            (setf (gethash key draw-list-table)
-			                  (make-instance '3d-vertex-draw-list :texture *white-texture*)))))
+			                  (make-instance '3d-vertex-with-normal-draw-list :texture *white-texture*)))))
     (%draw-list-draw-filled-3d-triangle-strip/list-with-normals draw-list color vertices)
     (values)))
 
@@ -809,7 +809,7 @@
 	     (key (list atom-group *white-texture*))
 	     (draw-list (or (gethash key draw-list-table)
 			            (setf (gethash key draw-list-table)
-			                  (make-instance '3d-vertex-draw-list :texture *white-texture*)))))
+			                  (make-instance '3d-vertex-with-normal-draw-list :texture *white-texture*)))))
     (%draw-list-draw-multicolor-3d-triangle-strip/list-with-normals draw-list vertices)
     (values)))
 

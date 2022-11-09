@@ -105,7 +105,8 @@
 			 :name :3d-triangle-strip-with-normals-pipeline)))
   (values))
 
-(defclass krma-application-mixin ()
+(defclass krma-application-mixin ( #-darwin vulkan-application-mixin
+                                   #+darwin metal-application-mixin)
   ((vk::application-name :initform "krma-application")
    (scene :initform nil :accessor application-scene)
    (pipeline-store :accessor application-pipeline-store)
@@ -149,8 +150,7 @@
   (setf (application-scene instance) (make-instance (scene-class instance)))
   (values))
 
-(defclass krma-test-application (krma-application-mixin #-darwin vulkan-application-mixin
-                                                        #+darwin metal-application-mixin)
+(defclass krma-test-application (krma-application-mixin)
   ((vk::application-name :initform "krma-test-application")))
 
 (defmethod scene-class ((application krma-test-application))
@@ -609,7 +609,7 @@
     (multiple-value-bind (width height) (get-framebuffer-size main-window)
       (setf (main-window-width app) width
 	    (main-window-height app) height))
-    
+
     (setf *sampler* sampler)
 
     (device-wait-idle device)
@@ -618,10 +618,12 @@
 
     ;; one time commands here.
     (unless (probe-file (asdf/system:system-relative-pathname :krma "acache.json"))
-      (sdf-bmfont:create-bmfont #+linux "/usr/share/fonts/liberation-mono/LiberationMono-Regular.ttf" #+windows "C:/Windows/Fonts/Arial.ttf" "acache.json" :size 32 :mode :msdf+a :type :json :spread 8))
+      (sdf-bmfont:create-bmfont #+linux "/usr/share/fonts/liberation-mono/LiberationMono-Regular.ttf"
+                                #+windows "C:/Windows/Fonts/Arial.ttf" "acache.json"
+                                :size 16 :mode :msdf+a :type :json :spread 8))
     #-linux
     (unless (probe-file (asdf/system:system-relative-pathname :krma "tcache.json"))
-      (sdf-bmfont:create-bmfont "C:/Windows/Fonts/Times.ttf" "tcache.json" :size 32 :mode :msdf+a :type :json :spread 8))
+      (sdf-bmfont:create-bmfont "C:/Windows/Fonts/Times.ttf" "tcache.json" :size 16 :mode :msdf+a :type :json :spread 8))
 
 
     (setq *font*
@@ -697,5 +699,3 @@
                                          #'(lambda (cdd) (mod (1+ cdd) 2)))))
 
         (shutdown-application app)))))
-
-

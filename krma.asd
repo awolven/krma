@@ -12,7 +12,7 @@
    (:file "foreign-arrays")
    (:file "cmds")
    (:file "draw-list-classes")
-   (:file "draw-lists")
+   (:file "draw-list")
    (:file "compact-draw-list")
    (:file "draw-data")
    (:file "scene-mixin")

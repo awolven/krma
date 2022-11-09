@@ -647,13 +647,13 @@
 
 (defmethod make-vertex-input-attribute-descriptions ((pipeline 2d-texture-pipeline-mixin))
   (list (make-instance 'vertex-input-attribute-description
-		       :location 0
-		       :format VK_FORMAT_R32G32_SFLOAT
-		       :offset (foreign-slot-offset (pipeline-vertex-type pipeline) 'x))
-	(make-instance 'vertex-input-attribute-description
-		       :location 1
-		       :format VK_FORMAT_R32G32_SFLOAT
-		       :offset (foreign-slot-offset (pipeline-vertex-type pipeline) 'u))
+		               :location 0
+		               :format VK_FORMAT_R32G32_SFLOAT
+		               :offset (foreign-slot-offset (pipeline-vertex-type pipeline) 'x))
+	    (make-instance 'vertex-input-attribute-description
+		               :location 1
+		               :format VK_FORMAT_R32G32_SFLOAT
+		               :offset (foreign-slot-offset (pipeline-vertex-type pipeline) 'u))
         (make-instance 'vertex-input-attribute-description
                        :location 2
                        :format VK_FORMAT_R32_UINT
@@ -663,11 +663,11 @@
   (list (make-instance 'vertex-input-attribute-description
                        :location 0
                        :format VK_FORMAT_R32G32B32_SFLOAT
-		       :offset (foreign-slot-offset (pipeline-vertex-type pipeline) 'x))
-	(make-instance 'vertex-input-attribute-description
-		       :location 1
-		       :format VK_FORMAT_R32G32_SFLOAT
-		       :offset (foreign-slot-offset (pipeline-vertex-type pipeline) 'u))
+		               :offset (foreign-slot-offset (pipeline-vertex-type pipeline) 'x))
+	    (make-instance 'vertex-input-attribute-description
+		               :location 1
+		               :format VK_FORMAT_R32G32_SFLOAT
+		               :offset (foreign-slot-offset (pipeline-vertex-type pipeline) 'u))
         (make-instance 'vertex-input-attribute-description
                        :location 2
                        :format VK_FORMAT_R32_UINT
@@ -677,11 +677,11 @@
   (list (make-instance 'vertex-input-attribute-description
                        :location 0
                        :format VK_FORMAT_R32G32B32_SFLOAT
-		       :offset (foreign-slot-offset (pipeline-vertex-type pipeline) 'x))
-	(make-instance 'vertex-input-attribute-description
-		       :location 1
-		       :format VK_FORMAT_R32G32_SFLOAT
-		       :offset (foreign-slot-offset (pipeline-vertex-type pipeline) 'u))
+		               :offset (foreign-slot-offset (pipeline-vertex-type pipeline) 'x))
+	    (make-instance 'vertex-input-attribute-description
+		               :location 1
+		               :format VK_FORMAT_R32G32_SFLOAT
+		               :offset (foreign-slot-offset (pipeline-vertex-type pipeline) 'u))
         (make-instance 'vertex-input-attribute-description
                        :location 2
                        :format VK_FORMAT_R32_UINT
@@ -689,7 +689,7 @@
         (make-instance 'vertex-input-attribute-description
                        :location 3
                        :format VK_FORMAT_R32G32B32_SFLOAT
-		       :offset (foreign-slot-offset (pipeline-vertex-type pipeline) 'nx))))
+		               :offset (foreign-slot-offset (pipeline-vertex-type pipeline) 'nx))))
 
 
 (defclass point-list-pipeline-mixin () ())

@@ -828,6 +828,7 @@
 (defun scene-draw-filled-3d-convex-polygon-flat (scene color vertices)
   (declare (type krma-essential-scene-mixin scene))
   (declare (type sequence vertices))
+  (break "2")
   (let ((draw-data (im-draw-data scene)))
     (%draw-data-draw-filled-3d-convex-polygon
      draw-data (canonicalize-color color) vertices)))
@@ -850,6 +851,7 @@
 (defun scene-draw-multicolor-3d-convex-polygon-diffuse (scene vertices)
   (declare (type krma-essential-scene-mixin scene))
   (declare (type sequence vertices))
+  (break "1")
   (let ((draw-data (im-draw-data scene)))
     (%draw-data-draw-multicolor-3d-convex-polygon-with-normals  
      (draw-data-3d-triangle-list-with-normals-draw-list draw-data) vertices)))
@@ -871,6 +873,7 @@
 (defun scene-draw-multicolor-3d-convex-polygon-flat (scene vertices)
   (declare (type krma-essential-scene-mixin scene))
   (declare (type sequence vertices))
+  (break "3")
   (let ((draw-data (im-draw-data scene)))
     (%draw-data-draw-multicolor-3d-convex-polygon draw-data vertices)))
 

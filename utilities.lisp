@@ -28,6 +28,32 @@
                 0 0 0 1)))
     (m* orientation translation)))
 
+(defun lookat-lh (eye target up)
+  (let* ((zaxis (vunit (v- target eye)))
+         (xaxis (vunit (vc up zaxis)))
+         (yaxis (vc zaxis xaxis))
+         (orientation
+           (mat (vx xaxis) (vy xaxis) (vz xaxis) 0
+                (vx yaxis) (vy yaxis) (vz yaxis) 0
+                (vx zaxis) (vy zaxis) (vz zaxis) 0
+                0          0          0          1))
+         (translation
+           (mat 1 0 0 (- (vx eye))
+                0 1 0 (- (vy eye))
+                0 0 1 (- (vz eye))
+                0 0 0 1)))
+    (m* orientation translation)))
+
+(defun lookat-lh-2 (eye target up)
+  "https://learn.microsoft.com/en-us/previous-versions/windows/desktop/bb281710(v=vs.85)"
+  (let* ((zaxis (vunit (v- target eye)))
+         (xaxis (vunit (vc up zaxis)))
+         (yaxis (vc zaxis xaxis)))
+    (mat (vx xaxis)         (vy xaxis)         (vz xaxis)         0
+         (vx yaxis)         (vy yaxis)         (vz yaxis)         0
+         (vx zaxis)         (vy zaxis)         (vz zaxis)         0
+         (- (v. xaxis eye)) (- (v. yaxis eye)) (- (v. zaxis eye)) 1)))
+
 
   
 
@@ -40,11 +66,11 @@
   (setq aspect-ratio (coerce aspect-ratio '#.*read-default-float-format*))
   (let* ((zero 0.0)
          (f (/ 1.0 (coerce (tan (cl:the double-float (* 0.5 (d2r fovy)))) '#.*read-default-float-format*))) ;; focal length
-	 (near-far (- near far))
-	 (A (/ far near-far))
-	 (B (/ (* near far) near-far))
-	 (x (/ f aspect-ratio))
-	 (y (- f)))
+	     (near-far (- near far))
+	     (A (/ far near-far))
+	     (B (/ (* near far) near-far))
+	     (x (/ f aspect-ratio))
+	     (y (- f)))
 
     (3d-matrices::mat x      zero zero   zero
                       zero   y    zero   zero
