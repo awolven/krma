@@ -25,5 +25,4 @@
 (pushnew (asdf/system:system-relative-pathname :krma "submodules/sdf/") asdf:*central-registry* :test #'equalp)
 (pushnew (asdf/system:system-relative-pathname :krma "submodules/binpack/") asdf:*central-registry* :test #'equalp)
 (pushnew (asdf/system:system-relative-pathname :krma "submodules/3b-bmfont/") asdf:*central-registry* :test #'equalp)
-#+NOTYET
 (pushnew (asdf/system:system-relative-pathname :krma "submodules/zpb-ttf/") asdf:*central-registry* :test #'equalp)

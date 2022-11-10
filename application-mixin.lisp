@@ -156,385 +156,417 @@
 (defmethod scene-class ((application krma-test-application))
   'standard-scene)
 
-(defun add-2d-point (x y &key (color *default-color*)
-			   (point-size *default-point-size*)
-			   (matrix nil))
-  (scene-add-2d-point (application-scene *app*) matrix point-size color x y))
+(defun add-2d-point-primitive (x y &key (color *default-color*)
+                                     (point-size *default-point-size*)
+                                     (matrix nil))
+  (scene-add-2d-point-primitive (application-scene *app*) matrix point-size color x y))
 
-(defun group-add-2d-point (group x y &key (color *default-color*)
-				       (point-size *default-point-size*))
-  (scene-add-2d-point-to-group (application-scene *app*) group point-size color x y))
+(defun add-2d-point (x y &key (color *default-color*)
+                           (point-size *default-point-size*)
+                           (group :default))
+  (scene-add-2d-point (application-scene *app*) group point-size color x y))
 
 (defun draw-2d-point (x y &key (color *default-color*)
-			    (point-size *default-point-size*))
-  (scene-draw-2d-point (application-scene *app*) point-size color x y))
+                            (point-size *default-point-size*)
+                            (group :default))
+  (scene-draw-2d-point (application-scene *app*) group point-size color x y))
+
+(defun add-3d-point-primitive (x y z &key (color *default-color*)
+			                           (point-size *default-point-size*)
+			                           (matrix nil))
+  (scene-add-3d-point-primitive (application-scene *app*) matrix point-size color x y z))
 
 (defun add-3d-point (x y z &key (color *default-color*)
-			     (point-size *default-point-size*)
-			     (matrix nil))
-  (scene-add-3d-point (application-scene *app*) matrix point-size color x y z))
-
-(defun group-add-3d-point (group x y z &key (color *default-color*)
-					 (point-size *default-point-size*))
-  (scene-add-3d-point-to-group (application-scene *app*) group point-size color x y z))
+                             (point-size *default-point-size*)
+                             (group :default))
+  (scene-add-3d-point (application-scene *app*) group point-size color x y z))
 
 (defun draw-3d-point (x y z &key (color *default-color*)
-			      (point-size *default-point-size*))
-  (scene-draw-3d-point (application-scene *app*) point-size color x y z))
+                              (point-size *default-point-size*)
+                              (group :default))
+  (scene-draw-3d-point (application-scene *app*) group point-size color x y z))
+
+(defun add-2d-line-primitive (x0 y0 x1 y1 &key (color *default-color*)
+				                            (line-thickness *default-line-thickness*)
+				                            (matrix nil))
+  (scene-add-2d-line-primitive (application-scene *app*) matrix line-thickness color x0 y0 x1 y1))
 
 (defun add-2d-line (x0 y0 x1 y1 &key (color *default-color*)
-				  (line-thickness *default-line-thickness*)
-				  (matrix nil))
-  (scene-add-2d-line (application-scene *app*) matrix line-thickness color x0 y0 x1 y1))
-
-(defun group-add-2d-line (group x0 y0 x1 y1 &key (color *default-color*)
-					      (line-thickness *default-line-thickness*))
-  (scene-add-2d-line-to-group (application-scene *app*) group line-thickness color x0 y0 x1 y1))
+                                  (line-thickness *default-line-thickness*)
+                                  (group :default))
+  (scene-add-2d-line (application-scene *app*) group line-thickness color x0 y0 x1 y1))
 
 (defun draw-2d-line (x0 y0 x1 y1 &key (color *default-color*)
-				   (line-thickness *default-line-thickness*))
-  (scene-draw-2d-line (application-scene *app*) line-thickness color x0 y0 x1 y1))
+                                   (line-thickness *default-line-thickness*)
+                                   (group :default))
+  (scene-draw-2d-line (application-scene *app*) group line-thickness color x0 y0 x1 y1))
+
+(defun add-3d-line-primitive (x0 y0 z0 x1 y1 z1 &key (color *default-color*)
+					                              (line-thickness *default-line-thickness*)
+					                              (matrix nil))
+  (scene-add-3d-line-primitive (application-scene *app*) matrix line-thickness color x0 y0 z0 x1 y1 z1))
 
 (defun add-3d-line (x0 y0 z0 x1 y1 z1 &key (color *default-color*)
-					(line-thickness *default-line-thickness*)
-					(matrix nil))
-  (scene-add-3d-line (application-scene *app*) matrix line-thickness color x0 y0 z0 x1 y1 z1))
-
-(defun group-add-3d-line (group x0 y0 z0 x1 y1 z1 &key (color *default-color*)
-						    (line-thickness *default-line-thickness*))
-  (scene-add-3d-line-to-group (application-scene *app*) group line-thickness color x0 y0 z0 x1 y1 z1))
+                                        (line-thickness *default-line-thickness*)
+                                        (group :default))
+  (scene-add-3d-line (application-scene *app*) group line-thickness color x0 y0 z0 x1 y1 z1))
 
 (defun draw-3d-line (x0 y0 z0 x1 y1 z1 &key (color *default-color*)
-					 (line-thickness *default-line-thickness*))
-  (scene-draw-3d-line (application-scene *app*) line-thickness color x0 y0 z0 x1 y1 z1))
+                                         (line-thickness *default-line-thickness*)
+                                         (group :default))
+  (scene-draw-3d-line (application-scene *app*) group line-thickness color x0 y0 z0 x1 y1 z1))
+
+(defun add-multicolor-2d-polyline-primitive (vertices &key (closed? nil)
+                                                        (line-thickness *default-line-thickness*)
+                                                        (matrix nil))
+  (scene-add-multicolor-2d-polyline-primitive (application-scene *app*) matrix closed? line-thickness vertices))
 
 (defun add-multicolor-2d-polyline (vertices &key (closed? nil)
-					      (line-thickness *default-line-thickness*)
-                                              (matrix nil))                                              
-  (scene-add-multicolor-2d-polyline (application-scene *app*) matrix closed? line-thickness vertices))
-
-(defun group-add-multicolor-2d-polyline (group vertices &key (closed? nil)
-							  (line-thickness *default-line-thickness*))
-  (scene-add-multicolor-2d-polyline-to-group (application-scene *app*) group closed? line-thickness vertices))
+                                              (line-thickness *default-line-thickness*)
+                                              (group :default))
+  (scene-add-multicolor-2d-polyline (application-scene *app*) group closed? line-thickness vertices))
 
 (defun draw-multicolor-2d-polyline (vertices &key (closed? nil)
-					       (line-thickness *default-line-thickness*))
-  (scene-draw-multicolor-2d-polyline (application-scene *app*) closed? line-thickness vertices))
+                                               (line-thickness *default-line-thickness*)
+                                               (group :default))
+  (scene-draw-multicolor-2d-polyline (application-scene *app*) group closed? line-thickness vertices))
+
+(defun add-2d-polyline-primitve (vertices &key (closed? nil)
+                                            (color *default-color*)
+                                            (line-thickness *default-line-thickness*)
+                                            (matrix nil))
+  (scene-add-2d-polyline (application-scene *app*) matrix closed? line-thickness color vertices))
 
 (defun add-2d-polyline (vertices &key (closed? nil)
                                    (color *default-color*)
                                    (line-thickness *default-line-thickness*)
-				   (matrix nil))
-  (scene-add-2d-polyline (application-scene *app*) matrix closed? line-thickness color vertices))
-
-(defun group-add-2d-polyline (group vertices &key (closed? nil)
-					       (color *default-color*)
-					       (line-thickness *default-line-thickness*))
-  (scene-add-2d-polyline-to-group (application-scene *app*) group closed? line-thickness color vertices))
+                                   (group :default))
+  (scene-add-2d-polyline (application-scene *app*) group closed? line-thickness color vertices))
 
 (defun draw-2d-polyline (vertices &key (closed? nil)
                                     (color *default-color*)
-                                    (line-thickness *default-line-thickness*))
-  (scene-draw-2d-polyline (application-scene *app*) closed? line-thickness color vertices))
+                                    (line-thickness *default-line-thickness*)
+                                    (group :default))
+  (scene-draw-2d-polyline (application-scene *app*) group closed? line-thickness color vertices))
   
+
+(defun add-2d-triangle-primitive (x0 y0 x1 y1 x2 y2 &key
+                                                      (color *default-color*)
+                                                      (line-thickness *default-line-thickness*)
+					                                  (matrix nil))
+  (scene-add-2d-triangle-primitive (application-scene *app*) matrix line-thickness color x0 y0 x1 y1 x2 y2))
 
 (defun add-2d-triangle (x0 y0 x1 y1 x2 y2 &key
                                             (color *default-color*)
                                             (line-thickness *default-line-thickness*)
-					    (matrix nil))
-  (scene-add-2d-triangle (application-scene *app*) matrix line-thickness color x0 y0 x1 y1 x2 y2))
-
-(defun group-add-2d-triangle (group x0 y0 x1 y1 x2 y2 &key
-							(color *default-color*)
-							(line-thickness *default-line-thickness*))
-  (scene-add-2d-triangle-to-group (application-scene *app*) group line-thickness color x0 y0 x1 y1 x2 y2))
+                                            (group :default))
+  (scene-add-2d-triangle (application-scene *app*) group line-thickness color x0 y0 x1 y1 x2 y2))
   
 
 (defun draw-2d-triangle (x0 y0 x1 y1 x2 y2 &key (color *default-color*)
-					     (line-thickness *default-line-thickness*))
-  (scene-draw-2d-triangle (application-scene *app*) line-thickness color x0 y0 x1 y1 x2 y2))
+                                             (line-thickness *default-line-thickness*)
+                                             (group :default))
+  (scene-draw-2d-triangle (application-scene *app*) group line-thickness color x0 y0 x1 y1 x2 y2))
+
+(defun add-2d-rectangle-primitive (x0 y0 x1 y1
+                                   &key (color *default-color*)
+                                     (line-thickness *default-line-thickness*)
+                                     (matrix nil))
+  (scene-add-2d-rectangle-primitive (application-scene *app*) matrix line-thickness color x0 y0 x1 y1))
 
 (defun add-2d-rectangle (x0 y0 x1 y1
                          &key (color *default-color*)
                            (line-thickness *default-line-thickness*)
-			   (matrix nil))
-  (scene-add-2d-rectangle (application-scene *app*) matrix line-thickness color x0 y0 x1 y1))
-
-(defun group-add-2d-rectangle (group x0 y0 x1 y1
-			       &key (color *default-color*)
-				 (line-thickness *default-line-thickness*))
-  (scene-add-2d-rectangle-to-group (application-scene *app*) group line-thickness color x0 y0 x1 y1))
+                           (group :default))
+  (scene-add-2d-rectangle (application-scene *app*) group line-thickness color x0 y0 x1 y1))
   
 
 (defun draw-2d-rectangle (x0 y0 x1 y1 &key (color *default-color*)
-					(line-thickness *default-line-thickness*))
-  (scene-draw-2d-rectangle (application-scene *app*) line-thickness color x0 y0 x1 y1))
+                                        (line-thickness *default-line-thickness*)
+                                        (group :default))
+  (scene-draw-2d-rectangle (application-scene *app*) group line-thickness color x0 y0 x1 y1))
+
+(defun add-2d-circular-arc-primitive (center-x center-y radius start-angle end-angle
+                                      &key (closed? nil)
+                                        (color *default-color*)
+                                        (line-thickness *default-line-thickness*)
+                                        (number-of-segments *default-number-of-segments*)
+                                        (matrix nil))
+  (scene-add-2d-circular-arc-primitive (application-scene *app*) matrix closed? line-thickness color
+                                       center-x center-y radius start-angle end-angle number-of-segments))
 
 (defun add-2d-circular-arc (center-x center-y radius start-angle end-angle
                             &key (closed? nil)
                               (color *default-color*)
                               (line-thickness *default-line-thickness*)
                               (number-of-segments *default-number-of-segments*)
-			      (matrix nil))
-  (scene-add-2d-circular-arc (application-scene *app*) matrix closed? line-thickness color
+                              (group :default))
+  (scene-add-2d-circular-arc (application-scene *app*) group closed? line-thickness color
                              center-x center-y radius start-angle end-angle number-of-segments))
-
-(defun group-add-2d-circular-arc (group center-x center-y radius start-angle end-angle
-					&key (closed? nil)
-					(color *default-color*)
-					(line-thickness *default-line-thickness*)
-					  (number-of-segments *default-number-of-segments*))
-  (scene-add-2d-circular-arc-to-group (application-scene *app*) group closed? line-thickness color
-                                      center-x center-y radius start-angle end-angle number-of-segments))
 
 (defun draw-2d-circular-arc (center-x center-y radius start-angle end-angle
                              &key (closed? nil)
                                (color *default-color*)
                                (line-thickness *default-line-thickness*)
-                               (number-of-segments *default-number-of-segments*))
-  (scene-draw-2d-circular-arc (application-scene *app*) closed? line-thickness color
-                             center-x center-y radius start-angle end-angle number-of-segments))
+                               (number-of-segments *default-number-of-segments*)
+                               (group :default))
+  (scene-draw-2d-circular-arc (application-scene *app*) group closed? line-thickness color
+                              center-x center-y radius start-angle end-angle number-of-segments))
   
 
-(defun add-2d-circle (center-x center-y radius
-                      &key (color *default-color*)
-                        (line-thickness *default-line-thickness*)
-                        (number-of-segments *default-number-of-segments*)
-			(matrix nil))
-  (scene-add-2d-circle (application-scene *app*)
-                       matrix line-thickness color
-                       center-x center-y radius number-of-segments))
+(defun add-2d-circle-primitive (center-x center-y radius
+                                &key (color *default-color*)
+                                  (line-thickness *default-line-thickness*)
+                                  (number-of-segments *default-number-of-segments*)
+                                  (matrix nil))
+  (scene-add-2d-circle-primitive (application-scene *app*)
+                                 matrix line-thickness color
+                                 center-x center-y radius number-of-segments))
 
-(defun group-add-2d-circle (group center-x center-y radius
-			    &key (color *default-color*)
-			      (line-thickness *default-line-thickness*)
-			      (number-of-segments *default-number-of-segments*))
-    (scene-add-2d-circle-to-group (application-scene *app*)
-				  group line-thickness color
-				  center-x center-y radius number-of-segments))
+(defun add-2d-circle (center-x center-y radius
+			          &key (color *default-color*)
+			            (line-thickness *default-line-thickness*)
+			            (number-of-segments *default-number-of-segments*)
+                        (group :default))
+  (scene-add-2d-circle (application-scene *app*)
+				       group line-thickness color
+				       center-x center-y radius number-of-segments))
+
+(defun draw-2d-circle (center-x center-y radius
+			           &key (color *default-color*)
+			             (line-thickness *default-line-thickness*)
+			             (number-of-segments *default-number-of-segments*)
+                         (group :default))
+  (scene-draw-2d-circle (application-scene *app*)
+				        group line-thickness color
+				        center-x center-y radius number-of-segments))
+
+(defun add-filled-2d-circle-primitive (center-x center-y radius
+                                       &key (color *default-color*)
+                                         (number-of-segments *default-number-of-segments*)
+			                             (matrix nil))
+  (scene-add-filled-2d-circle (application-scene *app*)
+                              matrix color center-x center-y radius number-of-segments))
 
 (defun add-filled-2d-circle (center-x center-y radius
                              &key (color *default-color*)
                                (number-of-segments *default-number-of-segments*)
-			       (matrix nil))
+                               (group :default))
   (scene-add-filled-2d-circle (application-scene *app*)
-                              matrix color center-x center-y radius number-of-segments))
-
-(defun group-add-filled-2d-circle (group center-x center-y radius
-					 &key (color *default-color*)
-					   (number-of-segments *default-number-of-segments*))
-  (scene-add-filled-2d-circle-to-group (application-scene *app*)
-                                       group color center-x center-y radius number-of-segments))
+                              group color center-x center-y radius number-of-segments))
 
 (defun draw-filled-2d-circle (center-x center-y radius
                               &key (color *default-color*)
-                                (number-of-segments *default-number-of-segments*))
-  (scene-draw-filled-2d-circle (application-scene *app*) color center-x center-y radius number-of-segments))
+                                (number-of-segments *default-number-of-segments*)
+                                (group :default))
+  (scene-draw-filled-2d-circle (application-scene *app*) group color center-x center-y radius number-of-segments))
   
+
+(defun add-multicolor-3d-polyline-primitive (vertices &key (closed? nil)
+                                                        (line-thickness *default-line-thickness*)
+					                                    (matrix nil))
+  (scene-add-multicolor-3d-polyline-primitive (application-scene *app*) matrix closed? line-thickness vertices))
 
 (defun add-multicolor-3d-polyline (vertices &key (closed? nil)
                                               (line-thickness *default-line-thickness*)
-					      (matrix nil))
-  (scene-add-multicolor-3d-polyline (application-scene *app*) matrix closed? line-thickness vertices))
-
-(defun group-add-multicolor-3d-polyline (group vertices &key (closed? nil)
-							  (line-thickness *default-line-thickness*))
-  (scene-add-multicolor-3d-polyline-to-group (application-scene *app*) group closed? line-thickness vertices))
+                                              (group :default))
+  (scene-add-multicolor-3d-polyline (application-scene *app*) group closed? line-thickness vertices))
 
 (defun draw-multicolor-3d-polyline (vertices &key (closed? nil)
-                                              (line-thickness *default-line-thickness*))
-  (scene-draw-multicolor-3d-polyline (application-scene *app*) closed? line-thickness vertices))
+                                               (line-thickness *default-line-thickness*)
+                                               (group :default))
+  (scene-draw-multicolor-3d-polyline (application-scene *app*) group closed? line-thickness vertices))
   
+
+(defun add-3d-polyline-primitive (vertices &key (color *default-color*)
+                                             (closed? nil)
+                                             (line-thickness *default-line-thickness*)
+				                             (matrix nil))
+  (scene-add-3d-polyline-primitive (application-scene *app*) matrix closed? line-thickness color vertices))
 
 (defun add-3d-polyline (vertices &key (color *default-color*)
                                    (closed? nil)
                                    (line-thickness *default-line-thickness*)
-				                   (matrix nil))
-  (scene-add-3d-polyline (application-scene *app*) matrix closed? line-thickness color vertices))
-
-(defun group-add-3d-polyline (group vertices &key (color *default-color*)
-					       (closed? nil)
-					       (line-thickness *default-line-thickness*))
-  (scene-add-3d-polyline-to-group (application-scene *app*) group closed? line-thickness color vertices))
+                                   (group :default))
+  (scene-add-3d-polyline (application-scene *app*) group closed? line-thickness color vertices))
 
 (defun draw-3d-polyline (vertices &key (color *default-color*)
-                                   (closed? nil)
-                                   (line-thickness *default-line-thickness*))
-  (scene-draw-3d-polyline (application-scene *app*) closed? line-thickness color vertices))
+                                    (closed? nil)
+                                    (line-thickness *default-line-thickness*)
+                                    (group :default))
+  (scene-draw-3d-polyline (application-scene *app*) group closed? line-thickness color vertices))
   
+
+(defun add-filled-2d-triangle-list-primitive (vertices &key (color *default-color*)
+                                                         (matrix nil))
+  (scene-add-filled-2d-triangle-list-primitive (application-scene *app*) matrix color vertices))
+
+(defun add-2d-triangle-list (vertices &key (color *default-color*)
+                                      (group :default))
+  (scene-add-filled-2d-triangle-list (application-scene *app*) group color vertices))
+
+(defun draw-filled-2d-triangle-list (vertices &key (color *default-color*)
+                                                (group :default))
+  (scene-draw-filled-2d-triangle-list (application-scene *app*) group color vertices))
+  
+
+(defun add-filled-2d-rectangle-list-primitive (vertices &key (color *default-color*)
+                                                          (matrix nil))
+  (scene-add-filled-2d-rectangle-list-primitive (application-scene *app*) matrix color vertices))
 
 (defun add-filled-2d-triangle-list (vertices &key (color *default-color*)
-                                               (matrix nil))
-  (scene-add-filled-2d-triangle-list (application-scene *app*) matrix color vertices))
+                                             (group :default))
+  (scene-add-filled-2d-rectangle-list (application-scene *app*) group color vertices))
 
-(defun group-add-2d-triangle-list (group vertices &key (color *default-color*))
-  (scene-add-filled-2d-triangle-list-to-group (application-scene *app*) group color vertices))
-
-(defun draw-filled-2d-triangle-list (vertices &key (color *default-color*))
-  (scene-draw-filled-2d-triangle-list (application-scene *app*) color vertices))
-  
-
-(defun add-filled-2d-rectangle-list (vertices &key (color *default-color*)
-                                                (matrix nil))
-  (scene-add-filled-2d-rectangle-list (application-scene *app*) matrix color vertices))
-
-(defun group-add-filled-2d-triangle-list (group vertices &key (color *default-color*))
-  (scene-add-filled-2d-rectangle-list-to-group (application-scene *app*) group color vertices))
-
-(defun draw-filled-2d-rectangle-list (vertices &key (color *default-color*))
-  (scene-draw-filled-2d-rectangle-list (application-scene *app*) color vertices))
+(defun draw-filled-2d-rectangle-list (vertices &key (color *default-color*)
+                                               (group :default))
+  (scene-draw-filled-2d-rectangle-list (application-scene *app*) group color vertices))
 						
+
+(defun add-textured-2d-rectangle-list-primitive (vertices &key (color *default-color*)
+                                                            (texture *white-texture*)
+						                                    (matrix nil))
+  (scene-add-textured-2d-rectangle-list (application-scene vk::*app*) matrix texture color vertices))
 
 (defun add-textured-2d-rectangle-list (vertices &key (color *default-color*)
                                                   (texture *white-texture*)
-						  (matrix nil))
-  (scene-add-textured-2d-rectangle-list (application-scene vk::*app*) matrix texture color vertices))
-
-(defun group-add-textured-2d-rectangle-list (group vertices &key (color *default-color*)
-							      (texture *white-texture*))
-  (scene-add-textured-2d-rectangle-list-to-group (application-scene vk::*app*) group texture color vertices))
+                                                  (group :default))
+  (scene-add-textured-2d-rectangle-list (application-scene vk::*app*) group texture color vertices))
 
 (defun draw-textured-2d-rectangle-list (vertices &key (color *default-color*)
-                                                  (texture *white-texture*))
-  (scene-draw-textured-2d-rectangle-list (application-scene vk::*app*) texture color vertices))
+                                                   (texture *white-texture*)
+                                                   (group :default))
+  (scene-draw-textured-2d-rectangle-list (application-scene vk::*app*) group texture color vertices))
 
-(defun add-filled-2d-convex-polygon (vertices &key
-						(color *default-color*)
-						(matrix nil))
-  (scene-add-filled-2d-convex-polygon (application-scene *app*) matrix color vertices))
+(defun add-filled-2d-convex-polygon-primitive (vertices &key
+						                                  (color *default-color*)
+						                                  (matrix nil))
+  (scene-add-filled-2d-convex-polygon-primitive (application-scene *app*) matrix color vertices))
 
-(defun group-add-filled-2d-convex-polygon (group vertices &key (color *default-color*))
-  (scene-add-filled-2d-convex-polygon-to-group (application-scene *app*) group color vertices))
+(defun add-filled-2d-convex-polygon (vertices &key (color *default-color*)
+                                                (group :default))
+  (scene-add-filled-2d-convex-polygon (application-scene *app*) group color vertices))
 
 (defun draw-filled-2d-convex-polygon (vertices &key
-						                         (color *default-color*))
-  (scene-draw-filled-2d-convex-polygon (application-scene *app*) color vertices))
+						                         (color *default-color*)
+                                                 (group :default))
+  (scene-draw-filled-2d-convex-polygon (application-scene *app*) group color vertices))
 
-(defun add-filled-3d-triangle-list (vertices &key
-                                               (color *default-color*)
-					       (shading-style :diffuse)
-					       (light-position *default-light-position*)
-                                               (matrix nil))
+(defun add-filled-3d-triangle-list-primitive (vertices &key
+                                                         (color *default-color*)
+					                                     (shading-style :diffuse)
+					                                     (light-position nil)
+                                                         (matrix nil))
   (ecase shading-style
-    (:flat (scene-add-filled-3d-triangle-list-flat (application-scene *app*) matrix color vertices))
-    (:diffuse (scene-add-filled-3d-triangle-list-diffuse (application-scene *app*) matrix color vertices
-							 light-position))))
+    (:flat (scene-add-filled-3d-triangle-list-primitive-flat (application-scene *app*) matrix color vertices))
+    (:diffuse (scene-add-filled-3d-triangle-list-primitive-diffuse (application-scene *app*) matrix color vertices
+							                             light-position))))
 
-(defun group-add-filled-3d-triangle-list (group vertices &key (color *default-color*)
-							   (shading-style :diffuse))
+(defun add-filled-3d-triangle-list (vertices &key (color *default-color*)
+                                               (shading-style :diffuse)
+                                               (group :default))
   (ecase shading-style
-    (:flat (scene-add-filled-3d-triangle-list-flat-to-group (application-scene *app*) group color vertices))
-    (:diffuse (scene-add-filled-3d-triangle-list-diffuse-to-group (application-scene *app*) group color vertices))))
+    (:flat (scene-add-filled-3d-triangle-list-flat (application-scene *app*) group color vertices))
+    (:diffuse (scene-add-filled-3d-triangle-list-diffuse (application-scene *app*) group color vertices))))
 
 (defun draw-filled-3d-triangle-list (vertices &key
                                                 (color *default-color*)
-					                            (shading-style :diffuse))
+					                            (shading-style :diffuse)
+                                                (group :default))
   (ecase shading-style
-    (:flat (scene-draw-filled-3d-triangle-list-flat (application-scene *app*) color vertices))
-    (:diffuse (scene-draw-filled-3d-triangle-list-diffuse (application-scene *app*) color vertices))))
+    (:flat (scene-draw-filled-3d-triangle-list-flat (application-scene *app*) group color vertices))
+    (:diffuse (scene-draw-filled-3d-triangle-list-diffuse (application-scene *app*) group color vertices))))
 
-(defun add-filled-3d-triangle-strip (vertices &key
-						(color *default-color*)
-						(shading-style :diffuse)
-						(light-position *default-light-position*)
-						(matrix nil))
+(defun add-filled-3d-triangle-strip-primitive (vertices &key
+						                                  (color *default-color*)
+						                                  (shading-style :diffuse)
+						                                  (light-position nil)
+						                                  (matrix nil))
   (ecase shading-style
-    (:flat (scene-add-filled-3d-triangle-strip-flat (application-scene *app*) matrix color vertices))
-    (:diffuse (scene-add-filled-3d-triangle-strip-diffuse (application-scene *app*) matrix color vertices
+    (:flat (scene-add-filled-3d-triangle-strip-primitive-flat (application-scene *app*) matrix color vertices))
+    (:diffuse (scene-add-filled-3d-triangle-strip-primitive-diffuse (application-scene *app*) matrix color vertices
                                                           light-position))))
 
 (defun draw-filled-3d-triangle-strip (vertices &key
                                                  (color *default-color*)
-                                                 (shading-style :diffuse))
+                                                 (shading-style :diffuse)
+                                                 (group :default))
   (ecase shading-style
-    (:flat (scene-draw-filled-3d-triangle-strip-flat (application-scene *app*) color vertices))
-    (:diffuse (scene-draw-filled-3d-triangle-strip-diffuse (application-scene *app*) color vertices))))
+    (:flat (scene-draw-filled-3d-triangle-strip-flat (application-scene *app*) group color vertices))
+    (:diffuse (scene-draw-filled-3d-triangle-strip-diffuse (application-scene *app*) group color vertices))))
 
-#+NOTYET
-;; need to implement group semantics for pseudo-primitives which actually are using real primitives underneath
-(defun group-add-filled-3d-triangle-strip (group vertices &key (color *default-color*)
-							    (shading-style :diffuse))
+
+(defun add-textured-3d-triangle-list-primitive (vertices &key (color *default-color*)
+                                                           (texture *white-texture*)
+                                                           (shading-style :diffuse)
+                                                           (light-position nil)
+                                                           (matrix nil))
+  (declare (ignore light-position))
   (ecase shading-style
-    (:flat (scene-add-filled-3d-triangle-strip-flat-to-group (application-scene *app*) group color vertices))
-    (:diffuse (scene-add-filled-3d-triangle-strip-diffuse-to-group
-	       (application-scene *app*) group color vertices))))
-  
+    (:flat (scene-add-textured-3d-triangle-list-primitive-flat (application-scene *app*) matrix texture color vertices))))
 
 (defun add-textured-3d-triangle-list (vertices &key (color *default-color*)
                                                  (texture *white-texture*)
-						 (shading-style :diffuse)
-						 (light-position *default-light-position*)
-						 (matrix nil))
-  (declare (ignore light-position))
+                                                 (shading-style :diffuse)
+                                                 (group :default))
   (ecase shading-style
-    (:flat (scene-add-textured-3d-triangle-list-flat (application-scene *app*) matrix texture color vertices))))
-
-(defun group-add-textured-3d-triangle-list (group vertices &key (color *default-color*)
-							     (texture *white-texture*)
-							     (shading-style :diffuse))
-  (ecase shading-style
-    (:flat (scene-add-textured-3d-triangle-list-flat-to-group
+    (:flat (scene-add-textured-3d-triangle-list-flat
             (application-scene *app*) group texture color vertices))))
 
 (defun draw-textured-3d-triangle-list (vertices &key (color *default-color*)
                                                  (texture *white-texture*)
-						 (shading-style :diffuse))
+                                                  (shading-style :diffuse)
+                                                  (group :default))
   (ecase shading-style
-    (:flat (scene-draw-textured-3d-triangle-list-flat (application-scene *app*) texture color vertices))))
+    (:flat (scene-draw-textured-3d-triangle-list-flat (application-scene *app*) group texture color vertices))))
 
-(defun add-textured-3d-triangle-strip (vertices &key
-                                                 (color *default-color*)
-						  (texture *white-texture*)
-						  (shading-style :diffuse)
-						  (light-position *default-light-position*)
-						  (matrix nil))
+(defun add-textured-3d-triangle-strip-primitive (vertices &key
+                                                            (color *default-color*)
+						                                    (texture *white-texture*)
+						                                    (shading-style :diffuse)
+						                                    (light-position nil)
+						                                    (matrix nil))
   (declare (ignore light-position))
   (ecase shading-style
-    (:flat (scene-add-textured-3d-triangle-strip-flat (application-scene *app*) matrix texture color vertices))))
-
-#+NOTYET
-;; need to implement group semantics for pseudo-primitives which actually are using real primitives underneath
-(defun group-add-textured-3d-triangle-strip (vertices &key
-							(color *default-color*)
-							(texture *white-texture*)
-							(shading-style :diffuse))
-  (ecase shading-style
-    (:flat (scene-add-textured-3d-triangle-strip-flat-to-group
-            (application-scene *app*) group texture color vertices))))
+    (:flat (scene-add-textured-3d-triangle-strip-primitive-flat (application-scene *app*) matrix texture color vertices))))
 
 (defun draw-textured-3d-triangle-strip (vertices &key
-                                                 (color *default-color*)
-						  (texture *white-texture*)
-						  (shading-style :diffuse))
+                                                   (color *default-color*)
+                                                   (texture *white-texture*)
+                                                   (shading-style :diffuse)
+                                                   (group :default))
   (ecase shading-style
-    (:flat (scene-draw-textured-3d-triangle-strip-flat (application-scene *app*) texture color vertices))))
+    (:flat (scene-draw-textured-3d-triangle-strip-flat (application-scene *app*) group texture color vertices))))
+
+(defun add-filled-sphere-primitive (origin-x origin-y origin-z radius &key (color *default-color*)
+							                                            (resolution 64)
+							                                            (shading-style :diffuse)
+							                                            (light-position nil)
+							                                            (matrix nil))
+
+  (ecase shading-style
+    (:diffuse (scene-add-filled-sphere-primitive-diffuse (application-scene *app*)
+					                                     matrix color
+					                                     origin-x origin-y origin-z radius
+					                                     resolution light-position))))
 
 (defun add-filled-sphere (origin-x origin-y origin-z radius &key (color *default-color*)
-							      (resolution 64)
-							      (shading-style :diffuse)
-							      (light-position *default-light-position*)
-							      (matrix nil))
-
+                                                              (resolution 64)
+                                                              (shading-style :diffuse)
+                                                              (group :default))
   (ecase shading-style
     (:diffuse (scene-add-filled-sphere-diffuse (application-scene *app*)
-					       matrix color
-					       origin-x origin-y origin-z radius
-					       resolution light-position))))
-
-(defun group-add-filled-sphere (group origin-x origin-y origin-z radius &key (color *default-color*)
-									  (resolution 64)
-									  (shading-style :diffuse))
-  (ecase shading-style
-    (:diffuse (scene-add-filled-sphere-diffuse-to-group (application-scene *app*)
-							group color
-							origin-x origin-y origin-z radius resolution))))
+							                   group color
+							                   origin-x origin-y origin-z radius resolution))))
 
 (defun draw-filled-sphere (origin-x origin-y origin-z radius &key (color *default-color*)
                                                                (resolution 64)
-                                                               (shading-style :diffuse))
+                                                               (shading-style :diffuse)
+                                                               (group :default))
 
   (ecase shading-style
     (:diffuse (scene-draw-filled-sphere-diffuse (application-scene *app*)
+                                                group
 					                            color
 					                            origin-x origin-y origin-z radius
 					                            resolution))))
@@ -542,18 +574,20 @@
 
 
 
+(defun add-text-primitive (string pos-x pos-y &key (color *default-color*)
+                                               (font *font*)
+                                               (matrix nil))
+  (scene-add-text-primitive (application-scene *app*) matrix font color pos-x pos-y string))
+
 (defun add-text (string pos-x pos-y &key (color *default-color*)
                                       (font *font*)
-                                      (matrix nil))
-  (scene-add-text (application-scene *app*) matrix font color pos-x pos-y string))
-
-(defun group-add-text (group string pos-x pos-y &key (color *default-color*)
-						  (font *font*))
-  (scene-add-text-to-group (application-scene *app*) group font color pos-x pos-y string))
+                                      (group :default))
+  (scene-add-text (application-scene *app*) group font color pos-x pos-y string))
 
 (defun draw-text (string pos-x pos-y &key (color *default-color*)
-                                       (font *font*))
-  (scene-draw-text (application-scene *app*) font color pos-x pos-y string))
+                                       (font *font*)
+                                       (group :default))
+  (scene-draw-text (application-scene *app*) group font color pos-x pos-y string))
 
 (defun erase-draw-list (draw-list)
   (declare (type draw-list-mixin draw-list))

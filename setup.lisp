@@ -17,7 +17,7 @@
           (cffi:defctype size-t :uint32)
           (error "don't know how to define size-t"))))
 
-(defconstant +draw-list-alloc-size+ 512)
+(defconstant +draw-list-alloc-size+ 64)
 (defparameter +nullptr+ (cffi-sys:null-pointer))
 
 (defconstant 2pi #.(* 2.0d0 pi))

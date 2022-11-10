@@ -175,6 +175,17 @@
   (v :float)
   (col :uint32))
 
+(defcstruct textured-3d-vertex-with-normal
+  (x :float)
+  (y :float)
+  (z :float)
+  (u :float)
+  (v :float)
+  (col :uint32)
+  (nx :float)
+  (ny :float)
+  (nz :float))
+
 (defstruct (textured-3d-vertex-array
             (:include vertex-array)
             (:constructor make-textured-3d-vertex-array
@@ -258,16 +269,7 @@
   (textured-3d-vertex-array-push-extend
    vertex-array sf-x sf-y sf-z +tex-white-pixel-u+ +tex-white-pixel-v+ ub32-color))
 
-(defcstruct textured-3d-vertex-with-normal
-  (x :float)
-  (y :float)
-  (z :float)
-  (u :float)
-  (v :float)
-  (col :uint32)
-  (nx :float)
-  (ny :float)
-  (nz :float))
+
 
 (defstruct (textured-3d-vertex-with-normal-array
             (:include vertex-array)
@@ -328,9 +330,9 @@
               (textured-3d-vertex-u ptr) sf-u
               (textured-3d-vertex-v ptr) sf-v
               (textured-3d-vertex-col ptr) ub32-color
-              (textured-3d-vertex-with-normal-nx ptr) 1.0f0 ;;sf-nx
-              (textured-3d-vertex-with-normal-ny ptr) 1.0f0 ;; sf-ny
-              (textured-3d-vertex-with-normal-nz ptr) 1.0f0 #+NIL sf-nz)
+              (textured-3d-vertex-with-normal-nx ptr) sf-nx
+              (textured-3d-vertex-with-normal-ny ptr) sf-ny
+              (textured-3d-vertex-with-normal-nz ptr) sf-nz)
 	    (prog1 fill-pointer
           (incf fill-pointer))))))
 
