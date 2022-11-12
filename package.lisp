@@ -5,7 +5,7 @@
   (ql:quickload :cffi))
 
 (defpackage :krma
-  (:use :cl :cffi #-darwin :vk #-darwin :%vk :$glfw :3d-vectors :3d-matrices)
+  (:use :cl :cffi :vk :%vk :$glfw :3d-vectors :3d-matrices)
   (:import-from :vk #:main)
   (:export #:mortho-vulkan
            #:mperspective-vulkan
@@ -33,7 +33,7 @@
 
            ;; easy add/draw functions
            #:add-2d-point-primitive
-           #:group-add-2d
+           #:add-2d-point
            #:draw-2d-point
 
            #:add-3d-point-primitive
@@ -102,7 +102,7 @@
 
            #:add-filled-3d-triangle-list-primitive
            #:add-filled-3d-triangle-list
-           #:draw-filled-3d-triangle-listo
+           #:draw-filled-3d-triangle-list
 
            #:add-filled-3d-triangle-strip-primitive
            #:draw-filled-3d-triangle-strip
@@ -119,8 +119,8 @@
            #:draw-filled-sphere
 
            #:add-text-primitive
-           #:group-add-text
-           #:scene-draw-text
+           #:add-text
+           #:draw-text
 
            #:*white-texture*
            #:*default-point-size*

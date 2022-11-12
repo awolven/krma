@@ -44,4 +44,5 @@
          (let ((,draw-data-var ,dd1-sym))
            (sb-concurrency:enqueue
             #'(lambda () ,@body)
-            (draw-data-work-queue ,dd1-sym)))))))
+            (draw-data-work-queue ,dd1-sym)))
+	 (values)))))

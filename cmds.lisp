@@ -34,8 +34,9 @@
             (:conc-name "CMD-")
             (:constructor make-standard-draw-indexed-cmd
                 (draw-list first-idx elem-count vtx-offset
-                 &optional (model-mtx nil) (color-override nil) (texture *white-texture*)
-                   (point-size nil) (line-thickness nil) (light-position nil))))
+                 &optional (group nil) (model-mtx nil) (color-override nil) (texture *white-texture*)
+		 (point-size nil) (line-thickness nil) (light-position nil))))
+  (group)
   (model-mtx)
   (color-override)
   (texture)
@@ -48,7 +49,7 @@
             (:conc-name "CMD-")
 	    (:constructor make-text-draw-indexed-cmd
                 (font draw-list first-idx elem-count vtx-offset
-                 &optional (model-mtx nil) (color-override nil) (texture *white-texture*)
+                 &optional (group nil) (model-mtx nil) (color-override nil) (texture *white-texture*)
                    (point-size nil) (line-thickness nil) (light-position nil))))
   (font))
 

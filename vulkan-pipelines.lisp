@@ -1,6 +1,6 @@
 (in-package :krma)
 
-(declaim (optimize (speed 3) (debug 3) (safety 3) (space 0) (compilation-speed 0)))
+;;(declaim (optimize (speed 3) (debug 3) (safety 3) (space 0) (compilation-speed 0)))
 
 (defgeneric pipeline-topology (pipeline))
 
@@ -333,7 +333,7 @@
                       %vk::image (h texture-image))
 
                 (let ((p-subresource-range
-                        (foreign-slot-pointer p-copy-barrier '(:struct VkImageMemoryBarrier) '%vk::subresourceRange)))
+		       (foreign-slot-pointer p-copy-barrier '(:struct VkImageMemoryBarrier) '%vk::subresourceRange)))
                   (with-foreign-slots ((%vk::aspectMask
                                         %vk::levelCount
                                         %vk::layerCount)
@@ -351,9 +351,9 @@
 
                 (with-vk-struct (p-region VkBufferImageCopy)
                   (let ((p-image-subresource
-                          (foreign-slot-pointer p-region '(:struct VkBufferImageCopy) '%vk::imageSubresource))
+			 (foreign-slot-pointer p-region '(:struct VkBufferImageCopy) '%vk::imageSubresource))
                         (p-image-extent
-                          (foreign-slot-pointer p-region '(:struct VkBufferImageCopy) '%vk::imageExtent)))
+			 (foreign-slot-pointer p-region '(:struct VkBufferImageCopy) '%vk::imageExtent)))
                     (with-foreign-slots ((%vk::aspectMask
                                           %vk::layerCount)
                                          p-image-subresource (:struct VkImageSubresourceLayers))
@@ -371,35 +371,35 @@
                                           VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL 1 p-region))
 
                 (with-vk-struct (p-use-barrier VkImageMemoryBarrier)
-		          (with-foreign-slots ((%vk::srcAccessMask
-					                    %vk::dstAccessMask
-					                    %vk::oldLayout
-					                    %vk::newLayout
-					                    %vk::srcQueueFamilyIndex
-					                    %vk::dstQueueFamilyIndex
-					                    %vk::image)
-					                   p-use-barrier (:struct VkImageMemoryBarrier))
-		            (setf %vk::srcAccessMask VK_ACCESS_TRANSFER_WRITE_BIT
-			              %vk::dstAccessMask VK_ACCESS_SHADER_READ_BIT
-			              %vk::oldLayout VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
-			              %vk::newLayout VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-			              %vk::srcQueueFamilyIndex vk::VK_QUEUE_FAMILY_IGNORED
-			              %vk::dstQueueFamilyIndex vk::VK_QUEUE_FAMILY_IGNORED
-			              %vk::image (h texture-image)))
-		          (let ((p-subresource-range
-			              (foreign-slot-pointer p-use-barrier '(:struct VkImageMemoryBarrier) '%vk::subresourceRange)))
-		            (with-foreign-slots ((%vk::aspectMask
-					                      %vk::levelCount
-					                      %vk::layerCount)
-					                     p-subresource-range
-					                     (:struct VkImageSubresourceRange))
-			          (setf %vk::aspectMask VK_IMAGE_ASPECT_COLOR_BIT
-			                %vk::levelCount 1
-			                %vk::layerCount 1)))
+		  (with-foreign-slots ((%vk::srcAccessMask
+					%vk::dstAccessMask
+					%vk::oldLayout
+					%vk::newLayout
+					%vk::srcQueueFamilyIndex
+					%vk::dstQueueFamilyIndex
+					%vk::image)
+				       p-use-barrier (:struct VkImageMemoryBarrier))
+		    (setf %vk::srcAccessMask VK_ACCESS_TRANSFER_WRITE_BIT
+			  %vk::dstAccessMask VK_ACCESS_SHADER_READ_BIT
+			  %vk::oldLayout VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
+			  %vk::newLayout VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+			  %vk::srcQueueFamilyIndex vk::VK_QUEUE_FAMILY_IGNORED
+			  %vk::dstQueueFamilyIndex vk::VK_QUEUE_FAMILY_IGNORED
+			  %vk::image (h texture-image)))
+		  (let ((p-subresource-range
+			 (foreign-slot-pointer p-use-barrier '(:struct VkImageMemoryBarrier) '%vk::subresourceRange)))
+		    (with-foreign-slots ((%vk::aspectMask
+					  %vk::levelCount
+					  %vk::layerCount)
+					 p-subresource-range
+					 (:struct VkImageSubresourceRange))
+		      (setf %vk::aspectMask VK_IMAGE_ASPECT_COLOR_BIT
+			    %vk::levelCount 1
+			    %vk::layerCount 1)))
 
-		          (vkCmdPipelineBarrier (h command-buffer) VK_PIPELINE_STAGE_TRANSFER_BIT
-					                    VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT
-					                    0 0 +nullptr+ 0 +nullptr+ 1 p-use-barrier))
+		  (vkCmdPipelineBarrier (h command-buffer) VK_PIPELINE_STAGE_TRANSFER_BIT
+					VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT
+					0 0 +nullptr+ 0 +nullptr+ 1 p-use-barrier))
 
                 (end-command-buffer command-buffer)
 
@@ -462,16 +462,16 @@
 		 (let ((size-aligned (* (1+ (ceiling (/ (1- size) +buffer-alignment+))) +buffer-alignment+)))
 
                    (let ((buffer
-                           (create-buffer-1 device size-aligned usage
-                                            :buffer-class class :allocator (allocator device))))
+			  (create-buffer-1 device size-aligned usage
+					   :buffer-class class :allocator (allocator device))))
 
                      (new-memory buffer)
                      buffer)))
 
 	       (new-memory (buffer)
                  (let ((buffer-memory
-			 (allocate-buffer-memory device buffer VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT
-						 :allocator (allocator device))))
+			(allocate-buffer-memory device buffer VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT
+						:allocator (allocator device))))
 
 		   (setf (allocated-memory buffer) buffer-memory)
 
@@ -538,12 +538,12 @@
     (values)))
 
 (defun create-standard-pipeline-device-objects (pipeline
-						                        &key
+						&key
                                                   app
-						                          (render-pass (render-pass pipeline))
+						  (render-pass (render-pass pipeline))
 
                                                   ;; set 0
-						                          (global-bindings ;; i.e. camera uniform buffer
+						  (global-bindings ;; i.e. camera uniform buffer
                                                    (make-global-descriptor-set-layout-bindings pipeline))
 
                                                   ;; set 1
@@ -554,27 +554,27 @@
                                                   (instance-bindings ;; i.e. texture image or model matrix
                                                    (make-per-instance-descriptor-set-layout-bindings pipeline))
 
-						                          (push-constant-ranges (make-push-constant-ranges pipeline))
-						                          (line-width (pipeline-line-width pipeline))
-						                          (vertex-type (pipeline-vertex-type pipeline))
-						                          (vertex-input-attribute-descriptions
-						                           (make-vertex-input-attribute-descriptions pipeline))
-						                          (topology (pipeline-topology pipeline))
-						                          (min-sample-shading (pipeline-min-sample-shading pipeline))
-						                          (depth-test-enable (pipeline-depth-test-enable? pipeline))
-						                          (depth-write-enable (pipeline-depth-write-enable? pipeline))
-						                          (depth-compare-op (pipeline-depth-compare-op pipeline))
-						                          (logic-op (pipeline-logic-op pipeline))
-						                          (blend-enable (pipeline-blend-enable? pipeline))
-						                          (depth-clamp-enable (pipeline-depth-clamp-enable? pipeline))
-						                          (src-alpha-blend-factor (pipeline-src-alpha-blend-factor pipeline))
-						                          (stippled-line-enable nil)
-						                          (additional-pipeline-creation-args nil)
-						                          (cull-mode (pipeline-cull-mode pipeline))
-						                          (front-face (pipeline-front-face-orientation pipeline)))
+						  (push-constant-ranges (make-push-constant-ranges pipeline))
+						  (line-width (pipeline-line-width pipeline))
+						  (vertex-type (pipeline-vertex-type pipeline))
+						  (vertex-input-attribute-descriptions
+						   (make-vertex-input-attribute-descriptions pipeline))
+						  (topology (pipeline-topology pipeline))
+						  (min-sample-shading (pipeline-min-sample-shading pipeline))
+						  (depth-test-enable (pipeline-depth-test-enable? pipeline))
+						  (depth-write-enable (pipeline-depth-write-enable? pipeline))
+						  (depth-compare-op (pipeline-depth-compare-op pipeline))
+						  (logic-op (pipeline-logic-op pipeline))
+						  (blend-enable (pipeline-blend-enable? pipeline))
+						  (depth-clamp-enable (pipeline-depth-clamp-enable? pipeline))
+						  (src-alpha-blend-factor (pipeline-src-alpha-blend-factor pipeline))
+						  (stippled-line-enable nil)
+						  (additional-pipeline-creation-args nil)
+						  (cull-mode (pipeline-cull-mode pipeline))
+						  (front-face (pipeline-front-face-orientation pipeline)))
   (let ((device (default-logical-device app)))
     (let ((vtx-shader (create-shader-module-from-file device (vertex-shader-pathname pipeline)))
-	      (frg-shader (create-shader-module-from-file device (fragment-shader-pathname pipeline))))
+	  (frg-shader (create-shader-module-from-file device (fragment-shader-pathname pipeline))))
 
       (setf (global-descriptor-set-layout pipeline)
             (create-descriptor-set-layout device :bindings global-bindings))
@@ -587,73 +587,73 @@
                                                              (unless instance-bindings
                                                                (break)))))
       (setf (pipeline-layout pipeline)
-	        (create-pipeline-layout device (list (global-descriptor-set-layout pipeline)
+	    (create-pipeline-layout device (list (global-descriptor-set-layout pipeline)
                                                  (scene-descriptor-set-layout pipeline)
                                                  (per-instance-descriptor-set-layout pipeline))
-				                    :push-constant-ranges push-constant-ranges)
-	        (device-pipeline pipeline)
-	        (apply #'create-graphics-pipeline device (pipeline-cache pipeline) (pipeline-layout pipeline)
-		           render-pass nil vtx-shader frg-shader
-		           :cull-mode cull-mode
-		           :front-face front-face
-		           :line-width #-darwin line-width #+darwin 1.0f0
-		           :vertex-type vertex-type
-		           :vertex-input-attribute-descriptions vertex-input-attribute-descriptions
-		           :topology topology
-		           :min-sample-shading min-sample-shading
-		           :depth-test-enable (if depth-test-enable (if (eq depth-test-enable VK_FALSE)
-								                                VK_FALSE VK_TRUE)
-					                      VK_FALSE)
-		           :depth-write-enable (if depth-write-enable (if (eq depth-write-enable VK_FALSE)
-								                                  VK_FALSE VK_TRUE)
-					                       VK_FALSE)
-		           :depth-compare-op depth-compare-op
-		           :logic-op logic-op
-		           :blend-enable (if blend-enable (if (eq blend-enable VK_FALSE) VK_FALSE VK_TRUE) VK_FALSE)
-		           :depth-clamp-enable (if depth-clamp-enable (if (eq depth-clamp-enable VK_FALSE)
-								                                  VK_FALSE VK_TRUE)
-					                       VK_FALSE)
-		           :src-alpha-blend-factor src-alpha-blend-factor
-		           :stippled-line-enable (if stippled-line-enable
-					                         VK_TRUE VK_FALSE)
-		           :allocator (allocator pipeline)
-		           additional-pipeline-creation-args))
+				    :push-constant-ranges push-constant-ranges)
+	    (device-pipeline pipeline)
+	    (apply #'create-graphics-pipeline device (pipeline-cache pipeline) (pipeline-layout pipeline)
+		   render-pass nil vtx-shader frg-shader
+		   :cull-mode cull-mode
+		   :front-face front-face
+		   :line-width line-width
+		   :vertex-type vertex-type
+		   :vertex-input-attribute-descriptions vertex-input-attribute-descriptions
+		   :topology topology
+		   :min-sample-shading min-sample-shading
+		   :depth-test-enable (if depth-test-enable (if (eq depth-test-enable VK_FALSE)
+								VK_FALSE VK_TRUE)
+					  VK_FALSE)
+		   :depth-write-enable (if depth-write-enable (if (eq depth-write-enable VK_FALSE)
+								  VK_FALSE VK_TRUE)
+					   VK_FALSE)
+		   :depth-compare-op depth-compare-op
+		   :logic-op logic-op
+		   :blend-enable (if blend-enable (if (eq blend-enable VK_FALSE) VK_FALSE VK_TRUE) VK_FALSE)
+		   :depth-clamp-enable (if depth-clamp-enable (if (eq depth-clamp-enable VK_FALSE)
+								  VK_FALSE VK_TRUE)
+					   VK_FALSE)
+		   :src-alpha-blend-factor src-alpha-blend-factor
+		   :stippled-line-enable (if stippled-line-enable
+					     VK_TRUE VK_FALSE)
+		   :allocator (allocator pipeline)
+		   additional-pipeline-creation-args))
 
 
       (destroy-shader-module vtx-shader)
       (destroy-shader-module frg-shader)
 
       (setf (uniform-buffer pipeline)
-	        (create-uniform-buffer device (foreign-type-size (uniform-buffer-type pipeline))))
+	    (create-uniform-buffer device (foreign-type-size (uniform-buffer-type pipeline))))
 
       (setf (uniform-buffer-stage pipeline)
-	        (foreign-alloc (uniform-buffer-type pipeline)))
+	    (foreign-alloc (uniform-buffer-type pipeline)))
 
       (setf (global-descriptor-set pipeline)
-	        (create-descriptor-set
-	         device
-	         (list (global-descriptor-set-layout pipeline))
-	         (descriptor-pool pipeline)
-	         :descriptor-buffer-info (make-global-descriptor-buffer-info pipeline)))
+	    (create-descriptor-set
+	     device
+	     (list (global-descriptor-set-layout pipeline))
+	     (descriptor-pool pipeline)
+	     :descriptor-buffer-info (make-global-descriptor-buffer-info pipeline)))
 
       (setf (scene-descriptor-set pipeline)
-	        (create-descriptor-set
-	         device
-	         (list (scene-descriptor-set-layout pipeline))
-	         (descriptor-pool pipeline)
-	         :descriptor-buffer-info (make-scene-descriptor-buffer-info pipeline)))
+	    (create-descriptor-set
+	     device
+	     (list (scene-descriptor-set-layout pipeline))
+	     (descriptor-pool pipeline)
+	     :descriptor-buffer-info (make-scene-descriptor-buffer-info pipeline)))
 
       pipeline)))
 
 (defmethod make-vertex-input-attribute-descriptions ((pipeline 2d-texture-pipeline-mixin))
   (list (make-instance 'vertex-input-attribute-description
-		               :location 0
-		               :format VK_FORMAT_R32G32_SFLOAT
-		               :offset (foreign-slot-offset (pipeline-vertex-type pipeline) 'x))
-	    (make-instance 'vertex-input-attribute-description
-		               :location 1
-		               :format VK_FORMAT_R32G32_SFLOAT
-		               :offset (foreign-slot-offset (pipeline-vertex-type pipeline) 'u))
+		       :location 0
+		       :format VK_FORMAT_R32G32_SFLOAT
+		       :offset (foreign-slot-offset (pipeline-vertex-type pipeline) 'x))
+	(make-instance 'vertex-input-attribute-description
+		       :location 1
+		       :format VK_FORMAT_R32G32_SFLOAT
+		       :offset (foreign-slot-offset (pipeline-vertex-type pipeline) 'u))
         (make-instance 'vertex-input-attribute-description
                        :location 2
                        :format VK_FORMAT_R32_UINT
@@ -663,11 +663,11 @@
   (list (make-instance 'vertex-input-attribute-description
                        :location 0
                        :format VK_FORMAT_R32G32B32_SFLOAT
-		               :offset (foreign-slot-offset (pipeline-vertex-type pipeline) 'x))
-	    (make-instance 'vertex-input-attribute-description
-		               :location 1
-		               :format VK_FORMAT_R32G32_SFLOAT
-		               :offset (foreign-slot-offset (pipeline-vertex-type pipeline) 'u))
+		       :offset (foreign-slot-offset (pipeline-vertex-type pipeline) 'x))
+	(make-instance 'vertex-input-attribute-description
+		       :location 1
+		       :format VK_FORMAT_R32G32_SFLOAT
+		       :offset (foreign-slot-offset (pipeline-vertex-type pipeline) 'u))
         (make-instance 'vertex-input-attribute-description
                        :location 2
                        :format VK_FORMAT_R32_UINT
@@ -677,11 +677,11 @@
   (list (make-instance 'vertex-input-attribute-description
                        :location 0
                        :format VK_FORMAT_R32G32B32_SFLOAT
-		               :offset (foreign-slot-offset (pipeline-vertex-type pipeline) 'x))
-	    (make-instance 'vertex-input-attribute-description
-		               :location 1
-		               :format VK_FORMAT_R32G32_SFLOAT
-		               :offset (foreign-slot-offset (pipeline-vertex-type pipeline) 'u))
+		       :offset (foreign-slot-offset (pipeline-vertex-type pipeline) 'x))
+	(make-instance 'vertex-input-attribute-description
+		       :location 1
+		       :format VK_FORMAT_R32G32_SFLOAT
+		       :offset (foreign-slot-offset (pipeline-vertex-type pipeline) 'u))
         (make-instance 'vertex-input-attribute-description
                        :location 2
                        :format VK_FORMAT_R32_UINT
@@ -689,7 +689,7 @@
         (make-instance 'vertex-input-attribute-description
                        :location 3
                        :format VK_FORMAT_R32G32B32_SFLOAT
-		               :offset (foreign-slot-offset (pipeline-vertex-type pipeline) 'nx))))
+		       :offset (foreign-slot-offset (pipeline-vertex-type pipeline) 'nx))))
 
 
 (defclass point-list-pipeline-mixin () ())
@@ -796,13 +796,14 @@
 
 ;;------
 
-(defmethod ubershader-render-draw-list-cmds (pipeline draw-list scene
-					                         device command-buffer
-					                         model-matrix vproj width height)
+(defun ubershader-render-draw-list-cmds (pipeline draw-data draw-list scene
+					 device command-buffer
+					 model-matrix vproj width height)
   
   (declare (type draw-indexed-pipeline-mixin pipeline))
   (declare (type draw-list-mixin draw-list))
   (declare (type krma-essential-scene-mixin scene))
+  (declare (type standard-draw-data draw-data))
   
   (let ((index-array (draw-list-index-array draw-list)))
     (declare (type foreign-adjustable-array index-array))
@@ -812,14 +813,14 @@
       (initialize-buffers device draw-list)
       
       (let ((cmd-vector (draw-list-cmd-vector draw-list)))
-	    (declare (type (vector t) cmd-vector))
+	(declare (type (vector t) cmd-vector))
 	
-	    (unless (= 0 (fill-pointer cmd-vector))
+	(unless (= 0 (fill-pointer cmd-vector))
 	  
           (let* ((pipeline-layout (pipeline-layout pipeline))
-		         (index-buffer (draw-list-index-buffer draw-list))
-		         (command-buffer-handle (h command-buffer))
-		         (mm))
+		 (index-buffer (draw-list-index-buffer draw-list))
+		 (command-buffer-handle (h command-buffer))
+		 (mm))
 	    
             (cmd-bind-pipeline command-buffer (device-pipeline pipeline) :bind-point :graphics)
             (update-uniform-buffer pipeline vproj)
@@ -848,152 +849,171 @@
             (cmd-bind-index-buffer command-buffer index-buffer 0 (foreign-array-foreign-type index-array))
 
             (flet ((render-standard-draw-indexed-cmd (cmd &aux (pipeline-default-font nil))
-		             (declare (type standard-draw-indexed-cmd cmd))
+		     (declare (type standard-draw-indexed-cmd cmd))
 
-		             (let ((descriptor-set (texture-image-descriptor-set
-					                        (or (cmd-texture cmd)
-						                        (draw-list-texture draw-list)
-						                        (and (setq pipeline-default-font
-							                               (pipeline-default-font pipeline))
-						                             (font-atlas pipeline-default-font))
-						                        *white-texture*))))
-		               (with-foreign-objects ((p-descriptor-sets :pointer 1))
+		     (let* ((descriptor-set (texture-image-descriptor-set
+					     (or (cmd-texture cmd)
+						 (draw-list-texture draw-list)
+						 (and (setq pipeline-default-font
+							    (pipeline-default-font pipeline))
+						      (font-atlas pipeline-default-font))
+						 *white-texture*)))
+			    (group (when (cmd-group cmd) (gethash (cmd-group cmd) (draw-data-group-hash-table draw-data))))
+			    (group-model-matrix (and group (group-model-matrix group)))
+			    (group-color-override (and group (group-color-override group))))
+		       
+		       (with-foreign-objects ((p-descriptor-sets :pointer 1))
                          (setf (mem-aref p-descriptor-sets :pointer 0) (h descriptor-set))
                          (vkCmdBindDescriptorSets (h command-buffer)
                                                   VK_PIPELINE_BIND_POINT_GRAPHICS
                                                   (h pipeline-layout)
                                                   2 1
                                                   p-descriptor-sets
-                                                  0 +nullptr+)))
+                                                  0 +nullptr+))
 
-                     (with-foreign-object (pvalues :uint32 +uber-vertex-shader-pc-size+)
+		       (with-foreign-object (pvalues :uint32 +uber-vertex-shader-pc-size+)
 
-		               (let ((cmd-model-matrix (cmd-model-mtx cmd))
-			                 (cmd-color-override (cmd-color-override cmd)))
+			 (let ((cmd-model-matrix (cmd-model-mtx cmd))
+			       (cmd-color-override (cmd-color-override cmd)))
 
-			             (if cmd-model-matrix
-			                 (setq mm (m* model-matrix cmd-model-matrix))
-			                 (setq mm model-matrix))
+			   (if cmd-model-matrix
+			       (if group-model-matrix
+				   (setq mm (m* model-matrix cmd-model-matrix group-model-matrix))
+				   (setq mm (m* model-matrix cmd-model-matrix)))
+			       (if group-model-matrix
+				   (setq mm (m* model-matrix group-model-matrix))
+				   (setq mm model-matrix)))
+			 
+			   (if cmd-color-override
+			       (let ((pcol (mem-aptr pvalues :uint32 22)))
+				 (setf (mem-aref pcol :uint32 0) cmd-color-override)
+				 (setf (mem-aref pvalues :uint32 23) 1))
+			     
+			       (if group-color-override
+				   (let ((pcol (mem-aptr pvalues :uint32 22)))
+				     (setf (mem-aref pcol :uint32 0) group-color-override)
+				     (setf (mem-aref pvalues :uint32 23) 1))
+				   (setf (mem-aref pvalues :uint32 23) 0)))
 
-			             (if cmd-color-override
-			                 (let ((pcol (mem-aptr pvalues :uint32 22)))
-			                   (setf (mem-aref pcol :uint32 0) cmd-color-override)
-			                   (setf (mem-aref pvalues :uint32 23) 1))
-			                 (setf (mem-aref pvalues :uint32 23) 0)))
+			   (copy-matrix-to-foreign mm pvalues)
 
-		               (copy-matrix-to-foreign mm pvalues)
+			   (cond ((typep pipeline 'point-list-pipeline-mixin)
+				  (setf (mem-aref pvalues :uint32 21) 0)
+				  (let ((psize (mem-aptr pvalues :uint32 20)))
+				    (let ((cmd-point-size (cmd-point-size cmd)))
+				      (if cmd-point-size
+					  (setf (mem-aref psize :float) cmd-point-size)
+					  (let ((pipeline-point-size (pipeline-point-size pipeline)))
+					    (if pipeline-point-size
+						(setf (mem-aref psize :float) pipeline-point-size)
+						(setf (mem-aref psize :float) *default-point-size*)))))))
 
-		               (cond ((typep pipeline 'point-list-pipeline-mixin)
-                              (setf (mem-aref pvalues :uint32 21) 0)
-                              (let ((psize (mem-aptr pvalues :uint32 20)))
-                                (let ((cmd-point-size (cmd-point-size cmd)))
-				                  (if cmd-point-size
-				                      (setf (mem-aref psize :float) cmd-point-size)
-				                      (let ((pipeline-point-size (pipeline-point-size pipeline)))
-					                    (if pipeline-point-size
-					                        (setf (mem-aref psize :float) pipeline-point-size)
-					                        (setf (mem-aref psize :float) *default-point-size*)))))))
+				 ((typep pipeline 'line-pipeline-mixin)
+				  (setf (mem-aref pvalues :uint32 21) 1)
+				  #-darwin
+				  (let ((cmd-line-width (cmd-line-thickness cmd)))
+				    (if cmd-line-width
+					(vkCmdSetLineWidth command-buffer-handle cmd-line-width)
+					(let ((pipeline-line-width (pipeline-line-width pipeline)))
+					  (if pipeline-line-width
+					      (vkCmdSetLineWidth command-buffer-handle pipeline-line-width)
+					      (vkCmdSetLineWidth command-buffer-handle *default-line-thickness*))))))
 
-			                 ((typep pipeline 'line-pipeline-mixin)
-			                  (setf (mem-aref pvalues :uint32 21) 1)
-                              #-darwin
-                              (let ((cmd-line-width (cmd-line-thickness cmd)))
-				                (if cmd-line-width
-				                    (vkCmdSetLineWidth command-buffer-handle cmd-line-width)
-				                    (let ((pipeline-line-width (pipeline-line-width pipeline)))
-				                      (if pipeline-line-width
-					                      (vkCmdSetLineWidth command-buffer-handle pipeline-line-width)
-					                      (vkCmdSetLineWidth command-buffer-handle *default-line-thickness*))))))
+				 (t (setf (mem-aref pvalues :uint32 21) 2)
+				    (let ((plp (mem-aptr pvalues :uint32 16)))
+				      (let ((cmd-light-position (cmd-light-position cmd)))
+					(if cmd-light-position
+					    (setf (mem-aref plp :float 0) (clampf (vx cmd-light-position))
+						  (mem-aref plp :float 1) (clampf (vy cmd-light-position))
+						  (mem-aref plp :float 2) (clampf (vz cmd-light-position)))
+					    (let ((group-light-position (and group (group-light-position group))))
+					      (if group-light-position
+						  (setf (mem-aref plp :float 0) (clampf (vx group-light-position))
+							(mem-aref plp :float 1) (clampf (vy group-light-position))
+							(mem-aref plp :float 2) (clampf (vz group-light-position)))
+						  (let ((scene-light-position (scene-light-position scene)))
+						    (if scene-light-position
+							(setf (mem-aref plp :float 0) (clampf (vx scene-light-position))
+							      (mem-aref plp :float 1) (clampf (vy scene-light-position))
+							      (mem-aref plp :float 2) (clampf (vz scene-light-position)))
+							(setf (mem-aref plp :float 0) (clampf (vx *default-light-position*))
+							      (mem-aref plp :float 1) (clampf (vy *default-light-position*))
+							      (mem-aref plp :float 2) (clampf (vy *default-light-position*))))))))))))
 
-			                 (t (setf (mem-aref pvalues :uint32 21) 2)
-                                (let ((plp (mem-aptr pvalues :uint32 16)))
-				                  (let ((cmd-light-position (cmd-light-position cmd)))
-				                    (if cmd-light-position
-					                    (setf (mem-aref plp :float 0) (clampf (vx cmd-light-position))
-					                          (mem-aref plp :float 1) (clampf (vy cmd-light-position))
-					                          (mem-aref plp :float 2) (clampf (vz cmd-light-position)))
-					                    (let ((scene-light-position (scene-light-position scene)))
-					                      (if scene-light-position
-					                          (setf (mem-aref plp :float 0) (clampf (vx scene-light-position))
-						                            (mem-aref plp :float 1) (clampf (vy scene-light-position))
-						                            (mem-aref plp :float 2) (clampf (vz scene-light-position)))
-					                          (setf (mem-aref plp :float 0) (clampf (vx *default-light-position*))
-						                            (mem-aref plp :float 1) (clampf (vy *default-light-position*))
-						                            (mem-aref plp :float 2) (clampf (vy *default-light-position*))))))))))
+			   (vkCmdPushConstants command-buffer-handle
+					       (h pipeline-layout)
+					       VK_SHADER_STAGE_VERTEX_BIT
+					       0
+					       (load-time-value (* +uber-vertex-shader-pc-size+
+								   (foreign-type-size :uint32)))
+					       pvalues)))
 
-		               (vkCmdPushConstants command-buffer-handle
-					                       (h pipeline-layout)
-					                       VK_SHADER_STAGE_VERTEX_BIT
-					                       0
-					                       (load-time-value (* +uber-vertex-shader-pc-size+
-							                                   (foreign-type-size :uint32)))
-					                       pvalues)
-
-                       (when (typep cmd 'text-draw-indexed-cmd)
-				         (let ((font (or (cmd-font cmd) pipeline-default-font)))
-				           (when font
-				             (with-foreign-object (pvalues2 :float 5)
-					           (setf (mem-aref pvalues2 :float 0) 0.0f0
-					                 (mem-aref pvalues2 :float 1) 0.0f0
-					                 (mem-aref pvalues2 :float 2) 0.0f0
-					                 (mem-aref pvalues2 :float 3) 0.0f0)
-
-					           (let ((px-range (font-px-range font)))
-					             (if px-range
-					                 (setf (mem-aref pvalues2 :float 4) (clampf px-range))
-					                 (setf (mem-aref pvalues2 :float 4) 32.0f0)))
+		       (when (typep cmd 'text-draw-indexed-cmd)
+			 (let ((font (or (cmd-font cmd) pipeline-default-font)))
+			   (when font
+			     (with-foreign-object (pvalues2 :float 5)
+			       (setf (mem-aref pvalues2 :float 0) 0.0f0
+				     (mem-aref pvalues2 :float 1) 0.0f0
+				     (mem-aref pvalues2 :float 2) 0.0f0
+				     (mem-aref pvalues2 :float 3) 0.0f0)
+			       
+			       (let ((px-range (font-px-range font)))
+				 (if px-range
+				     (setf (mem-aref pvalues2 :float 4) (clampf px-range))
+				     (setf (mem-aref pvalues2 :float 4) 32.0f0)))
 
                                ;; make sure msdf-texture fragment shader can get px-range from font
-					           (vkCmdPushConstants command-buffer-handle
-							                       (h pipeline-layout)
-							                       VK_SHADER_STAGE_FRAGMENT_BIT
-							                       (load-time-value (* +uber-vertex-shader-pc-size+
-										                               (foreign-type-size :uint32)))
-							                       (load-time-value (* 5 (foreign-type-size :float)))
-							                       pvalues2))))))
+			       (vkCmdPushConstants command-buffer-handle
+						   (h pipeline-layout)
+						   VK_SHADER_STAGE_FRAGMENT_BIT
+						   (load-time-value (* +uber-vertex-shader-pc-size+
+								       (foreign-type-size :uint32)))
+						   (load-time-value (* 5 (foreign-type-size :float)))
+						   pvalues2)))))
 
-		             (vkCmdDrawIndexed command-buffer-handle
-					                   (cmd-elem-count cmd) 1 (cmd-first-idx cmd) (cmd-vtx-offset cmd)
-					                   0)))
+		       (vkCmdDrawIndexed command-buffer-handle
+					 (cmd-elem-count cmd) 1 (cmd-first-idx cmd) (cmd-vtx-offset cmd)
+					 0))))
 
-              (loop for cmd across cmd-vector
-                    when cmd
-                      do (render-standard-draw-indexed-cmd cmd))
+	      (loop for cmd across cmd-vector
+		 when cmd
+		 do (render-standard-draw-indexed-cmd cmd))
               t)))))))
 
-(defmethod render-draw-list-cmds ((pipeline draw-indexed-pipeline-mixin) draw-list scene
+(defmethod render-draw-list-cmds ((pipeline draw-indexed-pipeline-mixin) draw-data draw-list scene
 				  device command-buffer
 				  model-matrix vproj width height)
 
-  (ubershader-render-draw-list-cmds pipeline draw-list scene device command-buffer model-matrix vproj width height))
+  (ubershader-render-draw-list-cmds pipeline draw-data draw-list scene device command-buffer model-matrix vproj width height))
 
-(defun ubershader-render-draw-list (pipeline draw-list scene
-				                    device command-buffer
-				                    model-matrix vproj width height)
+(defun ubershader-render-draw-list (pipeline draw-data draw-list scene
+				    device command-buffer
+				    model-matrix vproj width height)
   
   (declare (type draw-indexed-pipeline-mixin))
   (declare (type draw-list-mixin draw-list))
   (declare (type krma-essential-scene-mixin scene))
+  (declare (ignore draw-data))
 
   (let ((index-array (draw-list-index-array draw-list)))
     (declare (type foreign-adjustable-array index-array))
     (unless (= 0 (foreign-array-fill-pointer index-array))
       (initialize-buffers device draw-list)
       (let* ((command-buffer-handle (h command-buffer))
-	         (pipeline-layout (pipeline-layout pipeline))
+	     (pipeline-layout (pipeline-layout pipeline))
              (index-buffer (draw-list-index-buffer draw-list))
              (index-array (draw-list-index-array draw-list))
-	         (group (draw-list-group draw-list))
+	     (group (draw-list-group draw-list))
              (mm))
 
-	    (declare (type (or group null) group)) ;; group is null for im-draw-list
+	(declare (type (or group null) group)) ;; group is null for im-draw-list
 
-	    (cmd-bind-pipeline command-buffer (device-pipeline pipeline) :bind-point :graphics)
-	    (update-uniform-buffer pipeline vproj)
-	    (cmd-set-viewport command-buffer :width width :height height :min-depth 0.0 :max-depth 1.0)
-	    (cmd-set-scissor command-buffer :width width :height height)
+	(cmd-bind-pipeline command-buffer (device-pipeline pipeline) :bind-point :graphics)
+	(update-uniform-buffer pipeline vproj)
+	(cmd-set-viewport command-buffer :width width :height height :min-depth 0.0 :max-depth 1.0)
+	(cmd-set-scissor command-buffer :width width :height height)
 
-	    (with-foreign-objects ((p-descriptor-sets :pointer 1))
+	(with-foreign-objects ((p-descriptor-sets :pointer 1))
           (setf (mem-aref p-descriptor-sets :pointer 0) (h (global-descriptor-set pipeline)))
           (vkCmdBindDescriptorSets (h command-buffer)
                                    VK_PIPELINE_BIND_POINT_GRAPHICS
@@ -1002,7 +1022,7 @@
                                    p-descriptor-sets
                                    0 +nullptr+))
 
-	    (with-foreign-objects ((p-descriptor-sets :pointer 1))
+	(with-foreign-objects ((p-descriptor-sets :pointer 1))
           (setf (mem-aref p-descriptor-sets :pointer 0) (h (scene-descriptor-set pipeline)))
           (vkCmdBindDescriptorSets (h command-buffer)
                                    VK_PIPELINE_BIND_POINT_GRAPHICS
@@ -1011,11 +1031,11 @@
                                    p-descriptor-sets
                                    0 +nullptr+))
 
-	    (cmd-bind-vertex-buffers command-buffer (list (draw-list-vertex-buffer draw-list)))
-	    (cmd-bind-index-buffer command-buffer index-buffer 0 (foreign-array-foreign-type index-array))
+	(cmd-bind-vertex-buffers command-buffer (list (draw-list-vertex-buffer draw-list)))
+	(cmd-bind-index-buffer command-buffer index-buffer 0 (foreign-array-foreign-type index-array))
 
-	    (let ((descriptor-set (texture-image-descriptor-set (or (draw-list-texture draw-list)
-								                                (if (pipeline-default-font pipeline)
+	(let ((descriptor-set (texture-image-descriptor-set (or (draw-list-texture draw-list)
+								(if (pipeline-default-font pipeline)
                                                                     (font-atlas (pipeline-default-font pipeline))
                                                                     *white-texture*)))))
           (with-foreign-objects ((p-descriptor-sets :pointer 1))
@@ -1027,101 +1047,102 @@
                                      p-descriptor-sets
                                      0 +nullptr+)))
 
-	    (with-foreign-object (pvalues :uint32 +uber-vertex-shader-pc-size+)
+	(with-foreign-object (pvalues :uint32 +uber-vertex-shader-pc-size+)
 
-	      (setq mm model-matrix)
+	  (setq mm model-matrix)
 	
-	      (if group
-	          (let ((group-model-matrix (group-model-matrix group)))
-		        (when group-model-matrix
-		          (setq mm (m* model-matrix group-model-matrix)))
-		        (let ((group-color-override (group-color-override group)))
-		          (if group-color-override
-		              (let ((pcol (mem-aptr pvalues :uint32 22)))
-			            (setf (mem-aref pcol :uint32 0) group-color-override)
-			            (setf (mem-aref pvalues :uint32 23) 1))
-		              (setf (mem-aref pvalues :uint32 23) 0))))
-	          (setf (mem-aref pvalues :uint32 23) 0))
+	  (if group
+	      (let ((group-model-matrix (group-model-matrix group)))
+		(when group-model-matrix
+		  (setq mm (m* model-matrix group-model-matrix)))
+		(let ((group-color-override (group-color-override group)))
+		  (if group-color-override
+		      (let ((pcol (mem-aptr pvalues :uint32 22)))
+			(setf (mem-aref pcol :uint32 0) group-color-override)
+			(setf (mem-aref pvalues :uint32 23) 1))
+		      (setf (mem-aref pvalues :uint32 23) 0))))
+	      (setf (mem-aref pvalues :uint32 23) 0))
 	  
-	      (copy-matrix-to-foreign mm pvalues)
+	  (copy-matrix-to-foreign mm pvalues)
 
-	      (cond ((typep pipeline 'point-list-pipeline-mixin)
-		         (setf (mem-aref pvalues :uint32 21) 0)
+	  (cond ((typep pipeline 'point-list-pipeline-mixin)
+		 (setf (mem-aref pvalues :uint32 21) 0)
                  (let ((psize (mem-aptr pvalues :uint32 20)))
-		           (let ((draw-list-point-size (draw-list-point-size draw-list)))
-		             (if draw-list-point-size
-			             (setf (mem-aref psize :float) (draw-list-point-size draw-list))
-			             (let ((pipeline-point-size (pipeline-point-size pipeline)))
-			               (if pipeline-point-size
-			                   (setf (mem-aref psize :float) pipeline-point-size)
-			                   (setf (mem-aref psize :float) *default-point-size*)))))))
+		   (let ((draw-list-point-size (draw-list-point-size draw-list)))
+		     (if draw-list-point-size
+			 (setf (mem-aref psize :float) (draw-list-point-size draw-list))
+			 (let ((pipeline-point-size (pipeline-point-size pipeline)))
+			   (if pipeline-point-size
+			       (setf (mem-aref psize :float) pipeline-point-size)
+			       (setf (mem-aref psize :float) *default-point-size*)))))))
 	      
-		        ((typep pipeline 'line-pipeline-mixin)
-		         (setf (mem-aref pvalues :uint32 21) 1)
-                 #-darwin
-		         (let ((draw-list-line-width (draw-list-line-thickness draw-list)))
-		           (if draw-list-line-width
-		               (vkCmdSetLineWidth command-buffer-handle draw-list-line-width)
-		               (let ((pipeline-line-width (pipeline-line-width pipeline)))
-			             (if pipeline-line-width
-			                 (vkCmdSetLineWidth command-buffer-handle pipeline-line-width)
-			                 (vkCmdSetLineWidth command-buffer-handle *default-line-thickness*))))))
+		((typep pipeline 'line-pipeline-mixin)
+		 (setf (mem-aref pvalues :uint32 21) 1)
+
+		 #-darwin
+		 (let ((draw-list-line-width (draw-list-line-thickness draw-list)))
+		   (if draw-list-line-width
+		       (vkCmdSetLineWidth command-buffer-handle draw-list-line-width)
+		       (let ((pipeline-line-width (pipeline-line-width pipeline)))
+			 (if pipeline-line-width
+			     (vkCmdSetLineWidth command-buffer-handle pipeline-line-width)
+			     (vkCmdSetLineWidth command-buffer-handle *default-line-thickness*))))))
 	       
-		        (t (setf (mem-aref pvalues :uint32 21) 2)
+		(t (setf (mem-aref pvalues :uint32 21) 2)
                    (let ((plp (mem-aptr pvalues :uint32 16)))
-		             (let ((group-light-position (when group (group-light-position group))))
-		               (if group-light-position
-			               (setf (mem-aref plp :float 0) (clampf (vx group-light-position))
-				                 (mem-aref plp :float 1) (clampf (vy group-light-position))
-				                 (mem-aref plp :float 2) (clampf (vz group-light-position)))
-			               (let ((scene-light-position (scene-light-position scene)))
-			                 (if scene-light-position
-				                 (setf (mem-aref plp :float 0) (clampf (vx scene-light-position))
-				                       (mem-aref plp :float 1) (clampf (vy scene-light-position))
-				                       (mem-aref plp :float 2) (clampf (vz scene-light-position)))
-				                 (setf (mem-aref plp :float 0) (clampf (vx *default-light-position*))
-				                       (mem-aref plp :float 1) (clampf (vy *default-light-position*))
-				                       (mem-aref plp :float 2) (clampf (vy *default-light-position*))))))))))
+		     (let ((group-light-position (when group (group-light-position group))))
+		       (if group-light-position
+			   (setf (mem-aref plp :float 0) (clampf (vx group-light-position))
+				 (mem-aref plp :float 1) (clampf (vy group-light-position))
+				 (mem-aref plp :float 2) (clampf (vz group-light-position)))
+			   (let ((scene-light-position (scene-light-position scene)))
+			     (if scene-light-position
+				 (setf (mem-aref plp :float 0) (clampf (vx scene-light-position))
+				       (mem-aref plp :float 1) (clampf (vy scene-light-position))
+				       (mem-aref plp :float 2) (clampf (vz scene-light-position)))
+				 (setf (mem-aref plp :float 0) (clampf (vx *default-light-position*))
+				       (mem-aref plp :float 1) (clampf (vy *default-light-position*))
+				       (mem-aref plp :float 2) (clampf (vy *default-light-position*))))))))))
 
           ;; apperently the call to vkCmdPushConstants for vertex-shader must happen
           ;; before the call to vkCmdPushConstants for fragment-shader even though
           ;; the locations/positions are right
-	      (vkCmdPushConstants command-buffer-handle
-			                  (h pipeline-layout)
-			                  VK_SHADER_STAGE_VERTEX_BIT
-			                  0
-			                  (load-time-value (* +uber-vertex-shader-pc-size+
-						                          (foreign-type-size :uint32)))
-			                  pvalues)
+	  (vkCmdPushConstants command-buffer-handle
+			      (h pipeline-layout)
+			      VK_SHADER_STAGE_VERTEX_BIT
+			      0
+			      (load-time-value (* +uber-vertex-shader-pc-size+
+						  (foreign-type-size :uint32)))
+			      pvalues)
 
           (let ((font (draw-list-font draw-list)))
-		    (when font
-		      (with-foreign-object (pvalues2 :float 5)
-			    (setf (mem-aref pvalues2 :float 0) 0.0f0
-			          (mem-aref pvalues2 :float 1) 0.0f0
-			          (mem-aref pvalues2 :float 2) 0.0f0
-			          (mem-aref pvalues2 :float 3) 0.0f0)
+	    (when font
+	      (with-foreign-object (pvalues2 :float 5)
+		(setf (mem-aref pvalues2 :float 0) 0.0f0
+		      (mem-aref pvalues2 :float 1) 0.0f0
+		      (mem-aref pvalues2 :float 2) 0.0f0
+		      (mem-aref pvalues2 :float 3) 0.0f0)
 
-			    (let ((px-range (font-px-range font)))
-			      (if px-range
-			          (setf (mem-aref pvalues2 :float 4) (clampf px-range))
-			          (setf (mem-aref pvalues2 :float 4) 32.0f0)))
+		(let ((px-range (font-px-range font)))
+		  (if px-range
+		      (setf (mem-aref pvalues2 :float 4) (clampf px-range))
+		      (setf (mem-aref pvalues2 :float 4) 32.0f0)))
 
                 ;; make sure msdf-texture fragment shader can get px-range from font
-			    (vkCmdPushConstants command-buffer-handle
-					                (h pipeline-layout)
-					                VK_SHADER_STAGE_FRAGMENT_BIT
-					                (load-time-value (* +uber-vertex-shader-pc-size+
-								                        (foreign-type-size :uint32)))
-					                (load-time-value (* 5 (foreign-type-size :float)))
-					                pvalues2))))
+		(vkCmdPushConstants command-buffer-handle
+				    (h pipeline-layout)
+				    VK_SHADER_STAGE_FRAGMENT_BIT
+				    (load-time-value (* +uber-vertex-shader-pc-size+
+							(foreign-type-size :uint32)))
+				    (load-time-value (* 5 (foreign-type-size :float)))
+				    pvalues2))))
 
           ;; draw the whole draw list in one command
-	      (vkCmdDrawIndexed command-buffer-handle
-			                (foreign-array-fill-pointer index-array)
-			                1 0 0 0))))))
+	  (vkCmdDrawIndexed command-buffer-handle
+			    (foreign-array-fill-pointer index-array)
+			    1 0 0 0))))))
 
-(defmethod render-draw-list ((pipeline draw-indexed-pipeline-mixin) draw-list scene
+(defmethod render-draw-list ((pipeline draw-indexed-pipeline-mixin) draw-data draw-list scene
 			     device command-buffer
 			     model-matrix vproj width height)
-  (ubershader-render-draw-list pipeline draw-list scene device command-buffer model-matrix vproj width height))
+  (ubershader-render-draw-list pipeline draw-data draw-list scene device command-buffer model-matrix vproj width height))
