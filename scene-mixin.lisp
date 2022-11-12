@@ -1271,13 +1271,15 @@
                                  group model-mtx sf-line-thickness ub32-color-override sf-point-size light-position))))))
 
 (defun reinstance-primitive-1 (draw-data new-handle handle
-                               &key (model-matrix nil)
+                               &key 
+				 (group nil)
+				 (model-matrix nil)
                                  (point-size nil)
                                  (line-thickness nil)
                                  (color-override nil)
                                  (light-position nil)
-                                 (font nil)
-				 (group nil))
+                                 (font nil))
+  "Retained-mode function.  Re-instances a primitive given a handle with the option to set a new group, model-matrix, point-size, line-thickness, color-override, light-position and/or font.  References the same vertices in the draw-lists. Performs work in current thread, which should be the render thread."
   (declare (type retained-mode-draw-data draw-data))
   (let ((ht (draw-data-handle-hash-table draw-data)))
     (%reinstance-primitive-1
@@ -1286,13 +1288,15 @@
 
 
 (defun reinstance-primitive (scene handle
-                             &key (model-matrix nil)
+                             &key 
+			       (group nil)
+			       (model-matrix nil)
                                (point-size nil)
                                (line-thickness nil)
                                (color-override nil)
                                (light-position nil)
-                               (font nil)
-			       (group nil))
+                               (font nil))
+  "Retained-mode function.  Re-instances a primitive given a handle with the option to set a new group, model-matrix, point-size, line-thickness, color-override, light-position and/or font.  References the same vertices in the draw-lists.  To be run in a thread outside of the render thread.  Dispatches actual work to render thread."
   (declare (type krma-essential-scene-mixin scene))
   (when point-size
     (setq point-size (clampf point-size)))
@@ -1326,15 +1330,18 @@
   (let ((cmd (gethash handle ht)))
     (if (listp cmd)
         (warn "while in %primitive-set-color-1 ...could not find primitive ~S to set color." handle)
-        (setf (cmd-color-override cmd) ub32-color))))
+        (setf (cmd-color-override cmd) ub32-color))
+    (values)))
 
 (defun primitive-set-color-1 (draw-data handle color)
+  "Retained-mode function.  Returns no values.  Sets the color override of the primitive, normally renderer uses the vertex color.  Performs work in current thread, which should be the render thread."
   (declare (type retained-mode-draw-data draw-data))
   (let ((ht (draw-data-handle-hash-table draw-data)))
     (%primitive-set-color-1 ht handle (canonicalize-color color))))
 
 ;; need to be able to modify existing primitives
 (defun primitive-set-color (scene handle color)
+  "Retained-mode function. Returns no values.  To be run in a thread outside of the render thread.  Sets the color override of the primitive, normally renderer uses the vertex color.  To be run in a thread outside of the render thread.  Dispatches actual work to render thread."
   (declare (type krma-essential-scene-mixin scene))
   (let ((draw-data (rm-draw-data scene)))
     (setq color (canonicalize-color color))
@@ -1354,14 +1361,17 @@
   (let ((cmd (gethash handle ht)))
     (if (listp cmd)
         (warn "while in %primitive-set-light-position-1 ...could not find primitive ~S to set light position." handle)
-        (setf (cmd-light-position cmd) pos))))
+        (setf (cmd-light-position cmd) pos))
+    (values)))
 
 (defun primitive-set-light-position-1 (draw-data handle pos)
+  "Retained-mode function.  Returns no values.  Sets the light position of the primitive, normally renderer uses the scene light position, unless group light position is set.  Performs work in current thread, which should be the render thread."
   (declare (type retained-mode-draw-data draw-data))
   (let ((ht (draw-data-handle-hash-table draw-data)))
     (%primitive-set-light-position-1 ht handle pos)))
 
 (defun primitive-set-light-position (scene handle pos)
+  "Retained-mode function.  Returns no values.  Sets the light position of the primitive, normally renderer uses the scene light position, unless group light position is set.  To be run in a thread outside of the render thread.  Dispatches actual work to render thread."
   (declare (type krma-essential-scene-mixin scene))
   (let ((draw-data (rm-draw-data scene)))
     (let ((dd0 (svref draw-data 0))
@@ -1380,15 +1390,18 @@
   (let ((cmd (gethash handle ht)))
     (if (listp cmd)
         (warn "while in %primitive-set-transform-1 ...could not find primitive to set transform ~S." handle)
-        (setf (cmd-model-mtx cmd) (when matrix (mcopy matrix))))))
+        (setf (cmd-model-mtx cmd) (when matrix (mcopy matrix))))
+    (values)))
 
 (defun primitive-set-transform-1 (draw-data handle matrix)
+  "Retained-mode function.  Returns no values.  Sets the model-matrix of the primitive, renderer composes the primitive model matrix with the group model matrix.  Performs work in current thread, which should be the render thread."
   (declare (type retained-mode-draw-data draw-data))
   (let ((ht (draw-data-handle-hash-table draw-data)))
     (%primitive-set-transform-1 ht handle matrix)))
 
 ;; replaces model-mtx in cmd by this matrix
 (defun primitive-set-transform (scene handle matrix)
+  "Retained-mode function.  Sets the model-matrix of the primitive, renderer composes the primitive model matrix with the group model matrix.  To be run in a thread outside of the render thread.  Dispatches actual work to render thread."
   (declare (type krma-essential-scene-mixin scene))
   (declare (type (or mat4 null) matrix))
   (let ((draw-data (rm-draw-data scene)))
@@ -1411,9 +1424,11 @@
         (let ((existing (cmd-model-mtx cmd)))
           (if existing
               (setf (cmd-model-mtx cmd) (m* matrix existing))
-              (setf (cmd-model-mtx cmd) (mcopy matrix)))))))
+              (setf (cmd-model-mtx cmd) (mcopy matrix)))))
+    (values)))
 
 (defun primitive-apply-transform-1 (draw-data handle matrix)
+  "Retained-mode function.  Returns no values.  Applies the matrix to the existing model-matrix of the primitive, renderer composes the primitive model matrix with the group model matrix.  Performs work in current thread, which should be the render thread."
   (declare (type retained-mode-draw-data draw-data))
   (declare (type mat4 matrix))
   (let ((ht (draw-data-handle-hash-table draw-data)))
@@ -1421,6 +1436,7 @@
 
 ;; multiplies new matrix against old matrix and replaces model-mtx in cmd
 (defun primitive-apply-transform (scene handle matrix)
+  "Retained-mode function.  Returns no values.  Applies the matrix to the existing model-matrix of the primitive, renderer composes the primitive model matrix with the group model matrix.  To be run in a thread outside of the render thread.  Dispatches actual work to render thread."
   (declare (type krma-essential-scene-mixin scene))
   (declare (type mat4 matrix))
   (let ((draw-data (rm-draw-data scene)))
@@ -1442,13 +1458,13 @@
     (if (listp cmd)
         (warn "while in %primitive-set-line-thickness-1 ...could not find primitive to update line thickness ~S."
               handle)
-        (setf (cmd-line-thickness cmd) sf-thickness))))
+        (setf (cmd-line-thickness cmd) sf-thickness))
+    (values)))
 
 (defun primitive-set-line-thickness-1 (draw-data handle thickness)
   (declare (type retained-mode-draw-data draw-data))
   (let ((ht (draw-data-handle-hash-table draw-data)))
     (%primitive-set-line-thickness-1 ht handle (clampf thickness))))
-
 
 (defun primitive-set-line-thickness (scene handle thickness)
   (declare (type krma-essential-scene-mixin scene))
@@ -1479,10 +1495,10 @@
                       do (setf (aref cmd-vector i) nil)
                          (setf (draw-list-needs-compaction? draw-list) t)
                          (remhash handle ht)
-                         (return)))))
+                         (return (values))))))
     (error (c)
       (warn (concatenate 'string "while in %delete-primitive-1 ..." (princ-to-string c)))
-      nil)))
+      (values))))
 
 (defun delete-primitive-1 (draw-data handle)
   (let ((ht (draw-data-handle-hash-table draw-data)))
@@ -1644,10 +1660,10 @@
         (setf (group-light-position group) (when light-position (vcopy light-position)))
         (warn "while in %group-set-light-position-1 ...no group named ~S" atom-group))))
 
-(defun group-set-light-position-1 (draw-data group light-position)
-  (declare (type (or vec3 null) light-position))
+(defun group-set-light-position-1 (draw-data group position)
+  (declare (type (or vec3 null) position))
   (assert (and (typep group 'atom) (not (null group))))
-  (%group-set-light-position-1 draw-data group light-position))
+  (%group-set-light-position-1 draw-data group position))
 
 (defun group-set-light-position (scene group position)
   (declare (type krma-essential-scene-mixin scene))
@@ -1656,9 +1672,9 @@
   (rm-dispatch-to-render-thread (scene draw-data)
     (%group-set-light-position-1 draw-data group position)))
 
-(defun find-or-create-group-1 (draw-data atom-group)
-  (assert (and (typep atom-group 'atom) (not (null atom-group))))
+(defun ensure-group-1 (draw-data group)
+  (assert (and (typep group 'atom) (not (null group))))
   (let ((group-hash-table (draw-data-group-hash-table draw-data)))
-    (or (gethash atom-group group-hash-table)
-        (setf (gethash atom-group group-hash-table)
-              (make-group atom-group)))))
+    (or (gethash group group-hash-table)
+        (setf (gethash group group-hash-table)
+              (make-group group)))))
