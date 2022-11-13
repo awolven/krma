@@ -86,7 +86,7 @@
   (create-standard-pipeline-device-objects pipeline :app app))
 
 (defmethod initialize-instance :after ((pipeline pipeline-mixin) &rest initargs
-								       &key app)
+				       &key app)
   (declare (ignore initargs))
   (create-device-objects pipeline :app app)
   (values))
@@ -129,8 +129,8 @@
 
 (defmethod make-global-descriptor-buffer-info ((pipeline pipeline-mixin))
   (list (make-instance 'descriptor-uniform-buffer-info
-			           :buffer (uniform-buffer pipeline)
-			           :range (foreign-type-size (uniform-buffer-type pipeline)))))
+		       :buffer (uniform-buffer pipeline)
+		       :range (foreign-type-size (uniform-buffer-type pipeline)))))
 
 (defmethod make-scene-descriptor-buffer-info ((pipeline pipeline-mixin))
   nil)
@@ -147,7 +147,7 @@
                                                  (foreign-type-size :uint32))))))
 
 (defcstruct 3DMatrix
-  (m00 :float)
+    (m00 :float)
   (m10 :float)
   (m20 :float)
   (m30 :float)
@@ -438,27 +438,27 @@
                    (check-vk-result (vkMapMemory (h device) (h memory) offset aligned-size 0 pp-dst))
 
                    (let ((p-dst (mem-aref pp-dst :pointer)))
-	                 (vk::memcpy p-dst array size)
+	             (vk::memcpy p-dst array size)
 
-	                 (with-foreign-object (p-range '(:struct VkMappedMemoryRange))
-	                   (zero-struct p-range '(:struct VkMappedMemoryRange))
+	             (with-foreign-object (p-range '(:struct VkMappedMemoryRange))
+	               (zero-struct p-range '(:struct VkMappedMemoryRange))
 
-	                   (with-foreign-slots ((%vk::sType
-				                             %vk::memory
-				                             %vk::size
+	               (with-foreign-slots ((%vk::sType
+				             %vk::memory
+				             %vk::size
                                              %vk::offset)
                                             p-range (:struct VkMappedMemoryRange))
 
-	                     (setf %vk::sType VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE
-		                       %vk::memory (h memory)
-		                       %vk::size aligned-size
+	                 (setf %vk::sType VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE
+		               %vk::memory (h memory)
+		               %vk::size aligned-size
                                %vk::offset offset))
 
-	                   (check-vk-result (vkFlushMappedMemoryRanges (h device) 1 p-range))
+	               (check-vk-result (vkFlushMappedMemoryRanges (h device) 1 p-range))
 
-	                   (vkUnmapMemory (h device) (h memory))
+	               (vkUnmapMemory (h device) (h memory))
 
-	                   (values)))))))
+	               (values)))))))
 
         (unless (zerop vertex-size)
           (let* ((old-size-aligned (draw-list-vertex-size-aligned draw-list))
@@ -514,9 +514,9 @@
   ;; glsl expects transpose of what is in marr of mat4
   (let ((array (marr lisp-matrix)))
     (loop for i from 0 below 4
-       do (loop for j from 0 below 4
-	     do (setf (mem-aref p-matrix :float (+ j (* i 4)))
-		      (clampf (aref array (+ i (* j 4)))))))
+	  do (loop for j from 0 below 4
+		   do (setf (mem-aref p-matrix :float (+ j (* i 4)))
+			    (clampf (aref array (+ i (* j 4)))))))
     (values)))
 
 (defmethod update-uniform-buffer ((pipeline pipeline-mixin) matrix)
@@ -810,8 +810,8 @@
 	
 	(unless (= 0 (fill-pointer cmd-vector))
 	  
-      (let* ((pipeline-layout (pipeline-layout pipeline))
-             ;;(index-buffer (vk::memory-pool-index-buffer (vk::memory-resource-memory-pool (draw-list-index-memory draw-list))))
+	  (let* ((pipeline-layout (pipeline-layout pipeline))
+		 ;;(index-buffer (vk::memory-pool-index-buffer (vk::memory-resource-memory-pool (draw-list-index-memory draw-list))))
                  (command-buffer-handle (h command-buffer))
 		 (mm))
 	    
@@ -878,12 +878,12 @@
 			       (if group-model-matrix
 				   (setq mm (m* model-matrix group-model-matrix))
 				   (setq mm model-matrix)))
-			 
+			   
 			   (if cmd-color-override
 			       (let ((pcol (mem-aptr pvalues :uint32 22)))
 				 (setf (mem-aref pcol :uint32 0) cmd-color-override)
 				 (setf (mem-aref pvalues :uint32 23) 1))
-			     
+			       
 			       (if group-color-override
 				   (let ((pcol (mem-aptr pvalues :uint32 22)))
 				     (setf (mem-aref pcol :uint32 0) group-color-override)
@@ -971,8 +971,8 @@
 					 0))))
 
 	      (loop for cmd across cmd-vector
-		 when cmd
-		 do (render-standard-draw-indexed-cmd cmd))
+		    when cmd
+		    do (render-standard-draw-indexed-cmd cmd))
               t)))))))
 
 (defmethod render-draw-list-cmds ((pipeline draw-indexed-pipeline-mixin) draw-data draw-list scene
@@ -1046,7 +1046,7 @@
 	(with-foreign-object (pvalues :uint32 +uber-vertex-shader-pc-size+)
 
 	  (setq mm model-matrix)
-	
+	  
 	  (if group
 	      (let ((group-model-matrix (group-model-matrix group)))
 		(when group-model-matrix
@@ -1071,7 +1071,7 @@
 			   (if pipeline-point-size
 			       (setf (mem-aref psize :float) pipeline-point-size)
 			       (setf (mem-aref psize :float) *default-point-size*)))))))
-	      
+		
 		((typep pipeline 'line-pipeline-mixin)
 		 (setf (mem-aref pvalues :uint32 21) 1)
 
@@ -1083,7 +1083,7 @@
 			 (if pipeline-line-width
 			     (vkCmdSetLineWidth command-buffer-handle pipeline-line-width)
 			     (vkCmdSetLineWidth command-buffer-handle *default-line-thickness*))))))
-	       
+		
 		(t (setf (mem-aref pvalues :uint32 21) 2)
                    (let ((plp (mem-aptr pvalues :uint32 16)))
 		     (let ((group-light-position (when group (group-light-position group))))

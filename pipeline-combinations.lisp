@@ -210,7 +210,7 @@
 		 (push point-pipeline res))
 	     (draw-data-3d-point-list-draw-list-table draw-data))
 
-	   res))
+    res))
 
 (defmethod 2d-cmd-oriented-combinations ((pipeline-store pipeline-store-mixin) (draw-data immediate-mode-draw-data))
   (im-standard-2d-cmd-oriented-combinations pipeline-store draw-data))

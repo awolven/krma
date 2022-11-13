@@ -6,10 +6,10 @@
          (w (3b-bmfont-common:scale-w data))
          (h (3b-bmfont-common:scale-h data)))
     (rm-dispatch-to-render-thread-with-handle (scene draw-data handle)
-      (%draw-data-add-text-quad-list-primitive draw-data handle :foo
-					       *identity-matrix*
-					       *font* #xffffffff
-					       (list 0 0 0 0 w h 1 1)))))
+					      (%draw-data-add-text-quad-list-primitive draw-data handle :foo
+										       *identity-matrix*
+										       *font* #xffffffff
+										       (list 0 0 0 0 w h 1 1)))))
 
 (defvar *handles*)
 
@@ -57,7 +57,7 @@
 
 (defun 3d-line-test-1 ()
   (push (add-text-primitive "3d line test #1: Do you see a blue horizontal 2px thick line segment below this text? (y/n)"
-                  100 475) *handles*)
+			    100 475) *handles*)
   (push (add-3d-line-primitive 100 525 0 300 525 0 :color #x0000ffff) *handles*)
   (y-or-n-p))
 
@@ -164,7 +164,7 @@
               (scene-draw-2d-line scene :foo 2 #x0000ffff 0 0 100 100)
               (scene-draw-3d-line scene :bar 2 #xffff00ff 100 100 -100 200 200 -200)
               (scene-draw-multicolor-2d-polyline scene :foo t 2.0f0
-						                                     (list 100 935 #xff0000ff
+						 (list 100 935 #xff0000ff
                                                        100 1135 #xffff00ff
                                                        500 1135 #x00ff00ff
                                                        500 935 #x00ffffff))
@@ -172,4 +172,4 @@
               (scene-draw-2d-rectangle scene :foo 2 #x00ff00ff 300 500 400 600)
               (scene-draw-2d-circular-arc scene :foo nil 2 #x0000ffff 160 1270 20 0 pi)
               (scene-draw-2d-circle scene :foo 2 #x00ffffff 210 1270 20)
-	            (scene-draw-text scene :foo *font* #xff0000ff 1000 100 "hullabaloo2")))))
+	      (scene-draw-text scene :foo *font* #xff0000ff 1000 100 "hullabaloo2")))))

@@ -3,7 +3,7 @@
 ;;(declaim (optimize (speed 3) (safety 0) (debug 3)))
 
 (defstruct (foreign-adjustable-array
-            (:conc-name "FOREIGN-ARRAY-"))
+             (:conc-name "FOREIGN-ARRAY-"))
   (ptr +nullptr+ :type sb-sys:system-area-pointer)
   (fill-pointer 0 :type fixnum)
   (allocated-count +draw-list-alloc-size+ :type fixnum)
@@ -11,14 +11,14 @@
   (foreign-type-size 1 :type (integer 0 512))) ;; foreign-type-size can't be more than 512
 
 (defstruct (index-array
-            (:include foreign-adjustable-array)
-            (:constructor make-index-array
-                (&optional
-                   (allocated-count +draw-list-alloc-size+)
-                   (foreign-type :unsigned-short)
-                   (fill-pointer 0)
-                   (ptr (foreign-alloc :unsigned-short :count (cl:the fixnum allocated-count)))
-                   (foreign-type-size (foreign-type-size foreign-type))))))
+             (:include foreign-adjustable-array)
+             (:constructor make-index-array
+			   (&optional
+			    (allocated-count +draw-list-alloc-size+)
+			    (foreign-type :unsigned-short)
+			    (fill-pointer 0)
+			    (ptr (foreign-alloc :unsigned-short :count (cl:the fixnum allocated-count)))
+			    (foreign-type-size (foreign-type-size foreign-type))))))
 
 ;;(declaim (inline index-array-push-extend))
 (defun index-array-push-extend (index-array index)
@@ -85,21 +85,21 @@
 ;; we use a textured vertex for non-textured (standard) use to be able to use the same shader and draw-lists for simplicity
 ;; we simply put the tex coordinates of a white pixel and blend as if we were drawing text
 (defcstruct textured-2d-vertex
-  (x :float)
+    (x :float)
   (y :float)
   (u :float)
   (v :float)
   (col :uint32))
 
 (defstruct (textured-2d-vertex-array
-            (:include vertex-array)
-            (:constructor make-textured-2d-vertex-array
-                (&optional
-                   (allocated-count +draw-list-alloc-size+)
-                   (foreign-type '(:struct textured-2d-vertex))
-                   (fill-pointer 0)
-                   (ptr (foreign-alloc foreign-type :count allocated-count))
-                   (foreign-type-size (foreign-type-size foreign-type))))))
+             (:include vertex-array)
+             (:constructor make-textured-2d-vertex-array
+			   (&optional
+			    (allocated-count +draw-list-alloc-size+)
+			    (foreign-type '(:struct textured-2d-vertex))
+			    (fill-pointer 0)
+			    (ptr (foreign-alloc foreign-type :count allocated-count))
+			    (foreign-type-size (foreign-type-size foreign-type))))))
 
 (declaim (inline (setf textured-2d-vertex-x)))
 (defun (setf textured-2d-vertex-x) (value ptr)
@@ -141,15 +141,15 @@
     (with-slots (ptr fill-pointer allocated-count) textured-2d-vertex-array
       (unless (< fill-pointer allocated-count)
         (let ((new-count (* 2 allocated-count)))
-	      (declare (type fixnum new-count))
-	      (let ((new-array (foreign-alloc vertex-type :count new-count))
-		        (old-array ptr))
-	        (memcpy new-array old-array
-		            (* (cl:the (integer 0 #.(floor most-positive-fixnum 512)) fill-pointer)
-		               (cl:the (integer 0 512) vertex-type-size)))
-	        (setf ptr new-array)
-	        (setf allocated-count new-count)
-	        (foreign-free old-array))))
+	  (declare (type fixnum new-count))
+	  (let ((new-array (foreign-alloc vertex-type :count new-count))
+		(old-array ptr))
+	    (memcpy new-array old-array
+		    (* (cl:the (integer 0 #.(floor most-positive-fixnum 512)) fill-pointer)
+		       (cl:the (integer 0 512) vertex-type-size)))
+	    (setf ptr new-array)
+	    (setf allocated-count new-count)
+	    (foreign-free old-array))))
       (let ((ptr (mem-aptr ptr vertex-type fill-pointer)))
         ;; setf foreign-slot-value has got to be slow
         ;; especially when it can't reason about the type at compile time.
@@ -168,7 +168,7 @@
   (textured-2d-vertex-array-push-extend vertex-array sf-x sf-y +tex-white-pixel-u+ +tex-white-pixel-v+ ub32-color))
 
 (defcstruct textured-3d-vertex
-  (x :float)
+    (x :float)
   (y :float)
   (z :float)
   (u :float)
@@ -176,7 +176,7 @@
   (col :uint32))
 
 (defcstruct textured-3d-vertex-with-normal
-  (x :float)
+    (x :float)
   (y :float)
   (z :float)
   (u :float)
@@ -187,14 +187,14 @@
   (nz :float))
 
 (defstruct (textured-3d-vertex-array
-            (:include vertex-array)
-            (:constructor make-textured-3d-vertex-array
-                (&optional
-                   (allocated-count +draw-list-alloc-size+)
-                   (foreign-type '(:struct textured-3d-vertex))
-                   (fill-pointer 0)
-                   (ptr (foreign-alloc foreign-type :count allocated-count))
-                   (foreign-type-size (foreign-type-size foreign-type))))))
+             (:include vertex-array)
+             (:constructor make-textured-3d-vertex-array
+			   (&optional
+			    (allocated-count +draw-list-alloc-size+)
+			    (foreign-type '(:struct textured-3d-vertex))
+			    (fill-pointer 0)
+			    (ptr (foreign-alloc foreign-type :count allocated-count))
+			    (foreign-type-size (foreign-type-size foreign-type))))))
 
 (declaim (inline (setf textured-2d-vertex-x)))
 (defun (setf textured-3d-vertex-x) (value ptr)
@@ -246,8 +246,8 @@
 	  (let ((new-array (foreign-alloc vertex-type :count new-count))
 		(old-array ptr))
 	    (memcpy new-array old-array
-			(* (cl:the (integer 0 #.(floor most-positive-fixnum 512)) fill-pointer)
-			   (cl:the (integer 0 512) vertex-type-size)))
+		    (* (cl:the (integer 0 #.(floor most-positive-fixnum 512)) fill-pointer)
+		       (cl:the (integer 0 512) vertex-type-size)))
 	    (setf ptr new-array)
 	    (setf allocated-count new-count)
 	    (foreign-free old-array))))
@@ -272,14 +272,14 @@
 
 
 (defstruct (textured-3d-vertex-with-normal-array
-            (:include vertex-array)
-            (:constructor make-textured-3d-vertex-with-normal-array
-                (&optional
-                   (allocated-count +draw-list-alloc-size+)
-                   (foreign-type '(:struct textured-3d-vertex-with-normal))
-                   (fill-pointer 0)
-                   (ptr (foreign-alloc foreign-type :count allocated-count))
-                   (foreign-type-size (foreign-type-size foreign-type))))))
+             (:include vertex-array)
+             (:constructor make-textured-3d-vertex-with-normal-array
+			   (&optional
+			    (allocated-count +draw-list-alloc-size+)
+			    (foreign-type '(:struct textured-3d-vertex-with-normal))
+			    (fill-pointer 0)
+			    (ptr (foreign-alloc foreign-type :count allocated-count))
+			    (foreign-type-size (foreign-type-size foreign-type))))))
 
 (declaim (inline (setf textured-2d-vertex-with-normal-nx)))
 (defun (setf textured-3d-vertex-with-normal-nx) (value ptr)
@@ -301,10 +301,10 @@
 
 (declaim (inline textured-3d-vertex-with-normal-array-push-extend))
 (defun textured-3d-vertex-with-normal-array-push-extend (vertex-array
-							                             sf-x sf-y sf-z
-							                             sf-nx sf-ny sf-nz
-							                             sf-u sf-v
-							                             ub32-color)
+							 sf-x sf-y sf-z
+							 sf-nx sf-ny sf-nz
+							 sf-u sf-v
+							 ub32-color)
   (declare (type textured-3d-vertex-with-normal-array vertex-array))
   (declare (type single-float sf-x sf-y sf-z sf-nx sf-ny sf-nz sf-u sf-v))
   (declare (type (unsigned-byte 32) ub32-color))
@@ -313,16 +313,16 @@
     (with-slots (ptr fill-pointer allocated-count) vertex-array
       (unless (< fill-pointer allocated-count)
         (let* ((new-count (* 2 allocated-count)))
-	      (declare (type fixnum new-count))
-	      (let ((new-array (foreign-alloc vertex-type :count new-count))
-		        (old-array ptr))
-	    	    
+	  (declare (type fixnum new-count))
+	  (let ((new-array (foreign-alloc vertex-type :count new-count))
+		(old-array ptr))
+	    
 
-	        (memcpy new-array old-array (* (cl:the (integer 0 #.(floor most-positive-fixnum 512)) fill-pointer)
-					                       (cl:the (integer 0 512) vertex-type-size)))
-	        (setf ptr new-array)
-	        (setf allocated-count new-count)
-	        (foreign-free old-array))))
+	    (memcpy new-array old-array (* (cl:the (integer 0 #.(floor most-positive-fixnum 512)) fill-pointer)
+					   (cl:the (integer 0 512) vertex-type-size)))
+	    (setf ptr new-array)
+	    (setf allocated-count new-count)
+	    (foreign-free old-array))))
       (let ((ptr (mem-aptr ptr vertex-type fill-pointer)))
         (setf (textured-3d-vertex-x ptr) sf-x
               (textured-3d-vertex-y ptr) sf-y
@@ -333,7 +333,7 @@
               (textured-3d-vertex-with-normal-nx ptr) sf-nx
               (textured-3d-vertex-with-normal-ny ptr) sf-ny
               (textured-3d-vertex-with-normal-nz ptr) sf-nz)
-	    (prog1 fill-pointer
+	(prog1 fill-pointer
           (incf fill-pointer))))))
 
 ;;(declaim (inline standard-3d-vertex-with-normal-array-push-extend))

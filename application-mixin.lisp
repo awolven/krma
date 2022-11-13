@@ -106,7 +106,7 @@
   (values))
 
 (defclass krma-application-mixin (  vulkan-application-mixin
-                                   )
+                                    )
   ((vk::application-name :initform "krma-application")
    (scene :initform nil :accessor application-scene)
    (pipeline-store :accessor application-pipeline-store)
@@ -290,7 +290,7 @@
 				    (scene (application-scene *app*)))
   "Immediate-mode function, returns no values.  Calls scene-draw-2d-polyline with closed? defaulting to nil, color defaulting to *default-color*, line-thickness defaulting to *default-line-thickness*, group defaulting to :default, and scene defaulting to (application-scene *app*). The required argument vertices should be of the form (list x0 y0 x1 y1 ... xn yn) where the x and y values must be real numbers."
   (scene-draw-2d-polyline scene group closed? line-thickness color vertices))
-  
+
 
 (defun add-2d-triangle-primitive (x0 y0 x1 y1 x2 y2 &key
                                                       (color *default-color*)
@@ -308,7 +308,7 @@
 					    (scene (application-scene *app*)))
   "Retained-mode function, creates an outline of a triangle, returns no values.  Calls scene-add-2d-triangle with color defaulting to *default-color*, line-thickness defaulting to *default-line-thickness*, group defaulting to :default and scene defaulting to (application-scene *app*).  The required arguments represent the vertices of the triangle and must be real numbers."
   (scene-add-2d-triangle scene group line-thickness color x0 y0 x1 y1 x2 y2))
-  
+
 
 (defun draw-2d-triangle (x0 y0 x1 y1 x2 y2 &key (color *default-color*)
                                              (line-thickness *default-line-thickness*)
@@ -333,7 +333,7 @@
 			   (scene (application-scene *app*)))
   "Retained-mode function, creates an outline of a rectangle, returns no values.  Calls scene-add-2d-rectangle with color defaulting to *default-color*, line-thickness defaulting to *default-line-thickness*,  group defaulting to :default and scene defaulting to (application-scene *app*).  The required arguments represent the top-left and bottom-right corners of the rectangle, and must be real numbers."
   (scene-add-2d-rectangle scene group line-thickness color x0 y0 x1 y1))
-  
+
 
 (defun draw-2d-rectangle (x0 y0 x1 y1 &key (color *default-color*)
                                         (line-thickness *default-line-thickness*)
@@ -375,7 +375,7 @@
   "Immediate-mode function, creates a polyline representing the arc of a circle, returns no values.  Calls scene-add-2d-circular-arc with closed? defaulting to nil, color defaulting to *default-color*, line-thickness defaulting to *default-line-thickness*, number-of-segments defaulting to 64, group defaulting to :default and scene defaulting to (application-scene *app*).  The required arguments should be real numbers and start-angle and end-angle are in radians."
   (scene-draw-2d-circular-arc scene group closed? line-thickness color
                               center-x center-y radius start-angle end-angle number-of-segments))
-  
+
 
 (defun add-2d-circle-primitive (center-x center-y radius
                                 &key (color *default-color*)
@@ -437,7 +437,7 @@
 				(scene (application-scene *app*)))
   "Immediate-mode function, creates  a filled 2d circle, returns no values.  Calls scene-draw-filled-2d-circle with color defaulting to *default-color*, number-of-sectors defaulting to 64,  group defaulting to :default and scene defaulting to (application-scene *app*).  The required arguments should be real numbers."
   (scene-draw-filled-2d-circle scene group color center-x center-y radius number-of-sectors))
-  
+
 
 (defun add-multicolor-3d-polyline-primitive (vertices &key (closed? nil)
                                                         (line-thickness *default-line-thickness*)
@@ -460,7 +460,7 @@
 					       (scene (application-scene *app*)))
   "Immediate-mode function, creates a multicolored 3d polyline, returns a no values.  Calls scene-draw-multicolored-3d-polyline with closed? defaulting to nil, line-thickness defaulting to *default-line-thickness*,  group defaulting to :default and scene defaulting to (application-scene *app*).  The required argument, vertices, should be of the form (list x0 y0 z0 color0 x1 y1 z1 color1 ... xn yn zn colorn) where the x y and z values should be real numbers and the color values should represent a color."
   (scene-draw-multicolor-3d-polyline scene group closed? line-thickness vertices))
-  
+
 
 (defun add-3d-polyline-primitive (vertices &key (color *default-color*)
                                              (closed? nil)
@@ -486,7 +486,7 @@
 				    (scene (application-scene *app*)))
   "Immediate-mode function, creates a 3d polyline, returns a no values.  Calls scene-draw-3d-polyline with color defaulting to *default-color*, closed? defaulting to nil, line-thickness defaulting to *default-line-thickness*, group defaulting to :default and scene defaulting to (application-scene *app*).  The required argument, vertices, should be of the form (list x0 y0 z0 x1 y1 z1 ... xn yn zn) where the x y and z values should be real numbers."
   (scene-draw-3d-polyline scene group closed? line-thickness color vertices))
-  
+
 
 (defun add-filled-2d-triangle-list-primitive (vertices &key (color *default-color*)
                                                          (matrix nil)
@@ -496,8 +496,8 @@
   (scene-add-filled-2d-triangle-list-primitive scene group matrix color vertices))
 
 (defun add-filled-2d-triangle-list (vertices &key (color *default-color*)
-					(group :default)
-					(scene (application-scene *app*)))
+					       (group :default)
+					       (scene (application-scene *app*)))
   "Retained-mode function, creates a series of filled 2d triangles, returns a no values.  Calls scene-add-filled-2d-triangle-list with color defaulting to *default-color*, group defaulting to :default and scene defaulting to (application-scene *app*).  The required argument, vertices, should be of the form (list x00 y00 x10 y10 x20 y20 x01 y01 x11 y11 x21 y21 ... x0n y0n x1n y1n x2n y2n) where the x and y values represent vertices of a triangle in a series of triangles."
   (scene-add-filled-2d-triangle-list scene group color vertices))
 
@@ -506,7 +506,7 @@
 						(scene (application-scene *app*)))
   "Immediate-mode function, creates a series of filled 2d triangles, returns a no values.  Calls scene-draw-2d-triangle-list with color defaulting to *default-color*, group defaulting to :default and scene defaulting to (application-scene *app*).  The required argument, vertices, should be of the form (list x00 y00  x10 y10 x20 y20 x01 y01 x11 y11 x21 y21 ... x0n y0n x1n y1 x2n y2n) where the x and y values represent vertices of a triangle in a series of triangles."
   (scene-draw-filled-2d-triangle-list scene group color vertices))
-  
+
 
 (defun add-filled-2d-rectangle-list-primitive (vertices &key (color *default-color*)
                                                           (matrix nil)
@@ -516,8 +516,8 @@
   (scene-add-filled-2d-rectangle-list-primitive scene group matrix color vertices))
 
 (defun add-filled-2d-rectangle-list (vertices &key (color *default-color*)
-					       (group :default)
-					       (scene (application-scene *app*)))
+						(group :default)
+						(scene (application-scene *app*)))
   "Retained-mode function a series of filled 2d rectangles, returns no values.  Calls scene-add-2d-rectangle-list with color defaulting to *default-color*, group defaulting to :default and scene defaulting to (application-scene *app*).  The required argument, vertices, should be of the form (list x00 y00 x10 y10 x01 y01 x11 y11 ... x0n y0n x1n y1n) where the x0's, and y0's and the x1's and y1's represent the top-left and bottom-right of a series of rectangles."
   (scene-add-filled-2d-rectangle-list scene group color vertices))
 
@@ -526,7 +526,7 @@
 						 (scene (application-scene *app*)))
   "Immediate-mode function a series of filled 2d rectangles, returns no values.  Calls scene-draw-2d-rectangle-list with color defaulting to *default-color*, group defaulting to :default and scene defaulting to (application-scene *app*).  The required argument, vertices, should be of the form (list x00 y00 x10 y10 x01 y01 x11 y11 ... x0n y0n x1n y1n) where the x0's, and y0's and the x1's and y1's represent the top-left and bottom-right of a series of rectangles."
   (scene-draw-filled-2d-rectangle-list scene group color vertices))
-						
+
 
 (defun add-textured-2d-rectangle-list-primitive (vertices &key (color *default-color*)
                                                             (texture *white-texture*)
@@ -649,7 +649,7 @@
             scene group texture color vertices))))
 
 (defun draw-textured-3d-triangle-list (vertices &key (color *default-color*)
-                                                 (texture *white-texture*)
+                                                  (texture *white-texture*)
                                                   (shading-style :diffuse)
                                                   (group :default)
 						  (scene (application-scene *app*)))
@@ -712,18 +712,18 @@
     (:flat (scene-draw-filled-3d-convex-polygon-flat scene group color vertices))))
 
 (defun add-filled-sphere-primitive (origin-x origin-y origin-z radius &key (color *default-color*)
-									                                    (resolution 64)
-									                                    (shading-style :diffuse)
-									                                    (light-position nil)
-									                                    (matrix nil)
-									                                    (group nil)
-									                                    (scene (application-scene *app*)))
+									(resolution 64)
+									(shading-style :diffuse)
+									(light-position nil)
+									(matrix nil)
+									(group nil)
+									(scene (application-scene *app*)))
   "Retained-mode function, creates a primitive of a filled sphere, returns a handle.  Calls scene-add-filled-sphere-primitive-diffuse when shading style is :diffuse, currently errors with any other shading style, with color defaulting to *default-color*, resolution defaulting to 64, light-position defaulting to nil, matrix defaulting to nil (identity), group defaulting to nil (no group), and scene defaulting to (application-scene *app*).  The required arguments should be real numbers. radius should be positive."
   (ecase shading-style
     (:diffuse (scene-add-filled-sphere-primitive-diffuse scene
-							                             group matrix color
-							                             origin-x origin-y origin-z radius
-							                             light-position resolution))))
+							 group matrix color
+							 origin-x origin-y origin-z radius
+							 light-position resolution))))
 
 (defun add-filled-sphere (origin-x origin-y origin-z radius &key (color *default-color*)
                                                               (resolution 64)
@@ -748,7 +748,7 @@
 						color
 						origin-x origin-y origin-z radius
 						resolution))))
-  
+
 
 
 
@@ -804,8 +804,8 @@
 
 (defun call-immediate-mode-work-functions (app)
   (maybe-defer-debug (app)
-    (let ((f (immediate-mode-work-function-1 app)))
-      (when f (funcall f)))))
+		     (let ((f (immediate-mode-work-function-1 app)))
+		       (when f (funcall f)))))
 
 (defmethod main ((app krma-test-application))
   (let* ((device (default-logical-device app))
@@ -870,58 +870,58 @@
 
         (loop while (zerop (glfwWindowShouldClose (h main-window)))
               do
-                 (glfwPollEvents)
+              (glfwPollEvents)
 
-                 (when (recreate-swapchain? main-window)
-                   (multiple-value-bind (width height) (get-framebuffer-size main-window)
-                     (recreate-swapchain main-window (swapchain main-window) width height)
-		     (setf (main-window-width app) width
-			   (main-window-height app) height)
-                     (setf (recreate-swapchain? main-window) nil)))
+              (when (recreate-swapchain? main-window)
+                (multiple-value-bind (width height) (get-framebuffer-size main-window)
+                  (recreate-swapchain main-window (swapchain main-window) width height)
+		  (setf (main-window-width app) width
+			(main-window-height app) height)
+                  (setf (recreate-swapchain? main-window) nil)))
 
-                 (let* ((swapchain (swapchain main-window))
-                        (frame-count (number-of-images swapchain))
-                        (current-frame (car current-frame-cons))
-                        (current-draw-data (car current-draw-data-cons))
-                        (scene (application-scene app))
-                        (frame-resource0 (elt (frame-resources swapchain) current-frame))
-                        (command-buffer (frame-command-buffer frame-resource0))
-                        (rm-draw-data (aref (rm-draw-data scene) current-draw-data)))
+              (let* ((swapchain (swapchain main-window))
+                     (frame-count (number-of-images swapchain))
+                     (current-frame (car current-frame-cons))
+                     (current-draw-data (car current-draw-data-cons))
+                     (scene (application-scene app))
+                     (frame-resource0 (elt (frame-resources swapchain) current-frame))
+                     (command-buffer (frame-command-buffer frame-resource0))
+                     (rm-draw-data (aref (rm-draw-data scene) current-draw-data)))
 
-                   (erase-immediate-mode-draw-data app)
-                   (setq work-queue (draw-data-work-queue rm-draw-data))
+                (erase-immediate-mode-draw-data app)
+                (setq work-queue (draw-data-work-queue rm-draw-data))
 
-                   (maybe-defer-debug (app)
-                     (loop with work = nil
-                           while (setq work (sb-concurrency:dequeue work-queue))
-                           do (funcall work)))
+                (maybe-defer-debug (app)
+				   (loop with work = nil
+					 while (setq work (sb-concurrency:dequeue work-queue))
+					 do (funcall work)))
 
-                   (call-immediate-mode-work-functions app)
+                (call-immediate-mode-work-functions app)
 
-                   (setq image-index
-                         (frame-begin swapchain (render-pass swapchain)
-                                      current-frame (clear-value main-window)
-                                      command-pool))
+                (setq image-index
+                      (frame-begin swapchain (render-pass swapchain)
+                                   current-frame (clear-value main-window)
+                                   command-pool))
 
-                   (loop with lambda = nil
-                         while (setq lambda (sb-concurrency:dequeue
-                                             (draw-data-deletion-queue rm-draw-data)))
-                         do (funcall lambda))
+                (loop with lambda = nil
+                      while (setq lambda (sb-concurrency:dequeue
+                                          (draw-data-deletion-queue rm-draw-data)))
+                      do (funcall lambda))
 
-		   (update-2d-camera scene)
-		   (update-3d-camera scene)
-                   ;; render here.
-		   (render-scene scene app command-buffer rm-draw-data (im-draw-data scene))
+		(update-2d-camera scene)
+		(update-3d-camera scene)
+                ;; render here.
+		(render-scene scene app command-buffer rm-draw-data (im-draw-data scene))
 
-                   (frame-end swapchain queue current-frame)
+                (frame-end swapchain queue current-frame)
 
-                   (frame-present swapchain queue current-frame image-index main-window)
+                (frame-present swapchain queue current-frame image-index main-window)
 
-                   ;; this needs to be the only thread that modifies current-frame
-                   (sb-ext:atomic-update (car current-frame-cons)
-                                         #'(lambda (cf) (mod (1+ cf) frame-count)))
-                   (sb-ext:atomic-update (car current-draw-data-cons)
-                                         #'(lambda (cdd) (mod (1+ cdd) 2)))))
+                ;; this needs to be the only thread that modifies current-frame
+                (sb-ext:atomic-update (car current-frame-cons)
+                                      #'(lambda (cf) (mod (1+ cf) frame-count)))
+                (sb-ext:atomic-update (car current-draw-data-cons)
+                                      #'(lambda (cdd) (mod (1+ cdd) 2)))))
 
         (shutdown-application app)))))
 
