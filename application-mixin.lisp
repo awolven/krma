@@ -515,7 +515,7 @@
   "Retained-mode function, creates a primitive, a series of filled 2d rectangles, returns a handle.  Calls scene-add-2d-rectangle-list-primitive with color defaulting to *default-color*, matrix defaulting to nil (identity), group defaulting to nil (no group) and scene defaulting to (application-scene *app*).  The required argument, vertices, should be of the form (list x00 y00 x10 y10 x01 y01 x11 y11 ... x0n y0n x1n y1n) where the x0's, and y0's and the x1's and y1's represent the top-left and bottom-right of a series of rectangles."
   (scene-add-filled-2d-rectangle-list-primitive scene group matrix color vertices))
 
-(defun add-filled-2d-triangle-list (vertices &key (color *default-color*)
+(defun add-filled-2d-rectangle-list (vertices &key (color *default-color*)
 					       (group :default)
 					       (scene (application-scene *app*)))
   "Retained-mode function a series of filled 2d rectangles, returns no values.  Calls scene-add-2d-rectangle-list with color defaulting to *default-color*, group defaulting to :default and scene defaulting to (application-scene *app*).  The required argument, vertices, should be of the form (list x00 y00 x10 y10 x01 y01 x11 y11 ... x0n y0n x1n y1n) where the x0's, and y0's and the x1's and y1's represent the top-left and bottom-right of a series of rectangles."
@@ -712,18 +712,18 @@
     (:flat (scene-draw-filled-3d-convex-polygon-flat scene group color vertices))))
 
 (defun add-filled-sphere-primitive (origin-x origin-y origin-z radius &key (color *default-color*)
-									(resolution 64)
-									(shading-style :diffuse)
-									(light-position nil)
-									(matrix nil)
-									(group nil)
-									(scene (application-scene *app*)))
+									                                    (resolution 64)
+									                                    (shading-style :diffuse)
+									                                    (light-position nil)
+									                                    (matrix nil)
+									                                    (group nil)
+									                                    (scene (application-scene *app*)))
   "Retained-mode function, creates a primitive of a filled sphere, returns a handle.  Calls scene-add-filled-sphere-primitive-diffuse when shading style is :diffuse, currently errors with any other shading style, with color defaulting to *default-color*, resolution defaulting to 64, light-position defaulting to nil, matrix defaulting to nil (identity), group defaulting to nil (no group), and scene defaulting to (application-scene *app*).  The required arguments should be real numbers. radius should be positive."
   (ecase shading-style
     (:diffuse (scene-add-filled-sphere-primitive-diffuse scene
-							 group matrix color
-							 origin-x origin-y origin-z radius
-							 resolution light-position))))
+							                             group matrix color
+							                             origin-x origin-y origin-z radius
+							                             light-position resolution))))
 
 (defun add-filled-sphere (origin-x origin-y origin-z radius &key (color *default-color*)
                                                               (resolution 64)
@@ -902,6 +902,11 @@
                          (frame-begin swapchain (render-pass swapchain)
                                       current-frame (clear-value main-window)
                                       command-pool))
+
+                   (loop with lambda = nil
+                         while (setq lambda (sb-concurrency:dequeue
+                                             (draw-data-deletion-queue rm-draw-data)))
+                         do (funcall lambda))
 
 		   (update-2d-camera scene)
 		   (update-3d-camera scene)

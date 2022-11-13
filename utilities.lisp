@@ -1,6 +1,7 @@
 (in-package :krma)
 
-(declaim (optimize (safety 3) (speed 3) (debug 3)))
+(declaim (optimize (safety 3) (speed 3) (debug 3))
+         (sb-ext:muffle-conditions sb-ext:compiler-note))
 
 (cffi:defcfun ("memcpy" memcpy) :pointer
   (dst :pointer)

@@ -27,6 +27,18 @@
    (2d-camera-projection-matrix)
    (2d-camera-view-matrix)))
 
+(defun finalize-scene (scene)
+  (let ((draw-data (im-draw-data scene)))
+    (sb-ext:finalize scene
+                     #'(lambda ()
+                         (%purge-im-groups-1 draw-data))
+                     :dont-save t)))
+
+(defmethod initialize-instance :after ((instance krma-essential-scene-mixin) &rest initargs)
+  (declare (ignore initargs))
+  (finalize-scene instance)
+  (values))
+
 (defclass standard-scene (krma-essential-scene-mixin) ())
 
 
@@ -1222,8 +1234,8 @@
     (let* ((glyph-table (slot-value data '3b-bmfont-common::chars))
            (scale-w (3b-bmfont-common:scale-w data))
            (scale-h (3b-bmfont-common:scale-h data))
-	   (pos-x (clampf pos-x))
-	   (pos-y (clampf pos-y))
+	         (pos-x (clampf pos-x))
+	         (pos-y (clampf pos-y))
            (vertices (compute-text-coordinates pos-x pos-y string glyph-table scale-w scale-h)))
       (%draw-data-draw-text-quad-list (im-draw-data scene) group font (canonicalize-color color) vertices))))
 
@@ -1542,21 +1554,26 @@
                                   (push key key-list)
                                   (let ((ia (draw-list-index-array draw-list))
                                         (va (draw-list-vertex-array draw-list))
-                                        (ib (draw-list-index-buffer draw-list))
-                                        (vb (draw-list-vertex-buffer draw-list)))
+                                        (im (draw-list-index-memory draw-list))
+                                        (vm (draw-list-vertex-memory draw-list)))
                                     (declare (type foreign-adjustable-array ia va))
                                     (foreign-free (foreign-array-ptr ia))
                                     (foreign-free (foreign-array-ptr va))
-                                    (progn
-                                      (vkDestroyBuffer (h ib) (h (vk::device ib)) (h (allocator ib)))
-                                      (vkFreeMemory (h (vk::device ib)) (h (allocated-memory ib)) (h (allocator ib)))
-                                      (vkDestroyBuffer (h vb) (h (vk::device vb)) (h (allocator vb)))
-                                      (vkFreeMemory (h (vk::device vb)) (h (allocated-memory vb)) (h (allocator vb))))
+                                    (vk::index-release-memory *app* im)
+                                    (vk::vertex-release-memory *app* vm)
                                     nil)))
                             ht)
                    (mapcar #'(lambda (key)
                                (remhash key ht))
-                           key-list))))
+                           key-list)))
+
+               (delete-primitives-with-groups (draw-list)
+                 (let ((cmd-vector (draw-list-cmd-vector draw-list)))
+                   (loop for cmd across cmd-vector
+                         for i from 0
+                         when (and cmd (find (cmd-group cmd) list-of-groups))
+                           do (setf (aref cmd-vector i) nil)))))
+
           (with-slots (2d-point-list-draw-list-table
                        2d-line-list-draw-list-table
                        2d-triangle-list-draw-list-table
@@ -1564,8 +1581,25 @@
                        3d-point-list-draw-list-table
                        3d-line-list-draw-list-table
                        3d-triangle-list-draw-list-table
-                       3d-triangle-list-with-normals-draw-list-table)
+                       3d-triangle-list-with-normals-draw-list-table
+
+                       2d-triangle-strip-draw-list
+                       3d-line-strip-draw-list
+                       3d-triangle-strip-draw-list
+                       3d-triangle-strip-with-normals-draw-list
+
+                       2d-point-list-draw-list
+                       2d-line-list-draw-list
+                       2d-triangle-list-draw-list
+                       2d-triangle-list-draw-list-for-text
+                       3d-point-list-draw-list
+                       3d-line-list-draw-list
+                       3d-triangle-list-draw-list
+                       3d-triangle-list-with-normals-draw-list
+                       )
               draw-data
+
+            ;; I don't like these brute force searches, but it can't be any slower than a render!
 
             (free-group-draw-lists 2d-point-list-draw-list-table)
             (free-group-draw-lists 2d-line-list-draw-list-table)
@@ -1574,7 +1608,21 @@
             (free-group-draw-lists 3d-point-list-draw-list-table)
             (free-group-draw-lists 3d-line-list-draw-list-table)
             (free-group-draw-lists 3d-triangle-list-draw-list-table)
-            (free-group-draw-lists 3d-triangle-list-with-normals-draw-list-table))
+            (free-group-draw-lists 3d-triangle-list-with-normals-draw-list-table)
+
+            (delete-primitives-with-groups 2d-triangle-strip-draw-list)
+            (delete-primitives-with-groups 3d-line-strip-draw-list)
+            (delete-primitives-with-groups 3d-triangle-strip-draw-list)
+            (delete-primitives-with-groups 3d-triangle-strip-with-normals-draw-list)
+            (delete-primitives-with-groups 2d-point-list-draw-list)
+            (delete-primitives-with-groups 2d-line-list-draw-list)
+            (delete-primitives-with-groups 2d-triangle-list-draw-list)
+            (delete-primitives-with-groups 2d-triangle-list-draw-list-for-text)
+            (delete-primitives-with-groups 3d-point-list-draw-list)
+            (delete-primitives-with-groups 3d-line-list-draw-list)
+            (delete-primitives-with-groups 3d-triangle-list-draw-list)
+            (delete-primitives-with-groups 3d-triangle-list-with-normals-draw-list))
+
 
           (let ((groups (draw-data-group-hash-table draw-data)))
             (unless groups
@@ -1584,6 +1632,54 @@
                     list-of-groups))))
     (error (c)
       (warn (concatenate 'string "while in delete-groups-1 ..." (princ-to-string c))))))
+
+(defun %purge-im-groups-1 (draw-data)
+  ;; call this function when finalizing a scene
+  (declare (type immediate-mode-draw-data draw-data))
+  (handler-case
+      (progn
+        (flet ((free-group-draw-lists (ht)
+                 (unless ht
+                   (warn "ht is null"))
+                 (maphash #'(lambda (key draw-list)
+                              (declare (ignore key))
+                              ;; we're wanting to delete all groups from immediate mode draw lists!
+                              (let ((ia (draw-list-index-array draw-list))
+                                    (va (draw-list-vertex-array draw-list))
+                                    (im (draw-list-index-memory draw-list))
+                                    (vm (draw-list-vertex-memory draw-list)))
+                                (declare (type foreign-adjustable-array ia va))
+                                (foreign-free (foreign-array-ptr ia))
+                                (foreign-free (foreign-array-ptr va))
+                                (vk::index-release-memory *app* im)
+                                (vk::vertex-release-memory *app* vm)
+                                nil))
+                          ht)))
+
+          (with-slots (2d-point-list-draw-list-table
+                       2d-line-list-draw-list-table
+                       2d-triangle-list-draw-list-table
+                       2d-triangle-list-draw-list-for-text-table
+                       3d-point-list-draw-list-table
+                       3d-line-list-draw-list-table
+                       3d-triangle-list-draw-list-table
+                       3d-triangle-list-with-normals-draw-list-table
+                       )
+              draw-data
+
+            ;; I don't like these brute force searches, but it can't be any slower than a render!
+
+            (free-group-draw-lists 2d-point-list-draw-list-table)
+            (free-group-draw-lists 2d-line-list-draw-list-table)
+            (free-group-draw-lists 2d-triangle-list-draw-list-table)
+            (free-group-draw-lists 2d-triangle-list-draw-list-for-text-table)
+            (free-group-draw-lists 3d-point-list-draw-list-table)
+            (free-group-draw-lists 3d-line-list-draw-list-table)
+            (free-group-draw-lists 3d-triangle-list-draw-list-table)
+            (free-group-draw-lists 3d-triangle-list-with-normals-draw-list-table))))
+
+    (error (c)
+      (warn (concatenate 'string "while in %purge-im-groups-1 ..." (princ-to-string c))))))
 
 (defun delete-groups (scene list-of-groups)
   (declare (type krma-essential-scene-mixin scene))

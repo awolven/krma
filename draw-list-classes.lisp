@@ -15,12 +15,18 @@
    (needs-compaction?
     :initform nil
     :accessor draw-list-needs-compaction?)
-   (index-buffer
-    :accessor draw-list-index-buffer
+   (index-memory
+    :accessor draw-list-index-memory
     :initform nil)
-   (vertex-buffer
-    :accessor draw-list-vertex-buffer
+   (index-size-aligned
+    :accessor draw-list-index-size-aligned
+    :initform 0)
+   (vertex-memory
+    :accessor draw-list-vertex-memory
     :initform nil)
+   (vertex-size-aligned
+    :accessor draw-list-vertex-size-aligned
+    :initform 0)
    (texture
     :accessor draw-list-texture
     :initform nil :initarg :texture)
