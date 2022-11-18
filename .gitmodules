@@ -10,3 +10,6 @@
 [submodule "submodules/zpb-ttf"]
 	path = submodules/zpb-ttf
 	url = git@github.com:3b/zpb-ttf.git
+[submodule "submodules/krma-shader-bin"]
+	path = submodules/krma-shader-bin
+	url = git@github.com:awolven/krma-shader-bin.git

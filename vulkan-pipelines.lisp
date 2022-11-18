@@ -174,7 +174,7 @@
   ())
 
 (defmethod fragment-shader-pathname ((pipeline texture-pipeline-mixin))
-  (asdf/system:system-relative-pathname :krma "texture.frag.spv"))
+  (asdf/system:system-relative-pathname :krma "submodules/krma-shader-bin/texture.frag.spv"))
 
 (defmethod pipeline-min-sample-shading ((pipeline texture-pipeline-mixin))
   0.0f0)
@@ -196,7 +196,7 @@
   ())
 
 (defmethod vertex-shader-pathname ((pipeline 2d-pipeline-mixin))
-  (asdf/system:system-relative-pathname :krma "standard-2d.vert.spv"))
+  (asdf/system:system-relative-pathname :krma "submodules/krma-shader-bin/standard-2d.vert.spv"))
 
 (defclass 2d-texture-pipeline-mixin (2d-pipeline-mixin texture-pipeline-mixin)
   ())
@@ -224,7 +224,7 @@
   ())
 
 (defmethod vertex-shader-pathname ((pipeline 3d-pipeline-mixin))
-  (asdf/system:system-relative-pathname :krma "standard-3d.vert.spv"))
+  (asdf/system:system-relative-pathname :krma "submodules/krma-shader-bin/standard-3d.vert.spv"))
 
 (defclass 3d-texture-pipeline-mixin (3d-pipeline-mixin texture-pipeline-mixin)
   ())
@@ -243,10 +243,10 @@
   '(:struct textured-3d-vertex-with-normal))
 
 (defmethod fragment-shader-pathname ((pipeline 3d-texture-with-normals-pipeline-mixin))
-  (asdf/system:system-relative-pathname :krma "diffuse+texture.frag.spv"))
+  (asdf/system:system-relative-pathname :krma "submodules/krma-shader-bin/diffuse+texture.frag.spv"))
 
 (defmethod vertex-shader-pathname ((pipeline 3d-texture-with-normals-pipeline-mixin))
-  (asdf/system:system-relative-pathname :krma "3d-with-normal.vert.spv"))
+  (asdf/system:system-relative-pathname :krma "submodules/krma-shader-bin/3d-with-normal.vert.spv"))
 
 (defclass texture-image (vk::image)
   ((descriptor-set :accessor texture-image-descriptor-set)))
@@ -756,7 +756,7 @@
   *font*)
 
 (defmethod fragment-shader-pathname ((pipeline msdf-text-pipeline))
-  (asdf/system:system-relative-pathname :krma "msdf-texture.frag.spv"))
+  (asdf/system:system-relative-pathname :krma "submodules/krma-shader-bin/msdf-texture.frag.spv"))
 
 (defmethod make-push-constant-ranges ((pipeline msdf-text-pipeline))
   (append (call-next-method)
