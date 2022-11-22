@@ -469,11 +469,10 @@
             ;; currently memory pool is not able to acquire anything bigger than 2^17
             ;; so at least this code tests the _current_ memory pool logic
             (setq memory-resource
-                  (progn (when (> new-size-aligned #.(expt 2 17))
-                           (error "bummer, need better memory pool."))
+                  (progn 
                          (if (> new-size-aligned old-size-aligned)
                              (if (draw-list-vertex-memory draw-list)
-                                 (progn (vk::vertex-release-memory *app* (draw-list-vertex-memory draw-list))
+                                 (progn (vk::release-vertex-memory *app* (draw-list-vertex-memory draw-list))
                                         (setf (draw-list-vertex-memory draw-list)
                                               (vk::acquire-vertex-memory-sized *app* new-size-aligned :host-visible)))
                                  (setf (draw-list-vertex-memory draw-list)
@@ -482,7 +481,7 @@
                                  (draw-list-vertex-memory draw-list)
                                  (setf (draw-list-vertex-memory draw-list)
                                        (vk::acquire-vertex-memory-sized *app* new-size-aligned :host-visible))))))
-            (mmap-buffer (vk::memory-pool-vertex-buffer (vk::memory-resource-memory-pool memory-resource))
+            (mmap-buffer (vk::memory-pool-buffer (vk::memory-resource-memory-pool memory-resource))
                          (foreign-array-ptr vertex-array) vertex-size memory-resource
                          new-size-aligned)))
 
@@ -491,11 +490,10 @@
                  (old-size-aligned (draw-list-vertex-size-aligned draw-list))
                  (memory-resource))
             (setq memory-resource
-                  (progn (when (> new-size-aligned #.(expt 2 17))
-                           (error "bummer, need better memory pool."))
+                  (progn 
                          (if (> new-size-aligned old-size-aligned)
                              (if (draw-list-index-memory draw-list)
-                                 (progn (vk::index-release-memory *app* (draw-list-index-memory draw-list))
+                                 (progn (vk::release-index-memory *app* (draw-list-index-memory draw-list))
                                         (setf (draw-list-index-memory draw-list)
                                               (vk::acquire-index-memory-sized *app* new-size-aligned :host-visible)))
                                  (setf (draw-list-index-memory draw-list)
@@ -504,7 +502,7 @@
                                  (draw-list-index-memory draw-list)
                                  (setf (draw-list-index-memory draw-list)
                                        (vk::acquire-index-memory-sized *app* new-size-aligned :host-visible))))))
-            (mmap-buffer (vk::memory-pool-index-buffer (vk::memory-resource-memory-pool memory-resource))
+            (mmap-buffer (vk::memory-pool-buffer (vk::memory-resource-memory-pool memory-resource))
                          (foreign-array-ptr index-array) index-size memory-resource
                          new-size-aligned))))))
 
@@ -838,9 +836,9 @@
                                        p-descriptor-sets
                                        0 +nullptr+))
 
-            (cmd-bind-vertex-buffers command-buffer (list (vk::memory-pool-vertex-buffer (vk::memory-resource-memory-pool (draw-list-vertex-memory draw-list))))
+            (cmd-bind-vertex-buffers command-buffer (list (vk::memory-pool-buffer (vk::memory-resource-memory-pool (draw-list-vertex-memory draw-list))))
                                      (list (vk::memory-resource-offset (draw-list-vertex-memory draw-list))))
-            (cmd-bind-index-buffer command-buffer (vk::memory-pool-index-buffer (vk::memory-resource-memory-pool (draw-list-index-memory draw-list)))
+            (cmd-bind-index-buffer command-buffer (vk::memory-pool-buffer (vk::memory-resource-memory-pool (draw-list-index-memory draw-list)))
                                    (vk::memory-resource-offset (draw-list-index-memory draw-list)) (foreign-array-foreign-type index-array))
 
             (flet ((render-standard-draw-indexed-cmd (cmd &aux (pipeline-default-font nil))
@@ -1025,9 +1023,9 @@
                                    1 1
                                    p-descriptor-sets
                                    0 +nullptr+))
-        (cmd-bind-vertex-buffers command-buffer (list (vk::memory-pool-vertex-buffer (vk::memory-resource-memory-pool (draw-list-vertex-memory draw-list))))
+        (cmd-bind-vertex-buffers command-buffer (list (vk::memory-pool-buffer (vk::memory-resource-memory-pool (draw-list-vertex-memory draw-list))))
                                  (list (vk::memory-resource-offset (draw-list-vertex-memory draw-list))))
-        (cmd-bind-index-buffer command-buffer (vk::memory-pool-index-buffer (vk::memory-resource-memory-pool (draw-list-index-memory draw-list)))
+        (cmd-bind-index-buffer command-buffer (vk::memory-pool-buffer (vk::memory-resource-memory-pool (draw-list-index-memory draw-list)))
                                (vk::memory-resource-offset (draw-list-index-memory draw-list)) (foreign-array-foreign-type index-array))
 
 	(let ((descriptor-set (texture-image-descriptor-set (or (draw-list-texture draw-list)
