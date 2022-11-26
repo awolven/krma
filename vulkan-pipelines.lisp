@@ -751,7 +751,7 @@
   ())
 
 (defmethod pipeline-default-font ((pipeline msdf-text-pipeline))
-  *font*)
+  (application-default-font *app*))
 
 (defmethod fragment-shader-pathname ((pipeline msdf-text-pipeline))
   (asdf/system:system-relative-pathname :krma "submodules/krma-shader-bin/msdf-texture.frag.spv"))

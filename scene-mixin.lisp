@@ -1142,7 +1142,11 @@
 
 ;; 2d-text
 (defun compute-text-coordinates (pos-x pos-y string glyph-table scale-w scale-h)
-  (loop for char across string
+  (declare (optimize (speed 3) (safety 0) (debug 0)))
+  (declare (type single-float pos-x pos-y scale-w scale-h))
+  (declare (type string string))
+  (declare (type hash-table glyph-table))
+  (loop for i from 0 below (length string)
 	with coords = nil
 	with glyph = nil
 	with dx = 0.0f0
@@ -1156,17 +1160,17 @@
 	with v1
 	with width
 	with height
-	do (setf glyph (gethash char glyph-table))
-	when (and glyph (not (eq (getf glyph :id) 32))) ;; hack to deal with #\space artifact
+	do (setf glyph (gethash (char string i) glyph-table))
+	when (and glyph (not (eq (3b-bmfont:glyph-id glyph) 32))) ;; hack to deal with #\space artifact
 	  do
-	     (setq width (clampf (getf glyph :width)))
-	     (setq height (clampf (getf glyph :height)))
-	     (setq u0 (clampf (/ (getf glyph :x) scale-w)))
-	     (setq v0 (clampf (/ (getf glyph :y) scale-h)))
-	     (setq u1 (+ u0 (clampf (/ width scale-w))))
-	     (setq v1 (+ v0 (clampf (/ height scale-h))))
-	     (setq x0 (+ pos-x (clampf (getf glyph :xoffset))))
-	     (setq y0 (+ pos-y (clampf (getf glyph :yoffset))))
+	     (setq width (float (3b-bmfont:glyph-width glyph) 1.0f0))
+	     (setq height (float (3b-bmfont:glyph-height glyph) 1.0f0))
+	     (setq u0 (/ (float (3b-bmfont:glyph-x glyph) 1.0f0) scale-w))
+	     (setq v0 (/ (float (3b-bmfont:glyph-y glyph) 1.0f0) scale-h))
+	     (setq u1 (+ u0 (/ width scale-w)))
+	     (setq v1 (+ v0 (/ height scale-h)))
+	     (setq x0 (+ pos-x (3b-bmfont:glyph-xoffset glyph)))
+	     (setq y0 (+ pos-y (3b-bmfont:glyph-yoffset glyph)))
 	     (setq x1 (+ x0 width))
 	     (setq y1 (+ y0 height))
 
@@ -1180,7 +1184,7 @@
 	     (push v1 coords)
 	     
 	when glyph
-	  do (incf dx (clampf (getf glyph :xadvance)))
+	  do (incf (cl:the single-float dx) (float (3b-bmfont:glyph-xadvance glyph) 1.0f0))
 	finally (return (nreverse coords))))
 
 (defun scene-add-text-primitive (scene group model-matrix font color pos-x pos-y string)
@@ -1192,8 +1196,8 @@
   (let ((data (font-data font)))
     (declare (type 3b-bmfont-common:bmfont data))
     (let* ((glyph-table (slot-value data '3b-bmfont-common::chars))
-           (scale-w (3b-bmfont-common:scale-w data))
-           (scale-h (3b-bmfont-common:scale-h data))
+           (scale-w (float (3b-bmfont-common:scale-w data) 1.0f0))
+           (scale-h (float (3b-bmfont-common:scale-h data) 1.0f0))
 	   (pos-x (clampf pos-x))
 	   (pos-y (clampf pos-y))
 	   (color (canonicalize-color color))
@@ -1212,8 +1216,8 @@
   (let ((data (font-data font)))
     (declare (type 3b-bmfont-common:bmfont data))
     (let* ((glyph-table (slot-value data '3b-bmfont-common::chars))
-           (scale-w (3b-bmfont-common:scale-w data))
-           (scale-h (3b-bmfont-common:scale-h data))
+           (scale-w (float (3b-bmfont-common:scale-w data) 1.0f0))
+           (scale-h (float (3b-bmfont-common:scale-h data) 1.0f0))
 	   (pos-x (clampf pos-x))
 	   (pos-y (clampf pos-y))
 	   (color (canonicalize-color color))
@@ -1232,8 +1236,8 @@
   (let ((data (font-data font)))
     (declare (type 3b-bmfont-common:bmfont data))
     (let* ((glyph-table (slot-value data '3b-bmfont-common::chars))
-           (scale-w (3b-bmfont-common:scale-w data))
-           (scale-h (3b-bmfont-common:scale-h data))
+           (scale-w (float (3b-bmfont-common:scale-w data) 1.0f0))
+           (scale-h (float (3b-bmfont-common:scale-h data) 1.0f0))
 	   (pos-x (clampf pos-x))
 	   (pos-y (clampf pos-y))
            (vertices (compute-text-coordinates pos-x pos-y string glyph-table scale-w scale-h)))

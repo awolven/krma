@@ -2,13 +2,13 @@
 
 (defun test ()
   (let* ((scene (application-scene *app*))
-         (data (font-data *font*))
+	 (font (application-default-font *app*))
+         (data (font-data font))
          (w (3b-bmfont-common:scale-w data))
          (h (3b-bmfont-common:scale-h data)))
     (rm-dispatch-to-render-thread-with-handle (scene draw-data handle)
 					      (%draw-data-add-text-quad-list-primitive draw-data handle :foo
-										       *identity-matrix*
-										       *font* #xffffffff
+										       nil font #xffffffff
 										       (list 0 0 0 0 w h 1 1)))))
 
 (defvar *handles*)
@@ -172,4 +172,5 @@
               (scene-draw-2d-rectangle scene :foo 2 #x00ff00ff 300 500 400 600)
               (scene-draw-2d-circular-arc scene :foo nil 2 #x0000ffff 160 1270 20 0 pi)
               (scene-draw-2d-circle scene :foo 2 #x00ffffff 210 1270 20)
-	      (scene-draw-text scene :foo *font* #xff0000ff 1000 100 "hullabaloo2")))))
+	      (scene-draw-text scene :foo (application-default-font *app*)
+			       #xff0000ff 1000 100 "hullabaloo2")))))
