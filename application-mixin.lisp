@@ -1,8 +1,5 @@
 (in-package :krma)
 
-(defvar *font*)
-(defvar *font2*)
-
 (defclass pipeline-store-mixin ()
   ((2d-point-list-pipeline :accessor pipeline-store-2d-point-list-pipeline)
    (2d-line-list-pipeline :accessor pipeline-store-2d-line-list-pipeline)
@@ -110,6 +107,7 @@
   ((vk::application-name :initform "krma-application")
    (scene :initform nil :accessor application-scene)
    (pipeline-store :accessor application-pipeline-store)
+   (default-font :initform nil :accessor application-default-font)
    (exit? :initform nil :accessor application-exit?)
    (current-frame-cons :initform (list 0) :accessor current-frame-cons)
    (current-draw-data-cons :initform (list 0) :accessor current-draw-data-cons)
@@ -753,25 +751,25 @@
 
 
 (defun add-text-primitive (string pos-x pos-y &key (color *default-color*)
-						(font *font*)
+						(font (application-default-font *app*))
 						(matrix nil)
 						(group nil)
 						(scene (application-scene *app*)))
-  "Retained-mode function, creates a primitive of a text string, returns a handle.  Calls scene-add-text-primitive with color defaulting to *default-color*, font defaulting to *font*, matrix defaulting to nil (identity), group defaulting to nil (no group), and scene defaulting to (application-scene *app*).  The required arguments should be real numbers.  pos-x and pos-y represent the upper left corner of the text."
+  "Retained-mode function, creates a primitive of a text string, returns a handle.  Calls scene-add-text-primitive with color defaulting to *default-color*, font defaulting to (application-default-font *app*), matrix defaulting to nil (identity), group defaulting to nil (no group), and scene defaulting to (application-scene *app*).  The required arguments should be real numbers.  pos-x and pos-y represent the upper left corner of the text."
   (scene-add-text-primitive scene group matrix font color pos-x pos-y string))
 
 (defun add-text (string pos-x pos-y &key (color *default-color*)
-                                      (font *font*)
+                                      (font (application-default-font *app*))
                                       (group :default)
 				      (scene (application-scene *app*)))
-  "Retained-mode function, creates text, returns a no values.  Calls scene-add-text with color defaulting to *default-color*, font defaulting to *font*, group defaulting to :default, and scene defaulting to (application-scene *app*).  The required arguments should be real numbers.  pos-x and pos-y represent the upper left corner of the text."
+  "Retained-mode function, creates text, returns a no values.  Calls scene-add-text with color defaulting to *default-color*, font defaulting to (application-default-font *app*), group defaulting to :default, and scene defaulting to (application-scene *app*).  The required arguments should be real numbers.  pos-x and pos-y represent the upper left corner of the text."
   (scene-add-text scene group font color pos-x pos-y string))
 
 (defun draw-text (string pos-x pos-y &key (color *default-color*)
-                                       (font *font*)
+                                       (font (application-default-font *app*))
                                        (group :default)
 				       (scene (application-scene *app*)))
-  "Immediate-mode function, creates text, returns a no values.  Calls scene-draw-text with color defaulting to *default-color*, font defaulting to *font*, group defaulting to :default, and scene defaulting to (application-scene *app*).  The required arguments should be real numbers.  pos-x and pos-y represent the upper left corner of the text."
+  "Immediate-mode function, creates text, returns a no values.  Calls scene-draw-text with color defaulting to *default-color*, font defaulting to (application-default-font *app*), group defaulting to :default, and scene defaulting to (application-scene *app*).  The required arguments should be real numbers.  pos-x and pos-y represent the upper left corner of the text."
   (scene-draw-text scene group font color pos-x pos-y string))
 
 (defun erase-draw-list (draw-list)
@@ -836,23 +834,19 @@
     (reset-command-pool device command-pool)
 
     ;; one time commands here.
-    (unless (probe-file (asdf/system:system-relative-pathname :krma "acache.json"))
-      (sdf-bmfont:create-bmfont #+linux "/usr/share/fonts/liberation-mono/LiberationMono-Regular.ttf"
-				#+darwin "/System/Library/Fonts/Monaco.ttf"
-                                #+windows "C:/Windows/Fonts/Arial.ttf" "acache.json"
-                                :size 16 :mode :msdf+a :type :json :spread 8))
-    #-(or linux darwin)
-    (unless (probe-file (asdf/system:system-relative-pathname :krma "tcache.json"))
-      (sdf-bmfont:create-bmfont "C:/Windows/Fonts/Times.ttf" "tcache.json" :size 16 :mode :msdf+a :type :json :spread 8))
+    (unless (probe-file (asdf/system:system-relative-pathname :krma "submodules/krma-fonts/rm16cache.json"))
+      (sdf-bmfont:create-bmfont
+       (asdf/system:system-relative-pathname
+	:krma "submodules/krma-fonts/Roboto_Mono/static/RobotoMono-Medium.ttf")
+       (asdf/system:system-relative-pathname :krma "submodules/krma-fonts/rm16cache.json")
+       :size 16 :mode :msdf+a :type :json :spread 8))
 
-
-    (setq *font*
-          (vulkan-make-font device queue sampler texture-dsl descriptor-pool command-buffer
-                            :cache-file "acache.json"))
-    #-(or linux darwin)
-    (setq *font2*
-          (vulkan-make-font device queue sampler texture-dsl descriptor-pool command-buffer
-                            :cache-file "tcache.json"))
+    (uiop/filesystem:with-current-directory
+	((asdf/system:system-relative-pathname :krma "submodules/krma-fonts/"))
+      (setf (application-default-font *app*)
+	    (vulkan-make-font
+	     device queue sampler texture-dsl descriptor-pool command-buffer
+	     :cache-file "rm16cache.json")))
 
     (let* ((bpp 4)
            (bitmap (make-array bpp :element-type '(unsigned-byte 8) :initial-element #xff)))
