@@ -16,3 +16,6 @@
 [submodule "submodules/krma-fonts"]
 	path = submodules/krma-fonts
 	url = git@github.com:awolven/krma-fonts.git
+[submodule "submodules/cl-vulkan"]
+	path = submodules/cl-vulkan
+	url = git@github.com:awolven/cl-vulkan.git
