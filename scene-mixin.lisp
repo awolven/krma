@@ -1,6 +1,6 @@
 (in-package :krma)
 
-#+NOTYET(declaim (optimize (speed 1) (safety 3) (debug 3)))
+(declaim (optimize (speed 1) (safety 3) (debug 3)))
 
 (defparameter +default-znear+ 0.001)
 (defparameter +default-zfar+ 3000.0)

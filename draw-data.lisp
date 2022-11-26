@@ -1,5 +1,8 @@
 (in-package :krma)
 
+(declaim (optimize (speed 3) (safety 0) (debug 3))
+	 (sb-ext:muffle-conditions sb-ext:compiler-note))
+
 (defstruct (group
 	     (:conc-name "GROUP-")
 	     (:constructor make-group

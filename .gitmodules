@@ -13,3 +13,6 @@
 [submodule "submodules/krma-shader-bin"]
 	path = submodules/krma-shader-bin
 	url = git@github.com:awolven/krma-shader-bin.git
+[submodule "submodules/krma-fonts"]
+	path = submodules/krma-fonts
+	url = git@github.com:awolven/krma-fonts.git

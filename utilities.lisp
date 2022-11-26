@@ -95,6 +95,7 @@
                       f0             f0             (/ f1 (- n f))  (/ n (- n f))
                       f0             f0             f0              f1)))
 
+
 (declaim (inline clampf) (type single-float clampf))
 (defun clampf (number)
   "Clamp real number to single-float limits."

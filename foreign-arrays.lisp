@@ -1,6 +1,6 @@
 (in-package :krma)
 
-;;(declaim (optimize (speed 3) (safety 0) (debug 3)))
+(declaim (optimize (speed 3) (safety 0) (debug 3)))
 
 (defstruct (foreign-adjustable-array
              (:conc-name "FOREIGN-ARRAY-"))
@@ -89,7 +89,7 @@
   (y :float)
   (u :float)
   (v :float)
-  (col :uint32))
+  (col :unsigned-int))
 
 (defstruct (textured-2d-vertex-array
              (:include vertex-array)
@@ -105,31 +105,31 @@
 (defun (setf textured-2d-vertex-x) (value ptr)
   (declare (type single-float value))
   (declare (type sb-sys:system-area-pointer ptr))
-  (cffi::mem-set value ptr :float (load-time-value (foreign-slot-offset '(:struct textured-2d-vertex) 'x))))
+  (cffi::%mem-set value ptr :float (load-time-value (foreign-slot-offset '(:struct textured-2d-vertex) 'x))))
 
 (declaim (inline (setf textured-2d-vertex-y)))
 (defun (setf textured-2d-vertex-y) (value ptr)
   (declare (type single-float value))
   (declare (type sb-sys:system-area-pointer ptr))
-  (cffi::mem-set value ptr :float (load-time-value (foreign-slot-offset '(:struct textured-2d-vertex) 'y))))
+  (cffi::%mem-set value ptr :float (load-time-value (foreign-slot-offset '(:struct textured-2d-vertex) 'y))))
 
 (declaim (inline (setf textured-2d-vertex-u)))
 (defun (setf textured-2d-vertex-u) (value ptr)
   (declare (type single-float value))
   (declare (type sb-sys:system-area-pointer ptr))
-  (cffi::mem-set value ptr :float (load-time-value (foreign-slot-offset '(:struct textured-2d-vertex) 'u))))
+  (cffi::%mem-set value ptr :float (load-time-value (foreign-slot-offset '(:struct textured-2d-vertex) 'u))))
 
 (declaim (inline (setf textured-2d-vertex-v)))
 (defun (setf textured-2d-vertex-v) (value ptr)
   (declare (type single-float value))
   (declare (type sb-sys:system-area-pointer ptr))
-  (cffi::mem-set value ptr :float (load-time-value (foreign-slot-offset '(:struct textured-2d-vertex) 'v))))
+  (cffi::%mem-set value ptr :float (load-time-value (foreign-slot-offset '(:struct textured-2d-vertex) 'v))))
 
 (declaim (inline (setf textured-2d-vertex-col)))
 (defun (setf textured-2d-vertex-col) (value ptr)
   (declare (type (unsigned-byte 32) value))
   (declare (type sb-sys:system-area-pointer ptr))
-  (cffi::mem-set value ptr :unsigned-int (load-time-value (foreign-slot-offset '(:struct textured-2d-vertex) 'col))))
+  (cffi::%mem-set value ptr :unsigned-int (load-time-value (foreign-slot-offset '(:struct textured-2d-vertex) 'col))))
 
 (declaim (inline textured-2d-vertex-array-push-extend))
 (defun textured-2d-vertex-array-push-extend (textured-2d-vertex-array sf-x sf-y sf-u sf-v ub32-color)
@@ -173,7 +173,7 @@
   (z :float)
   (u :float)
   (v :float)
-  (col :uint32))
+  (col :unsigned-int))
 
 (defcstruct textured-3d-vertex-with-normal
     (x :float)
@@ -181,7 +181,7 @@
   (z :float)
   (u :float)
   (v :float)
-  (col :uint32)
+  (col :unsigned-int)
   (nx :float)
   (ny :float)
   (nz :float))
@@ -200,37 +200,37 @@
 (defun (setf textured-3d-vertex-x) (value ptr)
   (declare (type single-float value))
   (declare (type sb-sys:system-area-pointer ptr))
-  (cffi::mem-set value ptr :float (load-time-value (foreign-slot-offset '(:struct textured-3d-vertex-with-normal) 'x))))
+  (cffi::%mem-set value ptr :float (load-time-value (foreign-slot-offset '(:struct textured-3d-vertex-with-normal) 'x))))
 
 (declaim (inline (setf textured-2d-vertex-y)))
 (defun (setf textured-3d-vertex-y) (value ptr)
   (declare (type single-float value))
   (declare (type sb-sys:system-area-pointer ptr))
-  (cffi::mem-set value ptr :float (load-time-value (foreign-slot-offset '(:struct textured-3d-vertex-with-normal) 'y))))
+  (cffi::%mem-set value ptr :float (load-time-value (foreign-slot-offset '(:struct textured-3d-vertex-with-normal) 'y))))
 
 (declaim (inline (setf textured-2d-vertex-z)))
 (defun (setf textured-3d-vertex-z) (value ptr)
   (declare (type single-float value))
   (declare (type sb-sys:system-area-pointer ptr))
-  (cffi::mem-set value ptr :float (load-time-value (foreign-slot-offset '(:struct textured-3d-vertex-with-normal) 'z))))
+  (cffi::%mem-set value ptr :float (load-time-value (foreign-slot-offset '(:struct textured-3d-vertex-with-normal) 'z))))
 
 (declaim (inline (setf textured-2d-vertex-u)))
 (defun (setf textured-3d-vertex-u) (value ptr)
   (declare (type single-float value))
   (declare (type sb-sys:system-area-pointer ptr))
-  (cffi::mem-set value ptr :float (load-time-value (foreign-slot-offset '(:struct textured-3d-vertex-with-normal) 'u))))
+  (cffi::%mem-set value ptr :float (load-time-value (foreign-slot-offset '(:struct textured-3d-vertex-with-normal) 'u))))
 
 (declaim (inline (setf textured-2d-vertex-v)))
 (defun (setf textured-3d-vertex-v) (value ptr)
   (declare (type single-float value))
   (declare (type sb-sys:system-area-pointer ptr))
-  (cffi::mem-set value ptr :float (load-time-value (foreign-slot-offset '(:struct textured-3d-vertex-with-normal) 'v))))
+  (cffi::%mem-set value ptr :float (load-time-value (foreign-slot-offset '(:struct textured-3d-vertex-with-normal) 'v))))
 
 (declaim (inline (setf textured-2d-vertex-col)))
 (defun (setf textured-3d-vertex-col) (value ptr)
   (declare (type (unsigned-byte 32) value))
   (declare (type sb-sys:system-area-pointer ptr))
-  (cffi::mem-set value ptr :uint32 (load-time-value (foreign-slot-offset '(:struct textured-3d-vertex-with-normal) 'col))))
+  (cffi::%mem-set value ptr :unsigned-int (load-time-value (foreign-slot-offset '(:struct textured-3d-vertex-with-normal) 'col))))
 
 ;;(declaim (inline textured-3d-array-push-extend))
 (defun textured-3d-vertex-array-push-extend (vertex-array sf-x sf-y sf-z sf-u sf-v ub32-color)
@@ -285,19 +285,19 @@
 (defun (setf textured-3d-vertex-with-normal-nx) (value ptr)
   (declare (type single-float value))
   (declare (type sb-sys:system-area-pointer ptr))
-  (cffi::mem-set value ptr :float (load-time-value (foreign-slot-offset '(:struct textured-3d-vertex-with-normal) 'nx))))
+  (cffi::%mem-set value ptr :float (load-time-value (foreign-slot-offset '(:struct textured-3d-vertex-with-normal) 'nx))))
 
 (declaim (inline (setf textured-2d-vertex-with-normal-ny)))
 (defun (setf textured-3d-vertex-with-normal-ny) (value ptr)
   (declare (type single-float value))
   (declare (type sb-sys:system-area-pointer ptr))
-  (cffi::mem-set value ptr :float (load-time-value (foreign-slot-offset '(:struct textured-3d-vertex-with-normal) 'ny))))
+  (cffi::%mem-set value ptr :float (load-time-value (foreign-slot-offset '(:struct textured-3d-vertex-with-normal) 'ny))))
 
 (declaim (inline (setf textured-2d-vertex-with-normal-nz)))
 (defun (setf textured-3d-vertex-with-normal-nz) (value ptr)
   (declare (type single-float value))
   (declare (type sb-sys:system-area-pointer ptr))
-  (cffi::mem-set value ptr :float (load-time-value (foreign-slot-offset '(:struct textured-3d-vertex-with-normal) 'nz))))
+  (cffi::%mem-set value ptr :float (load-time-value (foreign-slot-offset '(:struct textured-3d-vertex-with-normal) 'nz))))
 
 (declaim (inline textured-3d-vertex-with-normal-array-push-extend))
 (defun textured-3d-vertex-with-normal-array-push-extend (vertex-array
