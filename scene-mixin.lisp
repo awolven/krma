@@ -1161,7 +1161,7 @@
 	with width
 	with height
 	do (setf glyph (gethash (char string i) glyph-table))
-	when (and glyph (not (eq (3b-bmfont:glyph-id glyph) 32))) ;; hack to deal with #\space artifact
+	when (and glyph (not (eq (3b-bmfont-common:glyph-id glyph) 32))) ;; hack to deal with #\space artifact
 	  do
 	     (setq width (float (3b-bmfont:glyph-width glyph) 1.0f0))
 	     (setq height (float (3b-bmfont:glyph-height glyph) 1.0f0))

@@ -263,7 +263,7 @@
 					       (scene (application-scene *app*)))
   "Immediate-mode function, returns no values.  Calls scene-draw-multicolor-2d-polyline with closed? defaulting to nil. line-thickness defaulting to *default-line-thickness*, group defaulting to :default, and scene defaulting to (application-scene *app*).  The required argument vertices should be of the form (list x0 y0 color0 x1 y1 color1 ... xn yn colorn) where the x and y values must be real numbers and the color value must be a color."
   (scene-draw-multicolor-2d-polyline scene group closed? line-thickness vertices))
-
+
 (defun add-2d-polyline-primitive (vertices &key (closed? nil)
 					     (color *default-color*)
 					     (line-thickness *default-line-thickness*)
