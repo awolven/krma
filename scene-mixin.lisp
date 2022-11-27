@@ -1655,8 +1655,9 @@
                                 (declare (type foreign-adjustable-array ia va))
                                 (foreign-free (foreign-array-ptr ia))
                                 (foreign-free (foreign-array-ptr va))
-                                (vk::release-index-memory *app* im)
-                                (vk::release-vertex-memory *app* vm)
+				(when *app*
+				  (vk::release-index-memory *app* im)
+				  (vk::release-vertex-memory *app* vm))
                                 nil))
                           ht)))
 
