@@ -10,7 +10,17 @@
 
 (defgeneric create-device-objects (pipeline &key app))
 
-(defconstant +uber-vertex-shader-pc-size+ 24)
+(defconstant +uber-vertex-shader-model-matrix-offset+ 0)
+(defconstant +uber-vertex-shader-point-size-offset+ 16)
+(defconstant +uber-vertex-shader-primitive-type-offset+ 17)
+(defconstant +uber-vertex-shader-color-override-offset+  18)
+(defconstant +uber-vertex-shader-override-color-p-offset+ 19)
+(defconstant +uber-vertex-shader-pc-size+ 20)
+
+(defconstant +fragment-shader-select-box-min-offset+ 0)
+(defconstant +fragment-shader-select-box-max-offset+ (+ +fragment-shader-select-box-min-offset+ 2))
+(defconstant +text-fragment-shader-px-range-offset+ (+ +fragment-shader-select-box-max-offset+ 2))
+(defconstant +fragment-shader-pc-size+ (+ +text-fragment-shader-px-range-offset+ 2))
 
 (defclass pipeline-mixin ()
   ((application :reader application :initarg :app)
@@ -788,7 +798,7 @@
 ;;------
 
 (defun ubershader-render-draw-list-cmds (pipeline draw-data draw-list scene
-					 device command-buffer
+					 app device command-buffer
 					 model-matrix vproj width height)
   
   (declare (type draw-indexed-pipeline-mixin pipeline))
@@ -809,7 +819,6 @@
 	(unless (= 0 (fill-pointer cmd-vector))
 	  
 	  (let* ((pipeline-layout (pipeline-layout pipeline))
-		 ;;(index-buffer (vk::memory-pool-index-buffer (vk::memory-resource-memory-pool (draw-list-index-memory draw-list))))
                  (command-buffer-handle (h command-buffer))
 		 (mm))
 	    
@@ -878,21 +887,21 @@
 				   (setq mm model-matrix)))
 			   
 			   (if cmd-color-override
-			       (let ((pcol (mem-aptr pvalues :uint32 22)))
+			       (let ((pcol (mem-aptr pvalues :uint32 +uber-vertex-shader-color-override-offset+)))
 				 (setf (mem-aref pcol :uint32 0) cmd-color-override)
-				 (setf (mem-aref pvalues :uint32 23) 1))
+				 (setf (mem-aref pvalues :uint32 +uber-vertex-shader-override-color-p-offset+) 1))
 			       
 			       (if group-color-override
-				   (let ((pcol (mem-aptr pvalues :uint32 22)))
+				   (let ((pcol (mem-aptr pvalues :uint32 +uber-vertex-shader-color-override-offset+)))
 				     (setf (mem-aref pcol :uint32 0) group-color-override)
-				     (setf (mem-aref pvalues :uint32 23) 1))
-				   (setf (mem-aref pvalues :uint32 23) 0)))
+				     (setf (mem-aref pvalues :uint32 +uber-vertex-shader-override-color-p-offset+) 1))
+				   (setf (mem-aref pvalues :uint32 +uber-vertex-shader-override-color-p-offset+) 0)))
 
 			   (copy-matrix-to-foreign mm pvalues)
 
 			   (cond ((typep pipeline 'point-list-pipeline-mixin)
-				  (setf (mem-aref pvalues :uint32 21) 0)
-				  (let ((psize (mem-aptr pvalues :uint32 20)))
+				  (setf (mem-aref pvalues :uint32 +uber-vertex-shader-primitive-type-offset+) 0)
+				  (let ((psize (mem-aptr pvalues :uint32 +uber-vertex-shader-point-size-offset+)))
 				    (let ((cmd-point-size (cmd-point-size cmd)))
 				      (if cmd-point-size
 					  (setf (mem-aref psize :float) cmd-point-size)
@@ -902,7 +911,7 @@
 						(setf (mem-aref psize :float) *default-point-size*)))))))
 
 				 ((typep pipeline 'line-pipeline-mixin)
-				  (setf (mem-aref pvalues :uint32 21) 1)
+				  (setf (mem-aref pvalues :uint32 +uber-vertex-shader-primitive-type-offset+) 1)
 				  #-darwin
 				  (let ((cmd-line-width (cmd-line-thickness cmd)))
 				    (if cmd-line-width
@@ -912,26 +921,7 @@
 					      (vkCmdSetLineWidth command-buffer-handle pipeline-line-width)
 					      (vkCmdSetLineWidth command-buffer-handle *default-line-thickness*))))))
 
-				 (t (setf (mem-aref pvalues :uint32 21) 2)
-				    (let ((plp (mem-aptr pvalues :uint32 16)))
-				      (let ((cmd-light-position (cmd-light-position cmd)))
-					(if cmd-light-position
-					    (setf (mem-aref plp :float 0) (clampf (vx cmd-light-position))
-						  (mem-aref plp :float 1) (clampf (vy cmd-light-position))
-						  (mem-aref plp :float 2) (clampf (vz cmd-light-position)))
-					    (let ((group-light-position (and group (group-light-position group))))
-					      (if group-light-position
-						  (setf (mem-aref plp :float 0) (clampf (vx group-light-position))
-							(mem-aref plp :float 1) (clampf (vy group-light-position))
-							(mem-aref plp :float 2) (clampf (vz group-light-position)))
-						  (let ((scene-light-position (scene-light-position scene)))
-						    (if scene-light-position
-							(setf (mem-aref plp :float 0) (clampf (vx scene-light-position))
-							      (mem-aref plp :float 1) (clampf (vy scene-light-position))
-							      (mem-aref plp :float 2) (clampf (vz scene-light-position)))
-							(setf (mem-aref plp :float 0) (clampf (vx *default-light-position*))
-							      (mem-aref plp :float 1) (clampf (vy *default-light-position*))
-							      (mem-aref plp :float 2) (clampf (vy *default-light-position*))))))))))))
+				 (t (setf (mem-aref pvalues :uint32 +uber-vertex-shader-primitive-type-offset+) 2)))
 
 			   (vkCmdPushConstants command-buffer-handle
 					       (h pipeline-layout)
@@ -941,28 +931,32 @@
 								   (foreign-type-size :uint32)))
 					       pvalues)))
 
-		       (when (typep cmd 'text-draw-indexed-cmd)
-			 (let ((font (or (cmd-font cmd) pipeline-default-font)))
-			   (when font
-			     (with-foreign-object (pvalues2 :float 5)
-			       (setf (mem-aref pvalues2 :float 0) 0.0f0
-				     (mem-aref pvalues2 :float 1) 0.0f0
-				     (mem-aref pvalues2 :float 2) 0.0f0
-				     (mem-aref pvalues2 :float 3) 0.0f0)
-			       
+
+		       (with-foreign-object (pvalues2 :float +fragment-shader-pc-size+)
+			 (when (typep cmd 'text-draw-indexed-cmd)
+			   (let ((font (or (cmd-font cmd) pipeline-default-font)))
+			     (when font
 			       (let ((px-range (font-px-range font)))
 				 (if px-range
-				     (setf (mem-aref pvalues2 :float 4) (clampf px-range))
-				     (setf (mem-aref pvalues2 :float 4) 32.0f0)))
+				     (setf (mem-aref pvalues2 :float +text-fragment-shader-px-range-offset+) (clampf px-range))
+				     (setf (mem-aref pvalues2 :float +text-fragment-shader-px-range-offset+) 32.0f0))))))
+			 (let ((select-box-min (application-select-box-min app))
+			       (select-box-max (application-select-box-max app)))
+			   (setf (mem-aref pvalues2 :float +fragment-shader-select-box-min-offset+) (clampf (vx select-box-min))
+				 (mem-aref pvalues2 :float +fragment-shader-select-box-min-offset+) (clampf (vy select-box-min))
+				 (mem-aref pvalues2 :float +fragment-shader-select-box-max-offset+) (clampf (vx select-box-max))
+				 (mem-aref pvalues2 :float +fragment-shader-select-box-max-offset+) (clampf (vy select-box-max))))
+				 
 
-                               ;; make sure msdf-texture fragment shader can get px-range from font
-			       (vkCmdPushConstants command-buffer-handle
-						   (h pipeline-layout)
-						   VK_SHADER_STAGE_FRAGMENT_BIT
-						   (load-time-value (* +uber-vertex-shader-pc-size+
-								       (foreign-type-size :uint32)))
-						   (load-time-value (* 5 (foreign-type-size :float)))
-						   pvalues2)))))
+			 ;; make sure msdf-texture fragment shader can get px-range from font
+			 (vkCmdPushConstants command-buffer-handle
+					     (h pipeline-layout)
+					     VK_SHADER_STAGE_FRAGMENT_BIT
+					     (load-time-value (* +uber-vertex-shader-pc-size+
+								 (foreign-type-size :uint32)))
+					     (load-time-value (* +fragment-shader-pc-size+
+								 (foreign-type-size :float)))
+					     pvalues2))
 
 		       (vkCmdDrawIndexed command-buffer-handle
 					 (cmd-elem-count cmd) 1 (cmd-first-idx cmd) (cmd-vtx-offset cmd)
@@ -974,13 +968,13 @@
               t)))))))
 
 (defmethod render-draw-list-cmds ((pipeline draw-indexed-pipeline-mixin) draw-data draw-list scene
-				  device command-buffer
+				  app device command-buffer
 				  model-matrix vproj width height)
 
-  (ubershader-render-draw-list-cmds pipeline draw-data draw-list scene device command-buffer model-matrix vproj width height))
+  (ubershader-render-draw-list-cmds pipeline draw-data draw-list scene app device command-buffer model-matrix vproj width height))
 
 (defun ubershader-render-draw-list (pipeline draw-data draw-list scene
-				    device command-buffer
+				    app device command-buffer
 				    model-matrix vproj width height)
   
   (declare (type draw-indexed-pipeline-mixin))
@@ -1051,17 +1045,17 @@
 		  (setq mm (m* model-matrix group-model-matrix)))
 		(let ((group-color-override (group-color-override group)))
 		  (if group-color-override
-		      (let ((pcol (mem-aptr pvalues :uint32 22)))
+		      (let ((pcol (mem-aptr pvalues :uint32 +uber-vertex-shader-color-override-offset+)))
 			(setf (mem-aref pcol :uint32 0) group-color-override)
-			(setf (mem-aref pvalues :uint32 23) 1))
-		      (setf (mem-aref pvalues :uint32 23) 0))))
-	      (setf (mem-aref pvalues :uint32 23) 0))
+			(setf (mem-aref pvalues :uint32 +uber-vertex-shader-override-color-p-offset+) 1))
+		      (setf (mem-aref pvalues :uint32 +uber-vertex-shader-override-color-p-offset+) 0))))
+	      (setf (mem-aref pvalues :uint32 +uber-vertex-shader-override-color-p-offset+) 0))
 	  
 	  (copy-matrix-to-foreign mm pvalues)
 
 	  (cond ((typep pipeline 'point-list-pipeline-mixin)
-		 (setf (mem-aref pvalues :uint32 21) 0)
-                 (let ((psize (mem-aptr pvalues :uint32 20)))
+		 (setf (mem-aref pvalues :uint32 +uber-vertex-shader-primitive-type-offset+) 0)
+                 (let ((psize (mem-aptr pvalues :uint32 +uber-vertex-shader-point-size-offset+)))
 		   (let ((draw-list-point-size (draw-list-point-size draw-list)))
 		     (if draw-list-point-size
 			 (setf (mem-aref psize :float) (draw-list-point-size draw-list))
@@ -1071,7 +1065,7 @@
 			       (setf (mem-aref psize :float) *default-point-size*)))))))
 		
 		((typep pipeline 'line-pipeline-mixin)
-		 (setf (mem-aref pvalues :uint32 21) 1)
+		 (setf (mem-aref pvalues :uint32 +uber-vertex-shader-primitive-type-offset+) 1)
 
 		 #-darwin
 		 (let ((draw-list-line-width (draw-list-line-thickness draw-list)))
@@ -1082,21 +1076,7 @@
 			     (vkCmdSetLineWidth command-buffer-handle pipeline-line-width)
 			     (vkCmdSetLineWidth command-buffer-handle *default-line-thickness*))))))
 		
-		(t (setf (mem-aref pvalues :uint32 21) 2)
-                   (let ((plp (mem-aptr pvalues :uint32 16)))
-		     (let ((group-light-position (when group (group-light-position group))))
-		       (if group-light-position
-			   (setf (mem-aref plp :float 0) (clampf (vx group-light-position))
-				 (mem-aref plp :float 1) (clampf (vy group-light-position))
-				 (mem-aref plp :float 2) (clampf (vz group-light-position)))
-			   (let ((scene-light-position (scene-light-position scene)))
-			     (if scene-light-position
-				 (setf (mem-aref plp :float 0) (clampf (vx scene-light-position))
-				       (mem-aref plp :float 1) (clampf (vy scene-light-position))
-				       (mem-aref plp :float 2) (clampf (vz scene-light-position)))
-				 (setf (mem-aref plp :float 0) (clampf (vx *default-light-position*))
-				       (mem-aref plp :float 1) (clampf (vy *default-light-position*))
-				       (mem-aref plp :float 2) (clampf (vy *default-light-position*))))))))))
+		(t (setf (mem-aref pvalues :uint32 +uber-vertex-shader-primitive-type-offset+) 2)))
 
           ;; apperently the call to vkCmdPushConstants for vertex-shader must happen
           ;; before the call to vkCmdPushConstants for fragment-shader even though
@@ -1109,18 +1089,21 @@
 						  (foreign-type-size :uint32)))
 			      pvalues)
 
-          (let ((font (draw-list-font draw-list)))
-	    (when font
-	      (with-foreign-object (pvalues2 :float 5)
-		(setf (mem-aref pvalues2 :float 0) 0.0f0
-		      (mem-aref pvalues2 :float 1) 0.0f0
-		      (mem-aref pvalues2 :float 2) 0.0f0
-		      (mem-aref pvalues2 :float 3) 0.0f0)
+          
+	      (with-foreign-object (pvalues2 :float +fragment-shader-pc-size+)
+		(let ((font (draw-list-font draw-list)))
+		  (when font
+		    (let ((px-range (font-px-range font)))
+		      (if px-range
+			  (setf (mem-aref pvalues2 :float +text-fragment-shader-px-range-offset+) (clampf px-range))
+			  (setf (mem-aref pvalues2 :float +text-fragment-shader-px-range-offset+) 32.0f0)))))
 
-		(let ((px-range (font-px-range font)))
-		  (if px-range
-		      (setf (mem-aref pvalues2 :float 4) (clampf px-range))
-		      (setf (mem-aref pvalues2 :float 4) 32.0f0)))
+		(let ((select-box-min (application-select-box-min app))
+		      (select-box-max (application-select-box-max app)))
+		  (setf (mem-aref pvalues2 :float +fragment-shader-select-box-min-offset+) (clampf (vx select-box-min))
+			(mem-aref pvalues2 :float +fragment-shader-select-box-min-offset+) (clampf (vy select-box-min))
+			(mem-aref pvalues2 :float +fragment-shader-select-box-max-offset+) (clampf (vx select-box-max))
+			(mem-aref pvalues2 :float +fragment-shader-select-box-max-offset+) (clampf (vy select-box-max))))
 
                 ;; make sure msdf-texture fragment shader can get px-range from font
 		(vkCmdPushConstants command-buffer-handle
@@ -1128,8 +1111,9 @@
 				    VK_SHADER_STAGE_FRAGMENT_BIT
 				    (load-time-value (* +uber-vertex-shader-pc-size+
 							(foreign-type-size :uint32)))
-				    (load-time-value (* 5 (foreign-type-size :float)))
-				    pvalues2))))
+				    (load-time-value (* +fragment-shader-pc-size+
+							(foreign-type-size :float)))
+				    pvalues2))
 
           ;; draw the whole draw list in one command
 	  (vkCmdDrawIndexed command-buffer-handle
@@ -1137,6 +1121,6 @@
 			    1 0 0 0))))))
 
 (defmethod render-draw-list ((pipeline draw-indexed-pipeline-mixin) draw-data draw-list scene
-			     device command-buffer
+			     app device command-buffer
 			     model-matrix vproj width height)
-  (ubershader-render-draw-list pipeline draw-data draw-list scene device command-buffer model-matrix vproj width height))
+  (ubershader-render-draw-list pipeline draw-data draw-list scene app device command-buffer model-matrix vproj width height))

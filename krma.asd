@@ -1,7 +1,10 @@
 (defsystem krma
   :description "A platform independent graphics primitive rendering library."
-  :depends-on (:cffi :3d-vectors :3d-matrices  :cl-vulkan ;;#+darwin :cl-metal
-                                              :sdf/bmfont :3b-bmfont/json)
+  :depends-on (:cffi
+	       :float-features
+	       :3d-vectors :3d-matrices
+	       :cl-vulkan ;;#+darwin :cl-metal
+	       :sdf/bmfont :3b-bmfont/json)
   :author "Andrew K Wolven <awolven@gmail.com>"
   :serial t
   :components

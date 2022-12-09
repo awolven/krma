@@ -10,6 +10,7 @@
   (v)
   (col))
 
+;; debugging
 (defun get-vertex-at (draw-list index)
   (let* ((va (draw-list-vertex-array draw-list))
          (ptr (inc-pointer (foreign-array-ptr va) (* (foreign-array-foreign-type-size va) index))))
@@ -19,6 +20,7 @@
                           :v (foreign-slot-value ptr (foreign-array-foreign-type va) 'v)
                           :col (foreign-slot-value ptr (foreign-array-foreign-type va) 'col))))
 
+;; debugging
 (defun get-index-at (draw-list index)
   (let* ((ia (draw-list-index-array draw-list))
          (ptr (inc-pointer (foreign-array-ptr ia) (* (foreign-array-foreign-type-size ia) index))))
@@ -31,12 +33,13 @@
        (handler-case
 	   (progn ,@body)
 	 (error (c)
-	   (warn (concatenate 'string "While in " (symbol-name ',fn-name) ": " (princ-to-string c)))
+	   (warn (concatenate 'string "While in " ,(symbol-name fn-name) ": " (princ-to-string c)))
            ;;(break)
 	   (setf (foreign-array-fill-pointer (draw-list-index-array ,draw-list-sym)) ,first-index
 		 (foreign-array-fill-pointer (draw-list-vertex-array ,draw-list-sym)) ,initial-vtx-offset)
 	   nil)))))
 
+#+NOTYET
 (defun %prim-reserve (draw-list vertex-count index-count vertex-type-size index-type-size)
   ;; prim-reserve [potentially] allocates memory on the draw-list for indices and vertices
   ;; you can use prim-reserve when seq-vertices is an array
@@ -120,29 +123,31 @@
 ;; so you can't have more than 65536 points for the small draw-list
 ;; the large draw list would be used if you're drawing starts in a simulated sky or something
 ;; in which case you might want a different vertex type with point size
-(defun %draw-list-draw-2d-point (2d-draw-list ub32-color sf-x sf-y)
+(declaim (inline %draw-list-draw-2d-point))
+(defun %draw-list-draw-2d-point (2d-draw-list ub32-oid ub32-color sf-x sf-y)
   ;; for point-list-pipeline
   (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
-  (declare (type (unsigned-byte 32) ub32-color))
+  (declare (type (unsigned-byte 32) ub32-oid ub32-color))
   (declare (type single-float sf-x sf-y))
   (with-slots (vertex-array index-array) 2d-draw-list
     (let ((first-index (foreign-array-fill-pointer index-array))
           (vtx-offset (foreign-array-fill-pointer vertex-array)))
       (with-draw-list-transaction (%draw-list-draw-2d-point 2d-draw-list first-index vtx-offset)
-	(let ((offset (standard-2d-vertex-array-push-extend vertex-array sf-x sf-y ub32-color)))
+	(let ((offset (standard-2d-vertex-array-push-extend vertex-array ub32-oid sf-x sf-y ub32-color)))
           (index-array-push-extend index-array offset)
           (values))))))
 
-(defun %draw-list-add-2d-point (2d-draw-list atom-group model-mtx sf-point-size ub32-color sf-x sf-y)
+(declaim (inline %draw-list-add-2d-point))
+(defun %draw-list-add-2d-point (2d-draw-list ub32-oid atom-group model-mtx sf-point-size ub32-color sf-x sf-y)
   ;; for point-list-pipeline
   (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
-  (declare (type (unsigned-byte 32) ub32-color))
+  (declare (type (unsigned-byte 32) ub32-oid ub32-color))
   (declare (type single-float sf-x sf-y))
   (with-slots (vertex-array index-array) 2d-draw-list
     (let ((first-index (foreign-array-fill-pointer index-array))
           (vtx-offset (foreign-array-fill-pointer vertex-array)))
       (with-draw-list-transaction (%draw-list-add-2d-point 2d-draw-list first-index vtx-offset)
-	(standard-2d-vertex-array-push-extend vertex-array sf-x sf-y ub32-color)
+	(standard-2d-vertex-array-push-extend vertex-array ub32-oid sf-x sf-y ub32-color)
 	(index-array-push-extend index-array 0)
 	(let ((cmd (make-standard-draw-indexed-cmd
 		    2d-draw-list
@@ -151,29 +156,31 @@
 	  (vector-push-extend cmd (draw-list-cmd-vector 2d-draw-list))
 	  cmd)))))
 
-(defun %draw-list-draw-3d-point (3d-draw-list ub32-color sf-x sf-y sf-z)
+(declaim (inline %draw-list-draw-3d-point))
+(defun %draw-list-draw-3d-point (3d-draw-list ub32-oid ub32-color sf-x sf-y sf-z)
   ;; for point-list pipeline
   (declare (type 3d-vertex-draw-list-mixin 3d-draw-list))
-  (declare (type (unsigned-byte 32) ub32-color))
+  (declare (type (unsigned-byte 32) ub32-oid ub32-color))
   (declare (type single-float sf-x sf-y sf-z))		 
   (with-slots (vertex-array index-array) 3d-draw-list
     (let ((first-index (foreign-array-fill-pointer index-array))
           (vtx-offset (foreign-array-fill-pointer vertex-array)))
       (with-draw-list-transaction (%draw-list-draw-3d-point 3d-draw-list first-index vtx-offset)
-        (let ((offset (standard-3d-vertex-array-push-extend vertex-array sf-x sf-y sf-z ub32-color)))
+        (let ((offset (standard-3d-vertex-array-push-extend vertex-array ub32-oid sf-x sf-y sf-z ub32-color)))
           (index-array-push-extend index-array offset)
           (values))))))
 
-(defun %draw-list-add-3d-point (3d-draw-list atom-group model-mtx sf-point-size ub32-color sf-x sf-y sf-z)
+(declaim (inline %draw-list-add-3d-point))
+(defun %draw-list-add-3d-point (3d-draw-list ub32-oid atom-group model-mtx sf-point-size ub32-color sf-x sf-y sf-z)
   ;; for point-list-pipeline
   (declare (type 3d-vertex-draw-list-mixin 3d-draw-list))
-  (declare (type (unsigned-byte 32) ub32-color))
+  (declare (type (unsigned-byte 32) ub32-oid ub32-color))
   (declare (type single-float sf-x sf-y))
   (with-slots (vertex-array index-array) 3d-draw-list
     (let ((first-index (foreign-array-fill-pointer index-array))
           (vtx-offset (foreign-array-fill-pointer vertex-array)))
       (with-draw-list-transaction (%draw-list-add-3d-point 3d-draw-list first-index vtx-offset)
-	(standard-3d-vertex-array-push-extend vertex-array sf-x sf-y sf-z ub32-color)
+	(standard-3d-vertex-array-push-extend vertex-array ub32-oid sf-x sf-y sf-z ub32-color)
 	(index-array-push-extend index-array 0)
 	(let ((cmd (make-standard-draw-indexed-cmd 
 		    3d-draw-list
@@ -182,46 +189,36 @@
 	  (vector-push-extend cmd (draw-list-cmd-vector 3d-draw-list))
 	  cmd)))))
 
-;; A [2d|3d]-line-list-draw-list is intended to be processed in one cmd
-;; so the index-array ends up being a increasing list of non-negative integers
-;; when the index-array is not fragmented (meaining no lines have been deleted)
-;; then the indices happen to be consecutive
-;; since it is processed in one cmd the number of vertices for a small-draw-list cannot exceed 65536
-;; and the number of vertices for the large-draw-list cannot exceed (expt 2 32)
-;; since it's a single cmd it should be faster than line strips but take a bigger vertex-array
-;; the indexes returned by the draw function will be the "reciepts"
-;; for deleting the line.  If you delete indices you *must* repack the index-array
-;; but don't need to necessarily repack the vertex array
-;; you can use multiple line-list-draw-lists if you need more lines than 32768 for the small
-;; and (expt 2 31) for the large
-
-;; draw-2d-line-internal returns a cons of index (index-indexes) for a "receipt"
-(defun %draw-list-draw-2d-line (2d-draw-list ub32-color sf-x0 sf-y0 sf-x1 sf-y1)
+(declaim (inline %draw-list-draw-2d-line))
+(defun %draw-list-draw-2d-line (2d-draw-list ub32-oid ub32-color sf-x0 sf-y0 sf-x1 sf-y1)
   ;; for line-list pipeline
   (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
-  (declare (type (unsigned-byte 32) ub32-color))
+  (declare (type (unsigned-byte 32) ub32-oid ub32-color))
   (declare (type single-float sf-x0 sf-y0 sf-x1 sf-y1))
   (let* ((ia (draw-list-index-array 2d-draw-list))
          (va (draw-list-vertex-array 2d-draw-list))
          (first-index (foreign-array-fill-pointer ia))
          (vtx-offset (foreign-array-fill-pointer va)))
     (with-draw-list-transaction (%draw-list-draw-2d-line 2d-draw-list first-index vtx-offset)
-      (let ((offset0 (standard-2d-vertex-array-push-extend va sf-x0 sf-y0 ub32-color))
-            (offset1 (standard-2d-vertex-array-push-extend va sf-x1 sf-y1 ub32-color)))
+      (let ((offset0 (standard-2d-vertex-array-push-extend va ub32-oid sf-x0 sf-y0 ub32-color))
+            (offset1 (standard-2d-vertex-array-push-extend va ub32-oid sf-x1 sf-y1 ub32-color)))
         (index-array-push-extend ia offset0)
         (index-array-push-extend ia offset1)
         (values)))))
 
-(defun %draw-list-add-2d-line (2d-draw-list atom-group model-mtx sf-line-thickness ub32-color sf-x0 sf-y0 sf-x1 sf-y1)
+(declaim (inline %draw-list-add-2d-line))
+(defun %draw-list-add-2d-line (2d-draw-list ub32-oid atom-group model-mtx sf-line-thickness ub32-color sf-x0 sf-y0 sf-x1 sf-y1)
   ;; for line-list pipeline
   (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
+  (declare (type (unsigned-byte 32) ub32-oid ub32-color))
+  (declare (type single-float sf-x0 sf-y0 sf-x1 sf-y1))
   (let* ((ia (draw-list-index-array 2d-draw-list))
          (va (draw-list-vertex-array 2d-draw-list))
          (first-index (foreign-array-fill-pointer ia))
          (vtx-offset (foreign-array-fill-pointer va)))
     (with-draw-list-transaction (%draw-list-add-2d-line 2d-draw-list first-index vtx-offset)
-      (standard-2d-vertex-array-push-extend va sf-x0 sf-y0 ub32-color)
-      (standard-2d-vertex-array-push-extend va sf-x1 sf-y1 ub32-color)
+      (standard-2d-vertex-array-push-extend va ub32-oid sf-x0 sf-y0 ub32-color)
+      (standard-2d-vertex-array-push-extend va ub32-oid sf-x1 sf-y1 ub32-color)
       (index-array-push-extend ia 0)
       (index-array-push-extend ia 1)
       (let ((cmd (make-standard-draw-indexed-cmd
@@ -231,33 +228,37 @@
         (vector-push-extend cmd (draw-list-cmd-vector 2d-draw-list))
         cmd))))
 
-(defun %draw-list-draw-3d-line (3d-draw-list ub32-color sf-x0 sf-y0 sf-z0 sf-x1 sf-y1 sf-z1)
+(declaim (inline %draw-list-draw-3d-line))
+(defun %draw-list-draw-3d-line (3d-draw-list ub32-oid ub32-color sf-x0 sf-y0 sf-z0 sf-x1 sf-y1 sf-z1)
   ;; for line-list pipeline
   (declare (type 3d-vertex-draw-list-mixin 3d-draw-list))
-  (declare (type (unsigned-byte 32) ub32-color))
+  (declare (type (unsigned-byte 32) ub32-oid ub32-color))
   (declare (type single-float sf-x0 sf-y0 sf-z0 sf-x1 sf-y1 sf-z1))
   (let* ((ia (draw-list-index-array 3d-draw-list))
          (va (draw-list-vertex-array 3d-draw-list))
          (first-index (foreign-array-fill-pointer ia))
          (vtx-offset (foreign-array-fill-pointer va)))
     (with-draw-list-transaction (%draw-list-draw-3d-line 3d-draw-list first-index vtx-offset)
-      (let ((offset0 (standard-3d-vertex-array-push-extend va sf-x0 sf-y0 sf-z0 ub32-color))
-            (offset1 (standard-3d-vertex-array-push-extend va sf-x1 sf-y1 sf-z1 ub32-color)))
+      (let ((offset0 (standard-3d-vertex-array-push-extend va ub32-oid sf-x0 sf-y0 sf-z0 ub32-color))
+            (offset1 (standard-3d-vertex-array-push-extend va ub32-oid sf-x1 sf-y1 sf-z1 ub32-color)))
         (index-array-push-extend ia offset0)
         (index-array-push-extend ia offset1)
         (values)))))
 
-(defun %draw-list-add-3d-line (3d-draw-list atom-group model-mtx sf-line-thickness ub32-color
+(declaim (inline %draw-list-add-3d-line))
+(defun %draw-list-add-3d-line (3d-draw-list ub32-oid atom-group model-mtx sf-line-thickness ub32-color
 			       sf-x0 sf-y0 sf-z0 sf-x1 sf-y1 sf-z1)
   ;; for line-list pipeline
   (declare (type 3d-vertex-draw-list-mixin 3d-draw-list))
+  (declare (type (unsigned-byte 32) ub32-oid ub32-color))
+  (declare (type single-float sf-x0 sf-y0 sf-z0 sf-x1 sf-y1 sf-z1))
   (let* ((ia (draw-list-index-array 3d-draw-list))
          (va (draw-list-vertex-array 3d-draw-list))
          (first-index (foreign-array-fill-pointer ia))
          (vtx-offset (foreign-array-fill-pointer va)))
     (with-draw-list-transaction (%draw-list-add-3d-line 3d-draw-list first-index vtx-offset)
-      (standard-3d-vertex-array-push-extend va sf-x0 sf-y0 sf-z0 ub32-color)
-      (standard-3d-vertex-array-push-extend va sf-x1 sf-y1 sf-z1 ub32-color)
+      (standard-3d-vertex-array-push-extend va ub32-oid sf-x0 sf-y0 sf-z0 ub32-color)
+      (standard-3d-vertex-array-push-extend va ub32-oid sf-x1 sf-y1 sf-z1 ub32-color)
       (index-array-push-extend ia 0)
       (index-array-push-extend ia 1)
       (let ((cmd (make-standard-draw-indexed-cmd
@@ -267,11 +268,12 @@
 	(vector-push-extend cmd (draw-list-cmd-vector 3d-draw-list))
 	cmd))))
 
-(defun %draw-list-draw-2d-polyline (2d-draw-list bool-closed? ub32-color seq-vertices)
+(declaim (inline %draw-list-draw-2d-polyline))
+(defun %draw-list-draw-2d-polyline (2d-draw-list ub32-oid bool-closed? ub32-color seq-vertices)
   ;; for line-list pipeline
   (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
   (declare (type boolean bool-closed?))
-  (declare (type (unsigned-byte 32) ub32-color))
+  (declare (type (unsigned-byte 32) ub32-oid ub32-color))
   (declare (type sequence seq-vertices))
   ;; there must be at least one vertex to succeed
   (let* ((index-array (draw-list-index-array 2d-draw-list))
@@ -290,9 +292,9 @@
 	       (setq y0 (clampf y0))
 	       (setq x1 (clampf x1))
 	       (setq y1 (clampf y1))
-	       (setq offset (standard-2d-vertex-array-push-extend vertex-array x0 y0 ub32-color))
+	       (setq offset (standard-2d-vertex-array-push-extend vertex-array ub32-oid x0 y0 ub32-color))
 	       (index-array-push-extend index-array offset)
-	       (setq offset (standard-2d-vertex-array-push-extend vertex-array x1 y1 ub32-color))
+	       (setq offset (standard-2d-vertex-array-push-extend vertex-array ub32-oid x1 y1 ub32-color))
 	       (index-array-push-extend index-array offset)
 	       (incf number-of-vertices 2)
                finally (assert (>= number-of-vertices 2))
@@ -301,17 +303,18 @@
 		 (index-array-push-extend index-array vtx-offset))
 	       (return (values))))))))
 
-(defun %draw-list-draw-2d-rectangle (2d-draw-list ub32-color sf-x0 sf-y0 sf-x1 sf-y1)
+(declaim (inline %draw-list-draw-2d-rectangle))
+(defun %draw-list-draw-2d-rectangle (2d-draw-list ub32-oid ub32-color sf-x0 sf-y0 sf-x1 sf-y1)
   ;; for line-list pipeline
   (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
-  (declare (type (unsigned-byte 32) ub32-color))
+  (declare (type (unsigned-byte 32) ub32-oid ub32-color))
   (declare (type single-float sf-x0 sf-y0 sf-x1 sf-y1))
-  (%draw-list-draw-2d-polyline 2d-draw-list t ub32-color
+  (%draw-list-draw-2d-polyline 2d-draw-list ub32-oid t ub32-color
                                (list sf-x0 sf-y0 sf-x0 sf-y1 sf-x1 sf-y1 sf-x1 sf-y0)))
 
-;; the argument `vertices' is a list of x y ... repeating
-;; for single color polylines
-(defun %draw-list-add-2d-polyline (2d-draw-list atom-group model-mtx bool-closed?
+
+(declaim (inline %draw-list-add-2d-polyline))
+(defun %draw-list-add-2d-polyline (2d-draw-list ub32-oid atom-group model-mtx bool-closed?
 				   sf-line-thickness ub32-color seq-vertices)
   ;; for line-strip pipeline
   (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
@@ -331,7 +334,7 @@
 	 (loop for (x y) on seq-vertices by #'cddr
                do (setq x (clampf x))
 	       (setq y (clampf y))
-	       (standard-2d-vertex-array-push-extend vertex-array x y ub32-color)
+	       (standard-2d-vertex-array-push-extend vertex-array ub32-oid x y ub32-color)
                (index-array-push-extend index-array elem-count)
                (incf elem-count)
                finally (when bool-closed?
@@ -345,17 +348,19 @@
         (vector-push-extend cmd (draw-list-cmd-vector 2d-draw-list))
         cmd))))
 
-(defun %draw-list-add-2d-rectangle (2d-draw-list atom-group model-mtx sf-line-thickness ub32-color
+(declaim (inline %draw-list-add-2d-rectangle))
+(defun %draw-list-add-2d-rectangle (2d-draw-list ub32-oid atom-group model-mtx sf-line-thickness ub32-color
                                     sf-x0 sf-y0 sf-x1 sf-y1)
   ;; for line-strip pipeline
   (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
   (declare (type (unsigned-byte 32) ub32-color))
   (declare (type single-float sf-x0 sf-y0 sf-x1 sf-y1))
-  (%draw-list-add-2d-polyline 2d-draw-list atom-group model-mtx t sf-line-thickness
+  (%draw-list-add-2d-polyline 2d-draw-list ub32-oid atom-group model-mtx t sf-line-thickness
 			      ub32-color (list sf-x0 sf-y0 sf-x0 sf-y1 sf-x1 sf-y1 sf-x1 sf-y0)))
 
 ;; the argument `seq-vertices' is a cl sequence of x y color ... repeating
-(defun %draw-list-draw-multicolor-2d-polyline (2d-draw-list bool-closed? seq-vertices)
+(declaim (inline %draw-list-draw-multicolor-2d-polyline))
+(defun %draw-list-draw-multicolor-2d-polyline (2d-draw-list ub32-oid bool-closed? seq-vertices)
   ;; uses line-list
   (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
   (declare (type boolean bool-closed?))
@@ -379,9 +384,9 @@
 	       (setq x1 (clampf x1))
 	       (setq y1 (clampf y1))
 	       (setq color1 (canonicalize-color color1))
-	       (setq offset (standard-2d-vertex-array-push-extend vertex-array x0 y0 color0))
+	       (setq offset (standard-2d-vertex-array-push-extend vertex-array ub32-oid x0 y0 color0))
 	       (index-array-push-extend index-array offset)
-	       (setq offset (standard-2d-vertex-array-push-extend vertex-array x1 y1 color1))
+	       (setq offset (standard-2d-vertex-array-push-extend vertex-array ub32-oid x1 y1 color1))
 	       (index-array-push-extend index-array offset)
 	       (incf number-of-vertices 2)
 	       finally (assert (>= number-of-vertices 2))
@@ -390,7 +395,8 @@
 		 (index-array-push-extend index-array vtx-offset))
 	       (return (values))))))))
 
-(defun %draw-list-add-multicolor-2d-polyline (2d-draw-list atom-group model-mtx bool-closed? sf-line-thickness
+(declaim (inline %draw-list-add-multicolor-2d-polyline))
+(defun %draw-list-add-multicolor-2d-polyline (2d-draw-list ub32-oid atom-group model-mtx bool-closed? sf-line-thickness
 					      seq-vertices)
   ;; uses line-strip
   (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
@@ -412,7 +418,7 @@
 	       do (setq x (clampf x))
 	       (setq y (clampf y))
 	       (setq color (canonicalize-color color))
-	       (standard-2d-vertex-array-push-extend vertex-array x y color)
+	       (standard-2d-vertex-array-push-extend vertex-array ub32-oid x y color)
 	       (index-array-push-extend index-array elem-count)
 	       (incf elem-count)
 	       finally (when bool-closed?
@@ -426,7 +432,8 @@
         (vector-push-extend cmd cmd-vector)
         cmd))))
 
-(defun %draw-list-draw-2d-line-list (2d-draw-list ub32-color seq-vertices)
+(declaim (inline %draw-list-draw-2d-line-list))
+(defun %draw-list-draw-2d-line-list (2d-draw-list ub32-oid ub32-color seq-vertices)
   (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
   (declare (type sequence seq-vertices))
   (let* ((index-array (draw-list-index-array 2d-draw-list))
@@ -443,13 +450,14 @@
 		   (setq y0 (clampf y0))
 		   (setq x1 (clampf x1))
 		   (setq y1 (clampf y1))
-		   (let ((offset (standard-2d-vertex-array-push-extend vertex-array x0 y0 ub32-color)))
+		   (let ((offset (standard-2d-vertex-array-push-extend vertex-array ub32-oid x0 y0 ub32-color)))
 		     (index-array-push-extend index-array offset))
-		   (let ((offset (standard-2d-vertex-array-push-extend vertex-array x1 y1 ub32-color)))
+		   (let ((offset (standard-2d-vertex-array-push-extend vertex-array ub32-oid x1 y1 ub32-color)))
 		     (index-array-push-extend index-array offset))
 		   finally (return (values))))))))))
 
-(defun %draw-list-add-2d-line-list (2d-draw-list atom-group model-mtx sf-line-thickness ub32-color seq-vertices)
+(declaim (inline %draw-list-add-2d-line-list))
+(defun %draw-list-add-2d-line-list (2d-draw-list ub32-oid atom-group model-mtx sf-line-thickness ub32-color seq-vertices)
   (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
   (declare (type sequence seq-vertices))
   (let* ((index-array (draw-list-index-array 2d-draw-list))
@@ -468,9 +476,9 @@
 		 (setq y0 (clampf y0))
 		 (setq x1 (clampf x1))
 		 (setq y1 (clampf y1))
-		 (standard-2d-vertex-array-push-extend vertex-array x0 y0 ub32-color)
+		 (standard-2d-vertex-array-push-extend vertex-array ub32-oid x0 y0 ub32-color)
 		 (index-array-push-extend index-array elem-count)
-		 (standard-2d-vertex-array-push-extend vertex-array x1 y1 ub32-color)
+		 (standard-2d-vertex-array-push-extend vertex-array ub32-oid x1 y1 ub32-color)
 		 (index-array-push-extend index-array (1+ elem-count))
                  (incf elem-count 2)))))
 
@@ -481,13 +489,14 @@
         (vector-push-extend cmd cmd-vector)
         cmd))))
 
-(defun %draw-list-draw-2d-circular-arc (2d-draw-list bool-closed? ub32-color
+(declaim (inline %draw-list-draw-2d-circular-arc))
+(defun %draw-list-draw-2d-circular-arc (2d-draw-list ub32-oid bool-closed? ub32-color
 					df-center-x df-center-y df-radius df-start-angle df-end-angle
 					fixnum-number-of-segments)
   ;; uses line list instead of line strip
   (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
   (declare (type boolean bool-closed?))
-  (declare (type (unsigned-byte 32) ub32-color))
+  (declare (type (unsigned-byte 32) ub32-oid ub32-color))
   (declare (type double-float df-center-x df-center-y df-radius df-start-angle df-end-angle))
   (declare (type fixnum fixnum-number-of-segments))
 
@@ -502,6 +511,7 @@
 	(declare (type double-float dtheta))
 	(setq offset
 	      (standard-2d-vertex-array-push-extend vertex-array
+						    ub32-oid
 						    (clampf (+ df-center-x (* df-radius (cos df-start-angle))))
 						    (clampf (+ df-center-y (* df-radius (sin df-start-angle))))
 						    ub32-color))
@@ -512,7 +522,7 @@
 			(coord-x (clampf (+ df-center-x (* df-radius (cos angle)))))
 			(coord-y (clampf (+ df-center-y (* df-radius (sin angle))))))
                    (index-array-push-extend index-array offset)
-                   (setq offset (standard-2d-vertex-array-push-extend vertex-array coord-x coord-y ub32-color))
+                   (setq offset (standard-2d-vertex-array-push-extend vertex-array ub32-oid coord-x coord-y ub32-color))
                    (index-array-push-extend index-array offset)
                    (incf theta step))
               finally (when bool-closed?
@@ -520,7 +530,8 @@
 	      (return (values)))))))
 
 
-(defun %draw-list-add-2d-circular-arc (2d-draw-list atom-group model-mtx bool-closed? sf-line-thickness ub32-color
+(declaim (inline %draw-list-add-2d-circular-arc))
+(defun %draw-list-add-2d-circular-arc (2d-draw-list ub32-oid atom-group model-mtx bool-closed? sf-line-thickness ub32-color
                                        df-center-x df-center-y df-radius df-start-angle df-end-angle
                                        fixnum-number-of-segments
                                        &optional (cmd-constructor #'make-standard-draw-indexed-cmd))
@@ -529,7 +540,7 @@
   (declare (type function cmd-constructor))
   (declare (type boolean bool-closed?))
   (declare (type single-float sf-line-thickness))
-  (declare (type (unsigned-byte 32) ub32-color))
+  (declare (type (unsigned-byte 32) ub32-oid ub32-color))
   (declare (type double-float df-center-x df-center-y df-radius df-start-angle df-end-angle))
   (declare (type fixnum fixnum-number-of-segments))
   
@@ -548,7 +559,7 @@
 				    (+ df-center-x (* df-radius (cos (cl:the double-float theta))))))
                           (coord-y (clampf
 				    (+ df-center-y (* df-radius (sin (cl:the double-float theta)))))))
-		     (standard-2d-vertex-array-push-extend vertex-array coord-x coord-y ub32-color)
+		     (standard-2d-vertex-array-push-extend vertex-array ub32-oid coord-x coord-y ub32-color)
 		     (index-array-push-extend index-array i)
 		     (incf (cl:the double-float theta) step))
                 finally (when bool-closed?
@@ -561,12 +572,13 @@
 	    (vector-push-extend cmd (draw-list-cmd-vector 2d-draw-list))
 	    cmd))))))
 
-(defun %draw-list-draw-2d-circle (2d-draw-list ub32-color
+(declaim (inline %draw-list-draw-2d-circle))
+(defun %draw-list-draw-2d-circle (2d-draw-list ub32-oid ub32-color
 				  df-center-x df-center-y df-radius
 				  fixnum-number-of-segments)
   ;; uses line list instead of line strip
   (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
-  (declare (type (unsigned-byte 32) ub32-color))
+  (declare (type (unsigned-byte 32) ub32-oid ub32-color))
   (declare (type double-float df-center-x df-center-y df-radius))
   (declare (type fixnum fixnum-number-of-segments))
   (let* ((index-array (draw-list-index-array 2d-draw-list))
@@ -578,6 +590,7 @@
     (with-draw-list-transaction (%draw-list-draw-2d-circle 2d-draw-list first-index vtx-offset)
       (setq offset
 	    (standard-2d-vertex-array-push-extend vertex-array
+						  ub32-oid
 						  (clampf (+ df-center-x (* df-radius #.(cos 0))))
 						  (clampf (+ df-center-y (* df-radius #.(sin 0))))
 						  ub32-color))
@@ -588,17 +601,18 @@
 		      (coord-x (clampf (+ df-center-x (* df-radius (cos angle)))))
                       (coord-y (clampf (+ df-center-y (* df-radius (sin angle))))))
                  (index-array-push-extend index-array offset)
-		 (setq offset (standard-2d-vertex-array-push-extend vertex-array coord-x coord-y ub32-color))
+		 (setq offset (standard-2d-vertex-array-push-extend vertex-array ub32-oid coord-x coord-y ub32-color))
 		 (index-array-push-extend index-array offset)
 		 (incf theta step))
 	    finally (return (values))))))
 
-(defun %draw-list-add-2d-circle (2d-draw-list atom-group model-mtx sf-line-thickness ub32-color
+(declaim (inline %draw-list-add-2d-circle))
+(defun %draw-list-add-2d-circle (2d-draw-list ub32-oid atom-group model-mtx sf-line-thickness ub32-color
                                  df-center-x df-center-y df-radius fixnum-number-of-segments
                                  &optional (cmd-constructor #'make-standard-draw-indexed-cmd))
   (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
   (declare (type function cmd-constructor))
-  (declare (type (unsigned-byte 32) ub32-color))
+  (declare (type (unsigned-byte 32) ub32-oid ub32-color))
   (declare (type double-float df-center-x df-center-y df-radius))
   (declare (type fixnum fixnum-number-of-segments))
 
@@ -613,7 +627,7 @@
               with step = (/ 2pi fixnum-number-of-segments)
               do (let* ((coord-x (clampf (+ df-center-x (* df-radius (cos (cl:the double-float theta))))))
                         (coord-y (clampf (+ df-center-y (* df-radius (sin (cl:the double-float theta)))))))
-                   (standard-2d-vertex-array-push-extend vertex-array coord-x coord-y ub32-color)
+                   (standard-2d-vertex-array-push-extend vertex-array ub32-oid coord-x coord-y ub32-color)
                    (index-array-push-extend index-array i)
                    (incf theta step))
               finally (index-array-push-extend index-array 0))
@@ -624,7 +638,8 @@
           (vector-push-extend cmd (draw-list-cmd-vector 2d-draw-list))
           cmd)))))
 
-(defun %draw-list-draw-3d-polyline (3d-draw-list bool-closed? ub32-color seq-vertices)
+(declaim (inline %draw-list-draw-3d-polyline))
+(defun %draw-list-draw-3d-polyline (3d-draw-list ub32-oid bool-closed? ub32-color seq-vertices)
   ;; for line-list pipeline
   (declare (type 3d-vertex-draw-list-mixin 3d-draw-list))
   (declare (type boolean bool-closed?))
@@ -647,7 +662,7 @@
                (setq y0 (clampf y0))
                (setq z0 (clampf z0))
 
-               (setq offset (standard-3d-vertex-array-push-extend vertex-array x0 y0 z0 ub32-color))
+               (setq offset (standard-3d-vertex-array-push-extend vertex-array ub32-oid x0 y0 z0 ub32-color))
                (index-array-push-extend index-array offset)
                (incf number-of-vertices)
 
@@ -657,19 +672,18 @@
                (setq y1 (clampf y1))
                (setq z1 (clampf z1))
 
-               (setq offset (standard-3d-vertex-array-push-extend vertex-array x1 y1 z1 ub32-color))
+               (setq offset (standard-3d-vertex-array-push-extend vertex-array ub32-oid x1 y1 z1 ub32-color))
                (index-array-push-extend index-array offset)
                (incf number-of-vertices)
 
                finally
                (assert (>= number-of-vertices 2))
                (when bool-closed?
-                 (index-array-push-extend index-array vtx-offset)
+                 (index-array-push-extend index-array vtx-offset))
+               (return (values))))))))
 
-                 )
-               (return (values))))))));;)
-
-(defun %draw-list-add-3d-polyline (3d-draw-list atom-group model-mtx bool-closed? sf-line-thickness ub32-color
+(declaim (inline %draw-list-add-3d-polyline))
+(defun %draw-list-add-3d-polyline (3d-draw-list ub32-oid atom-group model-mtx bool-closed? sf-line-thickness ub32-color
 				   seq-vertices
 				   &optional (cmd-constructor #'make-standard-draw-indexed-cmd))
   ;; line-strip
@@ -692,7 +706,7 @@
 	       do (setq x (clampf x))
 	       (setq y (clampf y))
 	       (setq z (clampf z))
-	       (standard-3d-vertex-array-push-extend vertex-array x y z ub32-color)
+	       (standard-3d-vertex-array-push-extend vertex-array ub32-oid x y z ub32-color)
 	       (index-array-push-extend index-array elem-count)
 	       (incf elem-count)
 	       finally (assert (>= elem-count 2))
@@ -706,7 +720,7 @@
 		 do (let ((x (clampf (aref seq-vertices i)))
 			  (y (clampf (aref seq-vertices (1+ i))))
 			  (z (clampf (aref seq-vertices (+ i 2)))))
-		      (standard-3d-vertex-array-push-extend vertex-array x y z ub32-color)
+		      (standard-3d-vertex-array-push-extend vertex-array ub32-oid x y z ub32-color)
 		      (index-array-push-extend index-array elem-count))
 		 finally (incf elem-count (/ len-vertices 3))
 		 (assert (>= elem-count 2))
@@ -720,7 +734,8 @@
         (vector-push-extend cmd (draw-list-cmd-vector 3d-draw-list))
         cmd))))
 
-(defun %draw-list-draw-multicolor-3d-polyline (3d-draw-list bool-closed? seq-vertices)
+(declaim (inline %draw-list-draw-multicolor-3d-polyline))
+(defun %draw-list-draw-multicolor-3d-polyline (3d-draw-list ub32-oid bool-closed? seq-vertices)
   ;; uses line-list
   (declare (type 3d-vertex-draw-list-mixin 3d-draw-list))
   (declare (type boolean bool-closed?))
@@ -746,9 +761,9 @@
 	       (setq y1 (clampf y1))
 	       (setq z1 (clampf z1))
 	       (setq color1 (canonicalize-color color1))
-	       (setq offset (standard-3d-vertex-array-push-extend vertex-array x0 y0 z0 color0))
+	       (setq offset (standard-3d-vertex-array-push-extend vertex-array ub32-oid x0 y0 z0 color0))
 	       (index-array-push-extend index-array offset)
-	       (setq offset (standard-3d-vertex-array-push-extend vertex-array x1 y1 z1 color1))
+	       (setq offset (standard-3d-vertex-array-push-extend vertex-array ub32-oid x1 y1 z1 color1))
 	       (index-array-push-extend index-array offset)
 	       (incf number-of-vertices 2)
 	       finally (assert (>= number-of-vertices 2))
@@ -757,8 +772,9 @@
 		 (index-array-push-extend index-array vtx-offset))
 	       (return (values))))))))
 
+(declaim (inline %draw-list-add-multicolor-3d-polyline))
 (defun %draw-list-add-multicolor-3d-polyline
-    (3d-draw-list atom-group model-mtx bool-closed? sf-line-thickness seq-vertices)
+    (3d-draw-list ub32-oid atom-group model-mtx bool-closed? sf-line-thickness seq-vertices)
   ;; line-strip
   (declare (type 3d-vertex-draw-list-mixin 3d-draw-list))
   (declare (type single-float sf-line-thickness))
@@ -779,7 +795,7 @@
 	       (setq y (clampf y))
 	       (setq z (clampf z))
 	       (setq color (canonicalize-color color))
-	       (standard-3d-vertex-array-push-extend vertex-array x y z color)
+	       (standard-3d-vertex-array-push-extend vertex-array ub32-oid x y z color)
 	       (index-array-push-extend index-array elem-count)
 	       (incf elem-count)
 	       finally (assert (>= elem-count 2))
@@ -793,10 +809,11 @@
         (vector-push-extend cmd (draw-list-cmd-vector 3d-draw-list))
         cmd))))
 
-(defun %draw-list-draw-filled-2d-triangle-list (2d-draw-list ub32-color seq-vertices)
+(declaim (inline %draw-list-draw-filled-2d-triangle-list))
+(defun %draw-list-draw-filled-2d-triangle-list (2d-draw-list ub32-oid ub32-color seq-vertices)
   ;; triangle list
   (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
-  (declare (type (unsigned-byte 32) ub32-color))
+  (declare (type (unsigned-byte 32) ub32-oid ub32-color))
   (declare (type sequence seq-vertices))
   (let* ((index-array (draw-list-index-array 2d-draw-list))
          (vertex-array (draw-list-vertex-array 2d-draw-list))
@@ -808,52 +825,14 @@
 	 (loop for (x y) on seq-vertices by #'cddr
 	       do (setq x (clampf x))
 	       (setq y (clampf y))
-	       (let ((offset (standard-2d-vertex-array-push-extend vertex-array x y ub32-color)))
+	       (let ((offset (standard-2d-vertex-array-push-extend vertex-array ub32-oid x y ub32-color)))
                  (index-array-push-extend index-array offset))
 	       finally (return (values))))))))
 
-#+MAYBE-DONT-NEED
-(defun %draw-list-add-filled-2d-triangle-list (2d-draw-list model-mtx ub32-color seq-vertices)
-  ;; triangle list
+(declaim (inline %draw-list-add-filled-2d-triangle-strip/list))
+(defun %draw-list-add-filled-2d-triangle-strip/list (2d-draw-list ub32-oid atom-group model-mtx ub32-color seq-vertices)
   (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
-  (declare (type (unsigned-byte 32) ub32-color))
-  (declare (type sequence seq-vertices))
-  (let* ((index-array (draw-list-index-array 2d-draw-list))
-         (vertex-array (draw-list-vertex-array 2d-draw-list))
-         (vtx-offset (foreign-array-fill-pointer vertex-array))
-         (first-index (foreign-array-fill-pointer index-array))
-         (elem-count 0))
-    (declare (type fixnum elem-count))
-    (with-draw-list-transaction (2d-draw-list first-index vtx-offset)
-      (etypecase seq-vertices
-	(list
-	 (loop for (x0 y0 x1 y1 x2 y2) on seq-vertices by #'(lambda (list)
-							      (nthcdr 6 list))
-               for i from 0 by 3 below #.(- most-positive-fixnum 2)
-               do (setq x0 (clampf x0))
-	       (setq y0 (clampf y0))
-	       (setq x1 (clampf x1))
-	       (setq y1 (clampf y1))
-	       (setq x2 (clampf x2))
-	       (setq y2 (clampf y2))
-	       (standard-2d-vertex-array-push-extend vertex-array x0 y0 ub32-color)
-	       (index-array-push-extend index-array i)
-               (standard-2d-vertex-array-push-extend vertex-array x1 y1 ub32-color)
-	       (index-array-push-extend index-array (1+ i))
-               (standard-2d-vertex-array-push-extend vertex-array x2 y2 ub32-color)
-               (index-array-push-extend index-array (+ i 2))
-               (incf elem-count 3))))
-      (assert (>= elem-count 3))
-      (let ((cmd (make-standard-draw-indexed-cmd
-		  2d-draw-list
-		  first-index elem-count vtx-offset model-mtx
-		  nil *white-texture* nil nil nil)))
-        (vector-push-extend cmd (draw-list-cmd-vector 2d-draw-list))
-        cmd))))
-
-(defun %draw-list-add-filled-2d-triangle-strip/list (2d-draw-list atom-group model-mtx ub32-color seq-vertices)
-  (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
-  (declare (type (unsigned-byte 32) ub32-color))
+  (declare (type (unsigned-byte 32) ub32-oid ub32-color))
   (declare (type sequence seq-vertices))
   ;; must be at least three vertices to succeed
   (let* ((index-array (draw-list-index-array 2d-draw-list))
@@ -868,7 +847,7 @@
 		    for i from 0 below #.most-positive-fixnum
 		    do (setq x (clampf x))
 		    (setq y (clampf y))
-		    (standard-2d-vertex-array-push-extend vertex-array x y ub32-color)
+		    (standard-2d-vertex-array-push-extend vertex-array ub32-oid x y ub32-color)
 		    (index-array-push-extend index-array i)
 		    (incf number-of-vertices))))
       (assert (>= number-of-vertices 3))
@@ -880,7 +859,8 @@
         (vector-push-extend cmd (draw-list-cmd-vector 2d-draw-list))
         cmd))))
 
-(defun %draw-list-draw-filled-2d-rectangle-list (2d-draw-list ub32-color seq-vertices)
+(declaim (inline %draw-list-draw-filled-2d-rectangle-list))
+(defun %draw-list-draw-filled-2d-rectangle-list (2d-draw-list ub32-oid ub32-color seq-vertices)
   ;; triangle list
   (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
   (declare (type (unsigned-byte 32) ub32-color))
@@ -902,10 +882,10 @@
 	       (setq y0 (clampf y0))
 	       (setq x1 (clampf x1))
 	       (setq y1 (clampf y1))
-	       (setq offset (standard-2d-vertex-array-push-extend vertex-array x0 y0 ub32-color))
-               (standard-2d-vertex-array-push-extend vertex-array x0 y1 ub32-color)
-               (standard-2d-vertex-array-push-extend vertex-array x1 y1 ub32-color)
-               (standard-2d-vertex-array-push-extend vertex-array x1 y0 ub32-color)
+	       (setq offset (standard-2d-vertex-array-push-extend vertex-array ub32-oid x0 y0 ub32-color))
+               (standard-2d-vertex-array-push-extend vertex-array ub32-oid x0 y1 ub32-color)
+               (standard-2d-vertex-array-push-extend vertex-array ub32-oid x1 y1 ub32-color)
+               (standard-2d-vertex-array-push-extend vertex-array ub32-oid x1 y0 ub32-color)
                (index-array-push-extend index-array offset)
                (index-array-push-extend index-array (1+ offset))
                (index-array-push-extend index-array (+ 2 offset))
@@ -916,10 +896,11 @@
 	       finally (assert (>= number-of-vertices 4))
 	       (return (values))))))))
 
-(defun %draw-list-add-filled-2d-rectangle-list (2d-draw-list atom-group model-mtx ub32-color seq-vertices)
+(declaim (inline %draw-list-add-filled-2d-rectangle-list))
+(defun %draw-list-add-filled-2d-rectangle-list (2d-draw-list ub32-oid atom-group model-mtx ub32-color seq-vertices)
   ;; triangle-list
   (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
-  (declare (type (unsigned-byte 32) ub32-color))
+  (declare (type (unsigned-byte 32) ub32-oid ub32-color))
   (declare (type sequence seq-vertices))
   (let* ((index-array (draw-list-index-array 2d-draw-list))
          (vertex-array (draw-list-vertex-array 2d-draw-list))
@@ -937,10 +918,10 @@
 	       (setq y0 (clampf y0))
 	       (setq x1 (clampf x1))
 	       (setq y1 (clampf y1))
-	       (standard-2d-vertex-array-push-extend vertex-array x0 y0 ub32-color)
-               (standard-2d-vertex-array-push-extend vertex-array x0 y1 ub32-color)
-               (standard-2d-vertex-array-push-extend vertex-array x1 y1 ub32-color)
-               (standard-2d-vertex-array-push-extend vertex-array x1 y0 ub32-color)
+	       (standard-2d-vertex-array-push-extend vertex-array ub32-oid x0 y0 ub32-color)
+               (standard-2d-vertex-array-push-extend vertex-array ub32-oid x0 y1 ub32-color)
+               (standard-2d-vertex-array-push-extend vertex-array ub32-oid x1 y1 ub32-color)
+               (standard-2d-vertex-array-push-extend vertex-array ub32-oid x1 y0 ub32-color)
                (index-array-push-extend index-array i)
                (index-array-push-extend index-array (1+ i))
                (index-array-push-extend index-array (+ 2 i))
@@ -956,12 +937,12 @@
         (vector-push-extend cmd (draw-list-cmd-vector 2d-draw-list))
         cmd))))
 
-
-(defun %draw-list-draw-textured-2d-rectangle-list (2d-draw-list ub32-color seq-vertices)
+(declaim (inline %draw-list-draw-textured-2d-rectangle-list))
+(defun %draw-list-draw-textured-2d-rectangle-list (2d-draw-list ub32-oid ub32-color seq-vertices)
   ;; used to implement draw-text and group-add-text
   (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
   (declare (type sequence seq-vertices))
-  (declare (type (unsigned-byte 32) ub32-color))
+  (declare (type (unsigned-byte 32) ub32-oid ub32-color))
   ;; must be at least 2 vertices to succeed
   (let* ((index-array (draw-list-index-array 2d-draw-list))
          (vertex-array (draw-list-vertex-array 2d-draw-list)))
@@ -984,10 +965,10 @@
 		 (setq y1 (clampf y1))
 		 (setq u1 (clampf u1))
 		 (setq v1 (clampf v1))
-		 (setq offset (textured-2d-vertex-array-push-extend vertex-array x0 y0 u0 v0 ub32-color))
-		 (textured-2d-vertex-array-push-extend vertex-array x0 y1 u0 v1 ub32-color)
-		 (textured-2d-vertex-array-push-extend vertex-array x1 y1 u1 v1 ub32-color)
-		 (textured-2d-vertex-array-push-extend vertex-array x1 y0 u1 v0 ub32-color)
+		 (setq offset (textured-2d-vertex-array-push-extend vertex-array ub32-oid x0 y0 u0 v0 ub32-color))
+		 (textured-2d-vertex-array-push-extend vertex-array ub32-oid x0 y1 u0 v1 ub32-color)
+		 (textured-2d-vertex-array-push-extend vertex-array ub32-oid x1 y1 u1 v1 ub32-color)
+		 (textured-2d-vertex-array-push-extend vertex-array ub32-oid x1 y0 u1 v0 ub32-color)
                  (index-array-push-extend index-array offset)
                  (index-array-push-extend index-array (1+ offset))
 		 (index-array-push-extend index-array (+ 2 offset))
@@ -997,12 +978,13 @@
 		 finally (assert (>= (foreign-array-fill-pointer vertex-array) (+ vtx-offset 4)))
                  (return (values)))))))))
 
-(defun %draw-list-add-textured-2d-rectangle-list (2d-draw-list atom-group model-mtx texture ub32-color seq-vertices
+(declaim (inline %draw-list-add-textured-2d-rectangle-list))
+(defun %draw-list-add-textured-2d-rectangle-list (2d-draw-list ub32-oid atom-group model-mtx texture ub32-color seq-vertices
                                                   &optional (cmd-constructor #'make-standard-draw-indexed-cmd))
   ;; used to implement add-text
   (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
   (declare (type function cmd-constructor))
-  (declare (type (unsigned-byte 32) ub32-color))
+  (declare (type (unsigned-byte 32) ub32-oid ub32-color))
   (declare (type sequence seq-vertices))
   ;; must be at least 2 vertices to succeed
   (let* ((index-array (draw-list-index-array 2d-draw-list))
@@ -1026,10 +1008,10 @@
 	       (setq y1 (clampf y1))
 	       (setq u1 (clampf u1))
 	       (setq v1 (clampf v1))
-	       (textured-2d-vertex-array-push-extend vertex-array x0 y0 u0 v0 ub32-color)
-               (textured-2d-vertex-array-push-extend vertex-array x0 y1 u0 v1 ub32-color)
-               (textured-2d-vertex-array-push-extend vertex-array x1 y1 u1 v1 ub32-color)
-               (textured-2d-vertex-array-push-extend vertex-array x1 y0 u1 v0 ub32-color)
+	       (textured-2d-vertex-array-push-extend vertex-array ub32-oid x0 y0 u0 v0 ub32-color)
+               (textured-2d-vertex-array-push-extend vertex-array ub32-oid x0 y1 u0 v1 ub32-color)
+               (textured-2d-vertex-array-push-extend vertex-array ub32-oid x1 y1 u1 v1 ub32-color)
+               (textured-2d-vertex-array-push-extend vertex-array ub32-oid x1 y0 u1 v0 ub32-color)
                (index-array-push-extend index-array i)
                (index-array-push-extend index-array (1+ i))
                (index-array-push-extend index-array (+ 2 i))
@@ -1046,9 +1028,10 @@
 	(vector-push-extend cmd (draw-list-cmd-vector 2d-draw-list))
 	cmd))))
 
-(defun %draw-list-draw-filled-2d-convex-polygon (2d-draw-list ub32-color seq-vertices)
+(declaim (inline %draw-list-draw-filled-2d-convex-polygon))
+(defun %draw-list-draw-filled-2d-convex-polygon (2d-draw-list ub32-oid ub32-color seq-vertices)
   (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
-  (declare (type (unsigned-byte 32) ub32-color))
+  (declare (type (unsigned-byte 32) ub32-oid ub32-color))
   (declare (type sequence seq-vertices))
   ;; must be at least 3 vertexes to succeed
   (let* ((index-array (draw-list-index-array 2d-draw-list))
@@ -1065,7 +1048,7 @@
 	       for i from 0 below #.most-positive-fixnum
 	       do (setq x (clampf x))
 	       (setq y (clampf y))
-	       (setq offset (standard-2d-vertex-array-push-extend vertex-array x y ub32-color))
+	       (setq offset (standard-2d-vertex-array-push-extend vertex-array ub32-oid x y ub32-color))
 	       (incf number-of-vertices)
 	       when (>= i 2)
 	       do (index-array-push-extend index-array vtx-offset)
@@ -1074,10 +1057,10 @@
 	       finally (assert (>= number-of-vertices 3))
 	       (return (values))))))))
 
-
-(defun %draw-list-add-filled-2d-convex-polygon (2d-draw-list atom-group model-mtx ub32-color seq-vertices)
+(declaim (inline %draw-list-add-filled-2d-convex-polygon))
+(defun %draw-list-add-filled-2d-convex-polygon (2d-draw-list ub32-oid atom-group model-mtx ub32-color seq-vertices)
   (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
-  (declare (type (unsigned-byte 32) ub32-color))
+  (declare (type (unsigned-byte 32) ub32-oid ub32-color))
   (declare (type sequence seq-vertices))
   ;; must be at least 3 vertexes to succeed
   (let* ((index-array (draw-list-index-array 2d-draw-list))
@@ -1093,7 +1076,7 @@
 	       for (x y) on seq-vertices by #'cddr
 	       do (setq x (clampf x))
 	       (setq y (clampf y))
-	       (standard-2d-vertex-array-push-extend vertex-array x y ub32-color)
+	       (standard-2d-vertex-array-push-extend vertex-array ub32-oid x y ub32-color)
 	       (incf number-of-vertices)
 	       when (>= i 2)
 	       do (index-array-push-extend index-array 0)
@@ -1107,9 +1090,10 @@
         (vector-push-extend cmd (draw-list-cmd-vector 2d-draw-list))
         cmd))))
 
-(defun %draw-list-draw-filled-3d-triangle-strip/list (3d-draw-list ub32-color seq-vertices)
+(declaim (inline %draw-list-draw-filled-3d-triangle-strip/list))
+(defun %draw-list-draw-filled-3d-triangle-strip/list (3d-draw-list ub32-oid ub32-color seq-vertices)
   (declare (type 3d-vertex-draw-list-mixin 3d-draw-list))
-  (declare (type (unsigned-byte 32) ub32-color))
+  (declare (type (unsigned-byte 32) ub32-oid ub32-color))
   (declare (type sequence seq-vertices))
   ;; must be at least three vertices to succeed
   (let* ((index-array (draw-list-index-array 3d-draw-list))
@@ -1125,15 +1109,16 @@
 		    do (setq x (clampf x))
 		    (setq y (clampf y))
 		    (setq z (clampf z))
-		    (setq offset (standard-3d-vertex-array-push-extend vertex-array x y z ub32-color))
+		    (setq offset (standard-3d-vertex-array-push-extend vertex-array ub32-oid x y z ub32-color))
                     (index-array-push-extend index-array offset)
 		    (incf number-of-vertices)
 		    finally (assert (>= number-of-vertices 3))
 		    (return (values))))))))
 
-(defun %draw-list-add-filled-3d-triangle-strip/list (3d-draw-list atom-group model-mtx ub32-color seq-vertices)
+(declaim (inline %draw-list-add-filled-3d-triangle-strip/list))
+(defun %draw-list-add-filled-3d-triangle-strip/list (3d-draw-list ub32-oid atom-group model-mtx ub32-color seq-vertices)
   (declare (type 3d-vertex-draw-list-mixin 3d-draw-list))
-  (declare (type (unsigned-byte 32) ub32-color))
+  (declare (type (unsigned-byte 32) ub32-oid ub32-color))
   (declare (type sequence seq-vertices))
   ;; must be at least three vertices to succeed
   (let* ((index-array (draw-list-index-array 3d-draw-list))
@@ -1149,7 +1134,7 @@
 		    do (setq x (clampf x))
 		    (setq y (clampf y))
 		    (setq z (clampf z))
-		    (standard-3d-vertex-array-push-extend vertex-array x y z ub32-color)
+		    (standard-3d-vertex-array-push-extend vertex-array ub32-oid x y z ub32-color)
 		    (index-array-push-extend index-array i)
 		    (incf number-of-vertices))))
       (assert (>= number-of-vertices 3))
@@ -1161,9 +1146,10 @@
         (vector-push-extend cmd (draw-list-cmd-vector 3d-draw-list))
         cmd))))
 
-(defun %draw-list-draw-filled-3d-triangle-strip/list-with-normals (3d-draw-list ub32-color seq-vertices)
+(declaim (inline %draw-list-draw-filled-3d-triangle-strip/list-with-normals))
+(defun %draw-list-draw-filled-3d-triangle-strip/list-with-normals (3d-draw-list ub32-oid ub32-color seq-vertices)
   (declare (type 3d-vertex-draw-list-mixin 3d-draw-list))
-  (declare (type (unsigned-byte 32) ub32-color))
+  (declare (type (unsigned-byte 32) ub32-oid ub32-color))
   (declare (type sequence seq-vertices))
   ;; must be at least three vertices to succeed
   (let* ((index-array (draw-list-index-array 3d-draw-list))
@@ -1182,16 +1168,17 @@
 		    (setq ny (clampf ny))
 		    (setq nz (clampf nz))
 		    (let ((offset (standard-3d-vertex-with-normal-array-push-extend
-				   vertex-array x y z nx ny nz ub32-color)))
+				   vertex-array ub32-oid x y z nx ny nz ub32-color)))
                       (index-array-push-extend index-array offset))
 		    (incf number-of-vertices)
 		    finally (assert (>= number-of-vertices 3))
 		    (return (values))))))))
 
+(declaim (inline %draw-list-add-filled-3d-triangle-strip/list-with-normals))
 (defun %draw-list-add-filled-3d-triangle-strip/list-with-normals
-    (3d-draw-list atom-group model-mtx ub32-color seq-vertices light-position)
+    (3d-draw-list ub32-oid atom-group model-mtx ub32-color seq-vertices light-position)
   (declare (type 3d-vertex-draw-list-mixin 3d-draw-list))
-  (declare (type (unsigned-byte 32) ub32-color))
+  (declare (type (unsigned-byte 32) ub32-oid ub32-color))
   (declare (type sequence seq-vertices))
   ;; must be at least three vertices to succeed
   (let* ((index-array (draw-list-index-array 3d-draw-list))
@@ -1210,7 +1197,7 @@
 		    (setq nx (clampf nx))
 		    (setq ny (clampf ny))
 		    (setq nz (clampf nz))
-		    (standard-3d-vertex-with-normal-array-push-extend vertex-array x y z nx ny nz ub32-color)
+		    (standard-3d-vertex-with-normal-array-push-extend vertex-array ub32-oid x y z nx ny nz ub32-color)
 		    (incf number-of-vertices)
 		    (index-array-push-extend index-array i))))
       (let ((cmd (make-standard-draw-indexed-cmd
@@ -1221,7 +1208,8 @@
         (vector-push-extend cmd (draw-list-cmd-vector 3d-draw-list))
         cmd))))
 
-(defun %draw-list-draw-multicolor-3d-triangle-strip/list-with-normals (3d-draw-list seq-vertices)
+(declaim (inline %draw-list-draw-multicolor-3d-triangle-strip/list-with-normals))
+(defun %draw-list-draw-multicolor-3d-triangle-strip/list-with-normals (3d-draw-list ub32-oid seq-vertices)
   (declare (type 3d-vertex-draw-list-mixin 3d-draw-list))
   (declare (type sequence seq-vertices))
   ;; must be at least three vertices to succeed
@@ -1243,14 +1231,15 @@
 		    (setq nz (clampf nz))
 		    (setq color (canonicalize-color color))
 		    (let ((offset (standard-3d-vertex-with-normal-array-push-extend
-				   vertex-array x y z nx ny nz color)))
+				   vertex-array ub32-oid x y z nx ny nz color)))
                       (index-array-push-extend index-array offset))
 		    (incf number-of-vertices)
 		    finally (assert (>= number-of-vertices 3))
 		    (return (values))))))))
 
+(declaim (inline %draw-list-add-multicolor-3d-triangle-strip/list-with-normals))
 (defun %draw-list-add-multicolor-3d-triangle-strip/list-with-normals
-    (3d-draw-list atom-group model-mtx seq-vertices light-position)
+    (3d-draw-list ub32-oid atom-group model-mtx seq-vertices light-position)
   (declare (type 3d-vertex-draw-list-mixin 3d-draw-list))
   (declare (type sequence seq-vertices))
   ;; must be at least three vertices to succeed
@@ -1272,7 +1261,7 @@
 		    (setq ny (clampf ny))
 		    (setq nz (clampf nz))
 		    (setq color (canonicalize-color color))
-		    (standard-3d-vertex-with-normal-array-push-extend vertex-array x y z nx ny nz color)
+		    (standard-3d-vertex-with-normal-array-push-extend vertex-array ub32-oid x y z nx ny nz color)
 		    (incf number-of-vertices)
 		    (index-array-push-extend index-array i))))
       (let ((cmd (make-standard-draw-indexed-cmd
@@ -1283,10 +1272,11 @@
         (vector-push-extend cmd (draw-list-cmd-vector 3d-draw-list))
         cmd))))
 
-(defun %draw-list-draw-textured-3d-triangle-strip/list (3d-draw-list ub32-color seq-vertices)
+(declaim (inline %draw-list-draw-textured-3d-triangle-strip/list))
+(defun %draw-list-draw-textured-3d-triangle-strip/list (3d-draw-list ub32-oid ub32-color seq-vertices)
   ;; set the draw-list-texture!
   (declare (type 3d-vertex-draw-list-mixin 3d-draw-list))
-  (declare (type (unsigned-byte 32) ub32-color))
+  (declare (type (unsigned-byte 32) ub32-oid ub32-color))
   (declare (type sequence seq-vertices))
   ;; must be at least three vertices to succeed
   (let* ((index-array (draw-list-index-array 3d-draw-list))
@@ -1305,15 +1295,16 @@
 	       (setq z (clampf z))
 	       (setq u (clampf u))
 	       (setq v (clampf v))
-	       (let ((offset (textured-3d-vertex-array-push-extend vertex-array x y z u v ub32-color)))
+	       (let ((offset (textured-3d-vertex-array-push-extend vertex-array ub32-oid x y z u v ub32-color)))
 		 (index-array-push-extend index-array offset))
 	       (incf number-of-vertices)
 	       finally (assert (>= number-of-vertices 3))
 	       (return (values))))))))
 
-(defun %draw-list-add-textured-3d-triangle-strip/list (3d-draw-list atom-group model-mtx texture ub32-color seq-vertices)
+(declaim (inline %draw-list-add-textured-3d-triangle-strip/list))
+(defun %draw-list-add-textured-3d-triangle-strip/list (3d-draw-list ub32-oid atom-group model-mtx texture ub32-color seq-vertices)
   (declare (type 3d-vertex-draw-list-mixin 3d-draw-list))
-  (declare (type (unsigned-byte 32) ub32-color))
+  (declare (type (unsigned-byte 32) ub32-oid ub32-color))
   (declare (type sequence seq-vertices))
   ;; must be at least three vertices to succeed
   (let* ((index-array (draw-list-index-array 3d-draw-list))
@@ -1333,7 +1324,7 @@
 	       (setq z (clampf z))
 	       (setq u (clampf u))
 	       (setq v (clampf v))
-	       (textured-3d-vertex-array-push-extend vertex-array x y z u v ub32-color)
+	       (textured-3d-vertex-array-push-extend vertex-array ub32-oid x y z u v ub32-color)
                (index-array-push-extend index-array i)
                finally
                (setq number-of-vertices (1+ i)))))
@@ -1345,10 +1336,11 @@
         (vector-push-extend cmd (draw-list-cmd-vector 3d-draw-list))
         cmd))))
 
-(defun %draw-list-draw-textured-3d-triangle-strip/list-with-normals (3d-draw-list ub32-color seq-vertices)
+(declaim (inline %draw-list-draw-textured-3d-triangle-strip/list-with-normals))
+(defun %draw-list-draw-textured-3d-triangle-strip/list-with-normals (3d-draw-list ub32-oid ub32-color seq-vertices)
   ;; set the draw-list-texture!
   (declare (type 3d-vertex-draw-list-mixin 3d-draw-list))
-  (declare (type (unsigned-byte 32) ub32-color))
+  (declare (type (unsigned-byte 32) ub32-oid ub32-color))
   (declare (type sequence seq-vertices))
   ;; must be at least three vertices to succeed
   (let* ((index-array (draw-list-index-array 3d-draw-list))
@@ -1371,16 +1363,17 @@
 	       (setq u (clampf u))
 	       (setq v (clampf v))
 	       (let ((offset (textured-3d-vertex-with-normal-array-push-extend
-			      vertex-array x y z nx ny nz u v ub32-color)))
+			      vertex-array ub32-oid x y z nx ny nz u v ub32-color)))
                  (index-array-push-extend index-array offset))
 	       (incf number-of-vertices)
 	       finally (assert (>= number-of-vertices 3))
 	       (return (values))))))))
 
+(declaim (inline %draw-list-add-textured-3d-triangle-strip/list-with-normals))
 (defun %draw-list-add-textured-3d-triangle-strip/list-with-normals
-    (3d-draw-list atom-group model-mtx texture ub32-color seq-vertices light-position)
+    (3d-draw-list ub32-oid atom-group model-mtx texture ub32-color seq-vertices light-position)
   (declare (type 3d-vertex-draw-list-mixin 3d-draw-list))
-  (declare (type (unsigned-byte 32) ub32-color))
+  (declare (type (unsigned-byte 32) ub32-oid ub32-color))
   (declare (type sequence seq-vertices))
   ;; must be at least three vertices to succeed
   (let* ((index-array (draw-list-index-array 3d-draw-list))
@@ -1404,7 +1397,7 @@
 	       (setq u (clampf u))
 	       (setq v (clampf v))
 	       (textured-3d-vertex-with-normal-array-push-extend
-		vertex-array x y z nx ny nz u v ub32-color)
+		vertex-array ub32-oid x y z nx ny nz u v ub32-color)
                (index-array-push-extend index-array i)
                finally
                (setq number-of-vertices (1+ i)))))
@@ -1417,7 +1410,8 @@
         (vector-push-extend cmd (draw-list-cmd-vector 3d-draw-list))
         cmd))))
 
-(defun %draw-list-draw-multicolor-3d-convex-polygon-with-normals (3d-draw-list seq-vertices)
+(declaim (inline %draw-list-draw-multicolor-3d-convex-polygon-with-normals))
+(defun %draw-list-draw-multicolor-3d-convex-polygon-with-normals (3d-draw-list ub32-oid seq-vertices)
   (declare (type 3d-vertex-with-normal-draw-list-mixin 3d-draw-list))
   (declare (type sequence seq-vertices))
   ;; must be at least 3 vertexes to succeed
@@ -1435,7 +1429,7 @@
 	       for (x y z nx ny nz color) on seq-vertices by #'(lambda (list)
 								 (nthcdr 7 list))
 	       do (setq offset (standard-3d-vertex-with-normal-array-push-extend
-				vertex-array (clampf x) (clampf y) (clampf z) (clampf nx) (clampf ny) (clampf nz)
+				vertex-array ub32-oid (clampf x) (clampf y) (clampf z) (clampf nx) (clampf ny) (clampf nz)
 				(canonicalize-color color)))
 	       (incf number-of-vertices)
 	       when (>= i 2)
@@ -1450,7 +1444,7 @@
 	         for i from 0 below #.(- most-positive-fixnum 6)
 	         do (setq offset
 			  (standard-3d-vertex-with-normal-array-push-extend
-			   vertex-array
+			   vertex-array ub32-oid
 			   (clampf (aref seq-vertices j))
 			   (clampf (aref seq-vertices (1+ j)))
 			   (clampf (aref seq-vertices (+ j 2)))
@@ -1466,7 +1460,8 @@
 	         finally (assert (>= number-of-vertices 3))
 		 (return (values)))))))))
 
-(defun %draw-list-add-multicolor-3d-convex-polygon-with-normals (3d-draw-list atom-group model-mtx seq-vertices light-position)
+(declaim (inline %draw-list-add-multicolor-3d-convex-polygon-with-normals))
+(defun %draw-list-add-multicolor-3d-convex-polygon-with-normals (3d-draw-list ub32-oid atom-group model-mtx seq-vertices light-position)
   (declare (type 3d-vertex-with-normal-draw-list-mixin 3d-draw-list))
   (declare (type sequence seq-vertices))
   ;; must be at least 3 vertexes to succeed
@@ -1483,7 +1478,7 @@
 	       for (x y z nx ny nz color) on seq-vertices by #'(lambda (list)
 								 (nthcdr 7 list))
 	       do (standard-3d-vertex-with-normal-array-push-extend
-		   vertex-array (clampf x) (clampf y) (clampf z) (clampf nx) (clampf ny) (clampf nz)
+		   vertex-array ub32-oid (clampf x) (clampf y) (clampf z) (clampf nx) (clampf ny) (clampf nz)
 		   (canonicalize-color color))
 	       (incf number-of-vertices)
 	       when (>= i 2)
@@ -1494,7 +1489,7 @@
 	 (loop for i from vtx-offset below most-positive-fixnum
 	       for j from 0 by 7 below #.(- most-positive-fixnum 6)
 	       do (standard-3d-vertex-with-normal-array-push-extend
-		   vertex-array
+		   vertex-array ub32-oid
 		   (clampf (aref seq-vertices j))
 		   (clampf (aref seq-vertices (1+ j)))
 		   (clampf (aref seq-vertices (+ j 2)))
@@ -1516,7 +1511,8 @@
 	(vector-push-extend cmd (draw-list-cmd-vector 3d-draw-list))
 	cmd))))
 
-(defun %draw-list-draw-multicolor-3d-convex-polygon (3d-draw-list seq-vertices)
+(declaim (inline %draw-list-draw-multicolor-3d-convex-polygon))
+(defun %draw-list-draw-multicolor-3d-convex-polygon (3d-draw-list ub32-oid seq-vertices)
   (declare (type 3d-vertex-draw-list-mixin 3d-draw-list))
   (declare (type sequence seq-vertices))
   ;; must be at least 3 vertexes to succeed
@@ -1536,7 +1532,7 @@
 		 for i from 0 below #.most-positive-fixnum
 		 do (setq offset
 			  (standard-3d-vertex-array-push-extend
-			   vertex-array (clampf x) (clampf y) (clampf z) (canonicalize-color color)))
+			   vertex-array ub32-oid (clampf x) (clampf y) (clampf z) (canonicalize-color color)))
 		 (incf number-of-vertices)
 		 when (>= i 2)
 		 do(index-array-push-extend index-array vtx-offset)
@@ -1549,7 +1545,7 @@
 		 for k from 0 by 4 below #.(- most-positive-fixnum 3)
 		 do (setq offset
 			  (standard-3d-vertex-array-push-extend
-			   vertex-array
+			   vertex-array ub32-oid
 			   (clampf (aref seq-vertices k))
 			   (clampf (aref seq-vertices (1+ k)))
 			   (clampf (aref seq-vertices (+ k 2)))
@@ -1562,7 +1558,8 @@
 		 finally (assert (>= number-of-vertices 3))
 		 (return (values)))))))))
 
-(defun %draw-list-add-multicolor-3d-convex-polygon (3d-draw-list atom-group model-mtx seq-vertices)
+(declaim (inline %draw-list-add-multicolor-3d-convex-polygon))
+(defun %draw-list-add-multicolor-3d-convex-polygon (3d-draw-list ub32-oid atom-group model-mtx seq-vertices)
   (declare (type 3d-vertex-draw-list-mixin 3d-draw-list))
   (declare (type sequence seq-vertices))
   ;; must be at least 3 vertexes to succeed
@@ -1579,7 +1576,7 @@
 	       for (x y z color) on seq-vertices by #'(lambda (list)
 							(nthcdr 4 list))
 	       do (standard-3d-vertex-array-push-extend
-		   vertex-array (clampf x) (clampf y) (clampf z)
+		   vertex-array ub32-oid (clampf x) (clampf y) (clampf z)
 		   (canonicalize-color color))
 	       (incf number-of-vertices)
 	       when (>= i 2)
@@ -1591,7 +1588,7 @@
            (loop for i from vtx-offset below most-positive-fixnum
 		 for j from 0 by 4 below len
 		 do (standard-3d-vertex-array-push-extend
-		     vertex-array
+		     vertex-array ub32-oid
 		     (clampf (aref seq-vertices j))
 		     (clampf (aref seq-vertices (1+ j)))
 		     (clampf (aref seq-vertices (+ j 2)))
@@ -1610,10 +1607,11 @@
         (vector-push-extend cmd (draw-list-cmd-vector 3d-draw-list))
         cmd))))
 
-(defun %draw-list-draw-filled-3d-convex-polygon-with-normals (3d-draw-list ub32-color seq-vertices)
+(declaim (inline %draw-list-draw-filled-3d-convex-polygon-with-normals))
+(defun %draw-list-draw-filled-3d-convex-polygon-with-normals (3d-draw-list ub32-oid ub32-color seq-vertices)
   (declare (type 3d-vertex-with-normal-draw-list-mixin 3d-draw-list))
   (declare (type sequence seq-vertices))
-  (declare (type (unsigned-byte 32) ub32-color))
+  (declare (type (unsigned-byte 32) ub32-oid ub32-color))
   ;; must be at least 3 vertexes to succeed
   (let* ((index-array (draw-list-index-array 3d-draw-list))
          (vertex-array (draw-list-vertex-array 3d-draw-list))
@@ -1629,7 +1627,7 @@
 							   (nthcdr 6 list))
 	       do (setq offset
 			(standard-3d-vertex-with-normal-array-push-extend
-			 vertex-array (clampf x) (clampf y) (clampf z)
+			 vertex-array ub32-oid (clampf x) (clampf y) (clampf z)
 			 (clampf nx) (clampf ny) (clampf nz) ub32-color))
 	       (incf number-of-vertices))
          (loop for i from 2 below number-of-vertices
@@ -1646,7 +1644,7 @@
                  for i from 0 below #.most-positive-fixnum
 	         do (setq offset
 			  (standard-3d-vertex-with-normal-array-push-extend
-			   vertex-array
+			   vertex-array ub32-oid
 			   (clampf (aref seq-vertices j))
 			   (clampf (aref seq-vertices (1+ j)))
 			   (clampf (aref seq-vertices (+ j 2)))
@@ -1661,8 +1659,9 @@
 		 (index-array-push-extend index-array offset)
 	         finally (return (values)))))))))
 
+(declaim (inline %draw-list-add-filled-3d-convex-polygon-with-normals))
 (defun %draw-list-add-filled-3d-convex-polygon-with-normals
-    (3d-draw-list atom-group model-mtx ub32-color seq-vertices light-position)
+    (3d-draw-list ub32-oid atom-group model-mtx ub32-color seq-vertices light-position)
   (declare (type 3d-vertex-with-normal-draw-list-mixin 3d-draw-list))
   (declare (type sequence seq-vertices))
   (declare (type (unsigned-byte 32) ub32-color))
@@ -1680,7 +1679,7 @@
 	       for (x y z nx ny nz) on seq-vertices by #'(lambda (list)
 							   (nthcdr 6 list))
 	       do (standard-3d-vertex-with-normal-array-push-extend
-		   vertex-array (clampf x) (clampf y) (clampf z)
+		   vertex-array ub32-oid (clampf x) (clampf y) (clampf z)
 		   (clampf nx) (clampf ny) (clampf nz) ub32-color)
 	       (incf number-of-vertices)
 	       when (>= i 2)
@@ -1692,7 +1691,7 @@
            (loop for j from 0 by 6 below len
 	         for i from 0 below #.most-positive-fixnum
 	         do (standard-3d-vertex-with-normal-array-push-extend
-		     vertex-array
+		     vertex-array ub32-oid
 		     (clampf (aref seq-vertices j))
 		     (clampf (aref seq-vertices (1+ j)))
 		     (clampf (aref seq-vertices (+ j 2)))
@@ -1714,10 +1713,11 @@
 	(vector-push-extend cmd (draw-list-cmd-vector 3d-draw-list))
 	cmd))))
 
-(defun %draw-list-draw-filled-3d-convex-polygon (3d-draw-list ub32-color seq-vertices)
+(declaim (inline %draw-list-draw-filled-3d-convex-polygon))
+(defun %draw-list-draw-filled-3d-convex-polygon (3d-draw-list ub32-oid ub32-color seq-vertices)
   (declare (type 3d-vertex-draw-list-mixin 3d-draw-list))
   (declare (type sequence seq-vertices))
-  (declare (type (unsigned-byte 32) ub32-color))
+  (declare (type (unsigned-byte 32) ub32-oid ub32-color))
   ;; must be at least 3 vertexes to succeed
   (let ((index-array (draw-list-index-array 3d-draw-list))
 	(vertex-array (draw-list-vertex-array 3d-draw-list)))
@@ -1733,7 +1733,7 @@
 	   (loop for i from 0 below #.most-positive-fixnum
 		 for (x y z) on seq-vertices by #'cdddr
                  do (setq offset (standard-3d-vertex-array-push-extend
-				  vertex-array (clampf x) (clampf y) (clampf z) ub32-color))
+				  vertex-array ub32-oid (clampf x) (clampf y) (clampf z) ub32-color))
 		 (incf number-of-vertices)
 		 when (>= i 2)
 		 do (index-array-push-extend index-array vtx-offset)
@@ -1748,7 +1748,7 @@
 		   for i from 0  below #.most-positive-fixnum
 		   do (setq offset
 			    (standard-3d-vertex-array-push-extend
-			     vertex-array
+			     vertex-array ub32-oid
 			     (clampf (aref seq-vertices j))
 			     (clampf (aref seq-vertices (1+ j)))
 			     (clampf (aref seq-vertices (+ j 2)))
@@ -1759,10 +1759,11 @@
 		   (index-array-push-extend index-array offset)
 		   finally (return (values))))))))))
 
-(defun %draw-list-add-filled-3d-convex-polygon (3d-draw-list atom-group model-mtx ub32-color seq-vertices)
+(declaim (inline %draw-list-add-filled-3d-convex-polygon))
+(defun %draw-list-add-filled-3d-convex-polygon (3d-draw-list ub32-oid atom-group model-mtx ub32-color seq-vertices)
   (declare (type 3d-vertex-with-normal-draw-list-mixin 3d-draw-list))
   (declare (type sequence seq-vertices))
-  (declare (type (unsigned-byte 32) ub32-color))
+  (declare (type (unsigned-byte 32) ub32-oid ub32-color))
   ;; must be at least 3 vertexes to succeed
   (let* ((index-array (draw-list-index-array 3d-draw-list))
          (vertex-array (draw-list-vertex-array 3d-draw-list)))
@@ -1777,7 +1778,7 @@
 	   (loop for i from 0 below #.most-positive-fixnum
 		 for (x y z) on seq-vertices by #'cdddr
                  do (standard-3d-vertex-array-push-extend
-		     vertex-array (clampf x) (clampf y) (clampf z) ub32-color)
+		     vertex-array ub32-oid (clampf x) (clampf y) (clampf z) ub32-color)
 		 (incf number-of-vertices)
 		 when (>= i 2)
 		 do (index-array-push-extend index-array 0)
@@ -1789,7 +1790,7 @@
              (loop for i from 0 below #.most-positive-fixnum
                    for j from 0 by 3 below len
                    do (standard-3d-vertex-array-push-extend
-                       vertex-array
+                       vertex-array ub32-oid
                        (clampf (aref seq-vertices j))
                        (clampf (aref seq-vertices (1+ j)))
                        (clampf (aref seq-vertices (+ j 2)))
@@ -1807,8 +1808,9 @@
           (vector-push-extend cmd (draw-list-cmd-vector 3d-draw-list))
           cmd)))))
 
-
+(declaim (inline %draw-list-draw-filled-sphere))
 (defun %draw-list-draw-filled-sphere (3d-draw-list
+				      ub32-oid
 				      ub32-color
 				      df-origin-x
 				      df-origin-y
@@ -1816,7 +1818,7 @@
 				      df-radius
 				      fixnum-resolution)
   (declare (type 3d-vertex-with-normal-draw-list-mixin 3d-draw-list))
-  (declare (type (unsigned-byte 32) ub32-color))
+  (declare (type (unsigned-byte 32) ub32-oid ub32-color))
   (declare (type double-float df-origin-x df-origin-y df-origin-z df-radius))
   (declare (type fixnum fixnum-resolution))
   (let* ((va (draw-list-vertex-array 3d-draw-list))
@@ -1848,7 +1850,7 @@
 					      (nz (clampf (/ z df-radius))))
 
 					  (standard-3d-vertex-with-normal-array-push-extend
-					   va
+					   va ub32-oid
 					   (clampf (+ x df-origin-x))
 					   (clampf (+ y df-origin-y))
 					   (clampf (+ z df-origin-z))
@@ -1873,7 +1875,11 @@
 		    finally (return-from block (values))))))))))
 
 
-(defun %draw-list-add-filled-sphere (3d-draw-list atom-group model-mtx
+(declaim (inline %draw-list-add-filled-sphere))
+(defun %draw-list-add-filled-sphere (3d-draw-list
+				     ub32-oid
+				     atom-group
+				     model-mtx
 				     ub32-color
 				     df-origin-x
 				     df-origin-y
@@ -1913,7 +1919,7 @@
 					  (nz (clampf (/ (- z df-origin-z) df-radius))))
 
 				      (standard-3d-vertex-with-normal-array-push-extend
-				       va (clampf x) (clampf y) (clampf z) nx ny nz ub32-color))))))))
+				       va ub32-oid (clampf x) (clampf y) (clampf z) nx ny nz ub32-color))))))))
           (loop for i from 0
 		repeat stack-count
                 with k1 with k2
