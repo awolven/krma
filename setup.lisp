@@ -1,14 +1,6 @@
 (in-package :krma)
 
-(defvar *identity-matrix*)
-(defvar *multiply-matrix-function*)
-
 (defconstant +buffer-alignment+ 128)
-
-(defvar *sampler*)
-
-(setq *multiply-matrix-function* #'3d-matrices::m*)
-(setq *identity-matrix* (3d-matrices::meye 4))
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (if (eq 8 (cffi:foreign-type-size :pointer))
@@ -27,8 +19,16 @@
 
 (defvar *white-texture*)
 (defvar *default-color* #xffffffff)
-(defvar *identity-matrix*)
+(defvar *identity-matrix* (3d-matrices::meye 4))
 (defvar *default-point-size* 4.0f0)
 (defvar *default-line-thickness* 2.0f0)
 (defvar *default-number-of-segments* 64)
 (defvar *default-light-position* (vec3 10000 10000 10000))
+(defvar *default-diffuse-color* #xffffffff)
+(defvar *default-specular-color* #xffffffff)
+(defvar *default-constant-attenuation* 0.0f0)
+(defvar *default-linear-attenuation* 1.0f0)
+(defvar *default-quadratic-attenuation* 0.0f0)
+(defvar *default-spot-cutoff* 180.0f0)
+(defvar *default-spot-exponent* 10.0f0)
+(defvar *default-spot-direction* (vec3 0 1 0))

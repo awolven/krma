@@ -3,9 +3,9 @@
 
 #define SELECT_BOX_DEPTH 128
 
-layout(set = 1, binding = 0) buffer writeonly selected_buffer {
-  uint data[][SELECT_BOX_DEPTH];
-} selected;
+layout(set = 1, binding = 0) buffer select_buffer {
+  uint selected_objects[][SELECT_BOX_DEPTH];
+} ;
 
 layout(set = 2 , binding = 0) uniform sampler2D image;
 
@@ -54,6 +54,6 @@ void main(){
     uint row_size = uint(pc.selectBoxMax.x) - uint(pc.selectBoxMin.x);
     uint offset = uint(gl_FragCoord.y - pc.selectBoxMin.y) * row_size
       + uint(gl_FragCoord.x - pc.selectBoxMin.x);
-    selected.data[offset][zIndex] = inObjectId;
+    selected_objects[offset][zIndex] = inObjectId;
   } 
 }

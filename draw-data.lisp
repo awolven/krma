@@ -1,6 +1,6 @@
 (in-package :krma)
 
-(declaim (optimize (speed 3) (safety 0) (debug 3))
+#+NOTYET(declaim (optimize (speed 3) (safety 0) (debug 3))
 	 (sb-ext:muffle-conditions sb-ext:compiler-note))
 
 (defstruct (group
@@ -164,9 +164,9 @@
           (%draw-list-add-2d-line draw-list ub32-oid atom-group model-mtx sf-line-thickness ub32-color sf-x0 sf-y0 sf-x1 sf-y1))
     (values)))
 
-(declaim (inline %draw-data-add-2d-line))
+#+NOTYET(declaim (inline %draw-data-add-2d-line))
 (defun %draw-data-add-2d-line
-    (draw-data atom-group sf-line-thickness ub32-oid ub32-color sf-x0 sf-y0 sf-x1 sf-y1)
+    (draw-data ub32-oid atom-group sf-line-thickness ub32-color sf-x0 sf-y0 sf-x1 sf-y1)
   (declare (type retained-mode-draw-data draw-data))
   (let* ((draw-list-table (draw-data-2d-line-list-draw-list-table draw-data))
 	 (group-hash-table (draw-data-group-hash-table draw-data))
@@ -209,7 +209,7 @@
 
 (declaim (inline %draw-data-add-3d-line))
 (defun %draw-data-add-3d-line
-    (draw-data atom-group sf-line-thickness ub32-oid ub32-color sf-x0 sf-y0 sf-z0 sf-x1 sf-y1 sf-z1)
+    (draw-data ub32-oid atom-group sf-line-thickness ub32-color sf-x0 sf-y0 sf-z0 sf-x1 sf-y1 sf-z1)
   (declare (type retained-mode-draw-data draw-data))
   (let* ((draw-list-table (draw-data-3d-line-list-draw-list-table draw-data))
 	 (group-hash-table (draw-data-group-hash-table draw-data))

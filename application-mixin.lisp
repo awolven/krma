@@ -1,5 +1,7 @@
 (in-package :krma)
 
+(defconstant +select-box-depth+ 128)
+
 (defclass pipeline-store-mixin ()
   ((2d-point-list-pipeline :accessor pipeline-store-2d-point-list-pipeline)
    (2d-line-list-pipeline :accessor pipeline-store-2d-line-list-pipeline)
@@ -106,6 +108,7 @@
   ((vk::application-name :initform "krma-application")
    (scene :initform nil :accessor application-scene)
    (pipeline-store :accessor application-pipeline-store)
+   (texture-sampler :accessor application-texture-sampler)
    (default-font :initform nil :accessor application-default-font)
    (exit? :initform nil :accessor application-exit?)
    (current-frame-cons :initform (list 0) :accessor current-frame-cons)
@@ -116,8 +119,120 @@
    (error-msg :initform nil :accessor application-error-msg)
    (width :accessor main-window-width)
    (height :accessor main-window-height)
-   (select-box-min :initform (vec2 -1 -1) :accessor application-select-box-min)
-   (select-box-max :initform (vec2 -1 -1) :accessor application-select-box-max)))
+   (select-box-coords :initform (vec4 -1 -1 -1 -1) :accessor application-select-box-coords)
+   (select-box-size :initform -1 :accessor application-select-box-size)
+   (select-box-memory-resource :initform nil :accessor application-select-box-memory-resource)
+   (select-box-descriptor-set-layout :initform nil :accessor application-select-box-descriptor-set-layout)
+   (select-box-descriptor-set :initform nil :accessor application-select-box-descriptor-set)
+   (select-box :initform nil :accessor application-select-box)
+   (ubershader-global-descriptor-set-layout :initform nil :accessor application-ubershader-global-descriptor-set-layout)
+   (ubershader-global-descriptor-set :initform nil :accessor application-ubershader-global-descriptor-set)
+   (ubershader-per-instance-descriptor-set-layout :initform nil :accessor application-ubershader-per-instance-descriptor-set-layout)
+   (ubershader-per-instance-descriptor-set :initform nil :accessor application-ubershader-per-instance-descriptor-set)
+   (vertex-uniform-buffer :initform nil :accessor application-vertex-uniform-buffer)
+   (fragment-uniform-buffer :initform nil :accessor application-fragment-uniform-buffer)))
+
+(defun make-ubershader-global-descriptor-set-layout-bindings (app)
+  (declare (ignore app))
+  (list (make-instance 'uniform-buffer-for-vertex-shader-dsl-binding)))
+
+(defun create-ubershader-global-descriptor-set-layout (device app)
+  (setf (application-ubershader-global-descriptor-set-layout app)
+	(create-descriptor-set-layout device :bindings (make-ubershader-global-descriptor-set-layout-bindings app))))
+
+(defun make-select-box-descriptor-set-layout-bindings (app)
+  (declare (ignore app))
+  (list (make-instance 'storage-buffer-for-fragment-shader-dsl-binding)))
+
+(defun create-select-box-descriptor-set-layout (device app)
+  (setf (application-select-box-descriptor-set-layout app)
+	(create-descriptor-set-layout device :bindings (make-select-box-descriptor-set-layout-bindings app))))
+
+(defun make-ubershader-per-instance-descriptor-set-layout-bindings (app)
+  (list (make-instance 'descriptor-set-layout-binding
+                       :type VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
+                       :count 1
+                       :flags VK_SHADER_STAGE_FRAGMENT_BIT
+                       :samplers (list (application-texture-sampler app)))))
+
+(defun create-ubershader-per-instance-descriptor-set-layout (device app)
+  (setf (application-ubershader-per-instance-descriptor-set-layout app)
+	(create-descriptor-set-layout device :bindings (make-ubershader-per-instance-descriptor-set-layout-bindings app))))
+
+(defun compute-ubershader-global-descriptor-set (app)
+  (setf (application-ubershader-global-descriptor-set app)
+	(create-descriptor-set
+	 (default-logical-device app)
+	 (list (application-ubershader-global-descriptor-set-layout app))
+	 (default-descriptor-pool app)
+	 :descriptor-buffer-info (list (make-instance 'descriptor-uniform-buffer-info
+						      :buffer (application-vertex-uniform-buffer app)
+						      :offset 0
+						      :range (load-time-value (foreign-type-size '(:struct vertex-uniform-buffer))))
+				       (make-instance 'descriptor-uniform-buffer-info
+						      :buffer (application-fragment-uniform-buffer app)
+						      :offset 0
+						      :range (load-time-value (foreign-type-size '(:struct fragment-uniform-buffer))))))))
+
+(defun compute-select-box-descriptor-set (app)
+  (multiple-value-bind (mouse-x mouse-y) (get-cursor-pos (main-window app))
+    (let* ((new-coords (vec4 (- mouse-x 1/2) (- mouse-y 1/2)
+			     (+ mouse-x 1/2) (+ mouse-y 1/2)))
+	   (width (- (vz new-coords) (vx new-coords))) ;; should be 1.0 atm, in the future it might not be
+	   (height (- (vw new-coords) (vy new-coords))) ;; should be 1.0 atm
+	   (new-size (floor (* width height +select-box-depth+ (load-time-value (foreign-type-size :unsigned-int))))))
+
+      (setf (application-select-box-coords app) new-coords)
+
+      ;; if select box size has changed or if this is the first time
+      (unless (= new-size (application-select-box-size app))
+      
+	(let ((aligned-size (aligned-size new-size))
+	      (old-descriptor-set (application-select-box-descriptor-set app))
+	      (old-memory-resource (application-select-box-memory-resource app))
+	      (new-memory-resource)
+	      (memory-resource-changed-p nil))
+        
+	  (if old-memory-resource
+	      
+	      (if (<= aligned-size (vk::memory-resource-size old-memory-resource))
+		  
+		  (setq new-memory-resource old-memory-resource) ;; keep resource the same
+		  
+		  (progn
+		    (vk::release-storage-memory app old-memory-resource)
+		    (setq new-memory-resource (vk::acquire-storage-memory-sized app aligned-size :host-visible))
+		    (setq memory-resource-changed-p t)))
+	      
+	      (progn 
+		(setq new-memory-resource (vk::acquire-storage-memory-sized app aligned-size :host-visible))
+		(setq memory-resource-changed-p t)))
+
+	  (if memory-resource-changed-p
+		
+	      (progn
+		(when old-descriptor-set
+		  (vk::free-descriptor-sets (list old-descriptor-set) (default-descriptor-pool app)))
+    
+		(setf (application-select-box-memory-resource app)
+		      new-memory-resource)
+
+		;; create a new descriptor set for new memory resource, offset and range have changed
+		(setf (application-select-box-descriptor-set app)
+		      (create-descriptor-set
+		       (default-logical-device app)
+		       (list (application-select-box-descriptor-set-layout app))
+		       (default-descriptor-pool app)
+		       :descriptor-buffer-info (list (make-instance 'descriptor-storage-buffer-info
+								    :buffer (vk::memory-pool-buffer (vk::storage-buffer-memory-pool app))
+								    :offset (vk::memory-resource-offset new-memory-resource)
+								    :range new-size)))))
+
+	      ;; otherwise return existing descriptor set
+	      ;; if the mouse doesn't move the descriptor set doesn't change
+	      (application-select-box-descriptor-set app)))))))
+		
+
 
 (defun backtrace-string ()
   (with-output-to-string (*debug-io*)
@@ -145,6 +260,16 @@
 
 (defmethod initialize-instance :after ((instance krma-application-mixin) &rest initargs)
   (declare (ignore initargs))
+  (setf (application-texture-sampler instance) (create-sampler (default-logical-device instance) :allocator (allocator instance)))
+  (setf (application-vertex-uniform-buffer instance)
+	(create-uniform-buffer (default-logical-device instance)
+			       (load-time-value (foreign-type-size '(:struct vertex-uniform-buffer)))))
+  (setf (application-fragment-uniform-buffer instance)
+	(create-uniform-buffer (default-logical-device instance)
+			       (load-time-value (foreign-type-size '(:struct fragment-uniform-buffer)))))
+  (create-ubershader-global-descriptor-set-layout (default-logical-device instance) instance)
+  (create-select-box-descriptor-set-layout (default-logical-device instance) instance)
+  (create-ubershader-per-instance-descriptor-set-layout (default-logical-device instance) instance)
   (setf (application-pipeline-store instance) (make-instance 'standard-pipeline-store :app instance))
   (setf (application-scene instance) (make-instance (scene-class instance)))
   (values))
@@ -946,7 +1071,7 @@
          (command-pool (find-command-pool device index))
          (command-buffer (elt (command-buffers command-pool) 0))
          (descriptor-pool (default-descriptor-pool app))
-         (sampler (create-sampler device :allocator (allocator app)))
+	 (sampler (application-texture-sampler app))
          (texture-dsl (create-descriptor-set-layout
                        device
                        :bindings (list (make-instance 'descriptor-set-layout-binding
@@ -959,8 +1084,6 @@
     (multiple-value-bind (width height) (get-framebuffer-size main-window)
       (setf (main-window-width app) width
 	    (main-window-height app) height))
-
-    (setf *sampler* sampler)
 
     (device-wait-idle device)
 
@@ -986,18 +1109,23 @@
       (setq *white-texture*
             (make-vulkan-texture device queue sampler texture-dsl descriptor-pool command-buffer bpp bitmap 1 1)))
 
-    ;;(test)
-
+    (compute-ubershader-global-descriptor-set app)
+    
     (let ((image-index)
           (work-queue)
           (current-frame-cons (current-frame-cons app))
-          (current-draw-data-cons (current-draw-data-cons app)))
+          (current-draw-data-cons (current-draw-data-cons app))
+	  (mouse-x)
+	  (mouse-y))
 
       (with-slots (exit?) app
 
         (loop while (zerop (glfwWindowShouldClose (h main-window)))
               do
-              (glfwPollEvents)
+	     (glfwPollEvents)
+
+	     ;; maybe create new descriptor set if select box size has changed
+	     (compute-select-box-descriptor-set app)
 
               (when (recreate-swapchain? main-window)
                 (multiple-value-bind (width height) (get-framebuffer-size main-window)

@@ -3,14 +3,13 @@
 
 #define SELECT_BOX_DEPTH 128
 
-layout(set = 1, binding = 0) buffer writeonly selected_buffer {
+layout(set = 1, binding = 0) buffer writeonly select_buffer {
   uint data[][SELECT_BOX_DEPTH];
 } selected;
 
 layout(push_constant) uniform pushConstant {
   layout(offset = 80) vec2 selectBoxMin;
   layout(offset = 88) vec2 selectBoxMax;  
-  layout(offset = 96) float pxRange;
 } pc;
 
 layout(location = 0) flat in uint inObjectId;
