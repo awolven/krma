@@ -1,5 +1,9 @@
 (in-package :krma)
 
+(eval-when (:compile-toplevel :load-toplevel)
+  (when krma::*debug*
+    (declaim (optimize (safety 3) (debug 3)))))
+
 (defclass draw-list-mixin ()
   ((index-array
     :accessor draw-list-index-array

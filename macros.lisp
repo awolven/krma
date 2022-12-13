@@ -1,7 +1,23 @@
 (in-package :krma)
 
+(eval-when (:compile-toplevel :load-toplevel)
+  (when krma::*debug*
+    (declaim (optimize (safety 3) (debug 3)))))
+
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (require :sb-concurrency))
+
+(defmacro maybe-defer-debug ((app) &body body)
+  (let ((app-sym (gensym)))
+    `(let ((,app-sym ,app))
+       (restart-bind ((ignore (lambda (&optional c)
+                                (declare (ignorable c))
+                                (throw :ignore nil))))
+         (catch :ignore
+           (handler-bind ((error (lambda (c)
+                                   (record-error-msg ,app-sym c)
+                                   (record-backtrace ,app-sym))))
+             ,@body))))))
 
 (defun gen-rm-handle ()
   "generate retained-mode primitive handle"

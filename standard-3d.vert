@@ -42,4 +42,5 @@ void main () {
                   (0x000000ff & color)/255.0);
   outTexCoord = inTexCoord;
   outPrimType = pc.type;
+  outObjectId = inObjectId;
 }

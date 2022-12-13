@@ -46,4 +46,5 @@ void main () {
                   (0x000000ff & (color >> 8))/255.0,
                   (0x000000ff & color)/255.0);
   outTexCoord = inTexCoord;
+  outObjectId = inObjectId;
 }

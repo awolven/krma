@@ -1,5 +1,9 @@
 (in-package :krma)
 
+(eval-when (:compile-toplevel :load-toplevel)
+  (when krma::*debug*
+    (declaim (optimize (safety 3) (debug 3)))))
+
 ;; A [2d|3d]-line-strip-draw-list is navigated by essential-draw-indexed-cmds
 ;; the first-index of each cmd is where in the index-array the vertex-index of the
 ;; first-[vertex-]index is, where in this particular case, the vertex-index==zero,

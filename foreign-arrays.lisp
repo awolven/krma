@@ -1,7 +1,44 @@
 (in-package :krma)
 
-(declaim (optimize (speed 3) (safety 0) (debug 3))
-	 (sb-ext:muffle-conditions sb-ext:compiler-note))
+(eval-when (:compile-toplevel :load-toplevel)
+  (when *muffle-compilation-notes*
+    #+sbcl(declaim (sb-ext:muffle-conditions sb-ext:compiler-note))))
+
+(eval-when (:compile-toplevel :load-toplevel)
+  (when krma::*debug*
+    (declaim (optimize (safety 3) (debug 3))))
+  (unless krma::*debug*
+    (declaim (optimize (speed 3) (safety 0) (debug 0)))
+    (declaim (inline index-array-push-extend))
+    (declaim (inline (setf textured-2d-vertex-oid)))
+    (declaim (inline (setf textured-2d-vertex-col)))
+    (declaim (inline (setf textured-2d-vertex-x)))
+    (declaim (inline (setf textured-2d-vertex-y)))
+    (declaim (inline (setf textured-2d-vertex-u)))
+    (declaim (inline (setf textured-2d-vertex-v)))
+    (declaim (inline textured-2d-vertex-array-push-extend))
+    (declaim (inline (setf textured-3d-vertex-oid)))
+    (declaim (inline (setf textured-3d-vertex-col)))
+    (declaim (inline (setf textured-3d-vertex-x)))
+    (declaim (inline (setf textured-3d-vertex-y)))
+    (declaim (inline (setf textured-3d-vertex-z)))
+    (declaim (inline (setf textured-3d-vertex-u)))
+    (declaim (inline (setf textured-3d-vertex-v)))
+    (declaim (inline textured-3d-array-push-extend))
+    (declaim (inline standard-3d-vertex-array-push-extend))
+    (declaim (inline (setf textured-3d-vertex-with-normal-oid)))
+    (declaim (inline (setf textured-3d-vertex-with-normal-col)))
+    (declaim (inline (setf textured-3d-vertex-with-normal-x)))
+    (declaim (inline (setf textured-3d-vertex-with-normal-y)))
+    (declaim (inline (setf textured-3d-vertex-with-normal-z)))
+    (declaim (inline (setf textured-3d-vertex-with-normal-u)))
+    (declaim (inline (setf textured-3d-vertex-with-normal-v)))
+    (declaim (inline (setf textured-3d-vertex-with-normal-nx)))
+    (declaim (inline (setf textured-3d-vertex-with-normal-ny)))
+    (declaim (inline (setf textured-3d-vertex-with-normal-nz)))
+    (declaim (inline textured-3d-vertex-with-normal-array-push-extend))
+    (declaim (inline standard-3d-vertex-with-normal-array-push-extend))))
+
 
 (defstruct (foreign-adjustable-array
 	    (:conc-name "FOREIGN-ARRAY-"))
@@ -21,7 +58,7 @@
 		   (fill-pointer 0)
 		   (bytes (make-array (cl:the fixnum allocated-count) :element-type '(unsigned-byte 16)))))))
 
-(declaim (inline index-array-push-extend))
+
 (defun index-array-push-extend (index-array index)
   (declare (type index-array index-array))
   (declare (type (unsigned-byte 32) index))
@@ -106,7 +143,7 @@
   (u :float)
   (v :float))
 
-(declaim (inline (setf textured-2d-vertex-oid)))
+
 (defun (setf textured-2d-vertex-oid) (value bytes offset)
   (declare (type (unsigned-byte 32) value))
   (declare (type (integer 0 #.(ash most-positive-fixnum -9)) offset))
@@ -115,7 +152,7 @@
 		       (cl:the fixnum (load-time-value (ash (foreign-slot-offset '(:struct textured-2d-vertex) 'oid) -2)))))
 	value))
 
-(declaim (inline (setf textured-2d-vertex-col)))
+
 (defun (setf textured-2d-vertex-col) (value bytes offset)
   (declare (type (unsigned-byte 32) value))
   (declare (type (integer 0 #.(ash most-positive-fixnum -9)) offset))
@@ -134,7 +171,7 @@
 		   (fill-pointer 0)
 		   (bytes (make-array (* (cl:the (integer 0 #.(ash most-positive-fixnum -9)) allocated-count)  (ash (cl:the (integer 0 512) foreign-type-size) -2)) :element-type '(unsigned-byte 32)))))))
 
-(declaim (inline (setf textured-2d-vertex-x)))
+
 (defun (setf textured-2d-vertex-x) (value bytes offset)
   (declare (type single-float value))
   (declare (type (integer 0 #.(ash most-positive-fixnum -9)) offset))
@@ -143,7 +180,7 @@
 		       (cl:the fixnum (load-time-value (ash (foreign-slot-offset '(:struct textured-2d-vertex) 'x) -2)))))
 	(float-features:single-float-bits value)))
 
-(declaim (inline (setf textured-2d-vertex-y)))
+
 (defun (setf textured-2d-vertex-y) (value bytes offset)
   (declare (type single-float value))
   (declare (type (integer 0 #.(ash most-positive-fixnum -9)) offset))
@@ -152,7 +189,7 @@
 		       (cl:the fixnum (load-time-value (ash (foreign-slot-offset '(:struct textured-2d-vertex) 'y) -2)))))
 	(float-features:single-float-bits value)))
 
-(declaim (inline (setf textured-2d-vertex-u)))
+
 (defun (setf textured-2d-vertex-u) (value bytes offset)
   (declare (type single-float value))
   (declare (type (integer 0 #.(ash most-positive-fixnum -9)) offset))
@@ -161,7 +198,7 @@
 		       (cl:the fixnum (load-time-value (ash (foreign-slot-offset '(:struct textured-2d-vertex) 'u) -2)))))
 	(float-features:single-float-bits value)))
 
-(declaim (inline (setf textured-2d-vertex-v)))
+
 (defun (setf textured-2d-vertex-v) (value bytes offset)
   (declare (type single-float value))
   (declare (type (integer 0 #.(ash most-positive-fixnum -9)) offset))
@@ -170,7 +207,7 @@
 		       (cl:the fixnum (load-time-value (ash (foreign-slot-offset '(:struct textured-2d-vertex) 'v) -2)))))
 	(float-features:single-float-bits value)))
 
-(declaim (inline textured-2d-vertex-array-push-extend))
+
 (defun textured-2d-vertex-array-push-extend (textured-2d-vertex-array ub32-oid sf-x sf-y sf-u sf-v ub32-color)
   (declare (type textured-2d-vertex-array textured-2d-vertex-array))
   (declare (type single-float sf-x sf-y sf-u sf-v))
@@ -244,7 +281,7 @@
 		   (bytes (make-array (* (cl:the (integer 0 #.(ash most-positive-fixnum -9)) allocated-count) (ash (cl:the (integer 0 512) foreign-type-size) -2)) :element-type '(unsigned-byte 32)))))))
 
 
-(declaim (inline (setf textured-3d-vertex-oid)))
+
 (defun (setf textured-3d-vertex-oid) (value bytes offset)
   (declare (type (unsigned-byte 32) value))
   (declare (type (integer 0 #.(ash most-positive-fixnum -9)) offset))
@@ -253,7 +290,7 @@
 		       (cl:the fixnum (load-time-value (ash (foreign-slot-offset '(:struct textured-3d-vertex) 'oid) -2)))))
 	value))
 
-(declaim (inline (setf textured-3d-vertex-col)))
+
 (defun (setf textured-3d-vertex-col) (value bytes offset)
   (declare (type (unsigned-byte 32) value))
   (declare (type (integer 0 #.(ash most-positive-fixnum -9)) offset))
@@ -262,7 +299,7 @@
 		       (cl:the fixnum (load-time-value (ash (foreign-slot-offset '(:struct textured-3d-vertex) 'col) -2)))))
 	value))
 
-(declaim (inline (setf textured-3d-vertex-x)))
+
 (defun (setf textured-3d-vertex-x) (value bytes offset)
   (declare (type single-float value))
   (declare (type (integer 0 #.(ash most-positive-fixnum -9)) offset))
@@ -271,7 +308,7 @@
 		       (cl:the fixnum (load-time-value (ash (foreign-slot-offset '(:struct textured-3d-vertex) 'x) -2)))))
 	(float-features:single-float-bits value)))
 
-(declaim (inline (setf textured-3d-vertex-y)))
+
 (defun (setf textured-3d-vertex-y) (value bytes offset)
   (declare (type single-float value))
   (declare (type (integer 0 #.(ash most-positive-fixnum -9)) offset))
@@ -280,7 +317,7 @@
 		       (cl:the fixnum (load-time-value (ash (foreign-slot-offset '(:struct textured-3d-vertex) 'y) -2)))))
 	(float-features:single-float-bits value)))
 
-(declaim (inline (setf textured-3d-vertex-z)))
+
 (defun (setf textured-3d-vertex-z) (value bytes offset)
   (declare (type single-float value))
   (declare (type (integer 0 #.(ash most-positive-fixnum -9)) offset))
@@ -289,7 +326,7 @@
 		       (cl:the fixnum (load-time-value (ash (foreign-slot-offset '(:struct textured-3d-vertex) 'z) -2)))))
 	(float-features:single-float-bits value)))
 
-(declaim (inline (setf textured-3d-vertex-u)))
+
 (defun (setf textured-3d-vertex-u) (value bytes offset)
   (declare (type single-float value))
   (declare (type (integer 0 #.(ash most-positive-fixnum -9)) offset))
@@ -298,7 +335,7 @@
 		       (cl:the fixnum (load-time-value (ash (foreign-slot-offset '(:struct textured-3d-vertex) 'u) -2)))))
 	(float-features:single-float-bits value)))
 
-(declaim (inline (setf textured-3d-vertex-v)))
+
 (defun (setf textured-3d-vertex-v) (value bytes offset)
   (declare (type single-float value))
   (declare (type (integer 0 #.(ash most-positive-fixnum -9)) offset))
@@ -307,7 +344,7 @@
 		       (cl:the fixnum (load-time-value (ash (foreign-slot-offset '(:struct textured-3d-vertex) 'v) -2)))))
 	(float-features:single-float-bits value)))
 
-(declaim (inline textured-3d-array-push-extend))
+
 (defun textured-3d-vertex-array-push-extend (textured-3d-vertex-array ub32-oid sf-x sf-y sf-z sf-u sf-v ub32-color)
   (declare (type textured-3d-vertex-array textured-3d-vertex-array))
   (declare (type single-float sf-x sf-y sf-u sf-v))
@@ -342,7 +379,7 @@
         (prog1 fp
           (incf fill-pointer))))))
 
-;;(declaim (inline standard-3d-vertex-array-push-extend))
+
 (defun standard-3d-vertex-array-push-extend (vertex-array ub32-oid sf-x sf-y sf-z ub32-color)
   (declare (type textured-3d-vertex-array vertex-array))
   (declare (type single-float sf-x sf-y sf-z))
@@ -362,7 +399,7 @@
 		   (fill-pointer 0)
 		   (bytes (make-array (* (cl:the (integer 0 #.(ash most-positive-fixnum -9)) allocated-count)  (ash (cl:the (integer 0 512) foreign-type-size) -2)) :element-type '(unsigned-byte 32)))))))
 
-(declaim (inline (setf textured-3d-vertex-with-normal-oid)))
+
 (defun (setf textured-3d-vertex-with-normal-oid) (value bytes offset)
   (declare (type (unsigned-byte 32) value))
   (declare (type (integer 0 #.(ash most-positive-fixnum -9)) offset))
@@ -371,7 +408,7 @@
 		       (cl:the fixnum (load-time-value (ash (foreign-slot-offset '(:struct textured-3d-vertex-with-normal) 'oid) -2)))))
 	value))
 
-(declaim (inline (setf textured-3d-vertex-with-normal-col)))
+
 (defun (setf textured-3d-vertex-with-normal-col) (value bytes offset)
   (declare (type (unsigned-byte 32) value))
   (declare (type (integer 0 #.(ash most-positive-fixnum -9)) offset))
@@ -380,7 +417,7 @@
 		       (cl:the fixnum (load-time-value (ash (foreign-slot-offset '(:struct textured-3d-vertex-with-normal) 'col) -2)))))
 	value))
 
-(declaim (inline (setf textured-3d-vertex-with-normal-x)))
+
 (defun (setf textured-3d-vertex-with-normal-x) (value bytes offset)
   (declare (type single-float value))
   (declare (type (integer 0 #.(ash most-positive-fixnum -9)) offset))
@@ -389,7 +426,7 @@
 		       (cl:the fixnum (load-time-value (ash (foreign-slot-offset '(:struct textured-3d-vertex-with-normal) 'x) -2)))))
 	(float-features:single-float-bits value)))
 
-(declaim (inline (setf textured-3d-vertex-with-normal-y)))
+
 (defun (setf textured-3d-vertex-with-normal-y) (value bytes offset)
   (declare (type single-float value))
   (declare (type (integer 0 #.(ash most-positive-fixnum -9)) offset))
@@ -398,7 +435,7 @@
 		       (cl:the fixnum (load-time-value (ash (foreign-slot-offset '(:struct textured-3d-vertex-with-normal) 'y) -2)))))
 	(float-features:single-float-bits value)))
 
-(declaim (inline (setf textured-3d-vertex-with-normal-z)))
+
 (defun (setf textured-3d-vertex-with-normal-z) (value bytes offset)
   (declare (type single-float value))
   (declare (type (integer 0 #.(ash most-positive-fixnum -9)) offset))
@@ -407,7 +444,7 @@
 		       (cl:the fixnum (load-time-value (ash (foreign-slot-offset '(:struct textured-3d-vertex-with-normal) 'z) -2)))))
 	(float-features:single-float-bits value)))
 
-(declaim (inline (setf textured-3d-vertex-with-normal-u)))
+
 (defun (setf textured-3d-vertex-with-normal-u) (value bytes offset)
   (declare (type single-float value))
   (declare (type (integer 0 #.(ash most-positive-fixnum -9)) offset))
@@ -416,7 +453,7 @@
 		       (cl:the fixnum (load-time-value (ash (foreign-slot-offset '(:struct textured-3d-vertex-with-normal) 'u) -2)))))
 	(float-features:single-float-bits value)))
 
-(declaim (inline (setf textured-3d-vertex-with-normal-v)))
+
 (defun (setf textured-3d-vertex-with-normal-v) (value bytes offset)
   (declare (type single-float value))
   (declare (type (integer 0 #.(ash most-positive-fixnum -9)) offset))
@@ -425,7 +462,7 @@
 		       (cl:the fixnum (load-time-value (ash (foreign-slot-offset '(:struct textured-3d-vertex-with-normal) 'v) -2)))))
 	(float-features:single-float-bits value)))
 
-(declaim (inline (setf textured-3d-vertex-with-normal-nx)))
+
 (defun (setf textured-3d-vertex-with-normal-nx) (value bytes offset)
   (declare (type single-float value))
   (declare (type (integer 0 #.(ash most-positive-fixnum -9)) offset))
@@ -434,7 +471,7 @@
 		       (cl:the fixnum (load-time-value (ash (foreign-slot-offset '(:struct textured-3d-vertex-with-normal) 'nx) -2)))))
 	(float-features:single-float-bits value)))
 
-(declaim (inline (setf textured-3d-vertex-with-normal-ny)))
+
 (defun (setf textured-3d-vertex-with-normal-ny) (value bytes offset)
   (declare (type single-float value))
   (declare (type (integer 0 #.(ash most-positive-fixnum -9)) offset))
@@ -443,7 +480,7 @@
 		       (cl:the fixnum (load-time-value (ash (foreign-slot-offset '(:struct textured-3d-vertex-with-normal) 'ny) -2)))))
 	(float-features:single-float-bits value)))
 
-(declaim (inline (setf textured-3d-vertex-with-normal-nz)))
+
 (defun (setf textured-3d-vertex-with-normal-nz) (value bytes offset)
   (declare (type single-float value))
   (declare (type (integer 0 #.(ash most-positive-fixnum -9)) offset))
@@ -452,7 +489,7 @@
 		       (cl:the fixnum (load-time-value (ash (foreign-slot-offset '(:struct textured-3d-vertex-with-normal) 'nz) -2)))))
 	(float-features:single-float-bits value)))
 
-(declaim (inline textured-3d-vertex-with-normal-array-push-extend))
+
 (defun textured-3d-vertex-with-normal-array-push-extend (textured-3d-vertex-with-normal-array ub32-oid sf-x sf-y sf-z sf-nx sf-ny sf-nz sf-u sf-v ub32-color)
   (declare (type textured-3d-vertex-with-normal-array textured-3d-vertex-with-normal-array))
   (declare (type single-float sf-x sf-y sf-u sf-v sf-nx sf-ny sf-nz))
@@ -490,7 +527,7 @@
         (prog1 fp
           (incf fill-pointer))))))
 
-(declaim (inline standard-3d-vertex-with-normal-array-push-extend))
+
 (defun standard-3d-vertex-with-normal-array-push-extend (vertex-array
 							 ub32-oid
 							 sf-x sf-y sf-z

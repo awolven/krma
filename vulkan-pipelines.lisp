@@ -1,8 +1,14 @@
 (in-package :krma)
 
-;;(declaim (optimize (speed 3) (debug 3) (safety 3) (space 0) (compilation-speed 0)))
+(eval-when (:compile-toplevel :load-toplevel)
+  (when *muffle-compilation-notes*
+    (declaim (sb-ext:muffle-conditions sb-ext:compiler-note))))
 
-
+(eval-when (:compile-toplevel :load-toplevel)
+  (when krma::*debug*
+    (declaim (optimize (safety 3) (debug 3))))
+  (unless krma::*debug*
+    (declaim (optimize (speed 3) (safety 0) (debug 0)))))
 
 (defgeneric pipeline-topology (pipeline))
 
@@ -17,6 +23,7 @@
 (defconstant +uber-vertex-shader-primitive-type-offset+ 17)
 (defconstant +uber-vertex-shader-color-override-offset+  18)
 (defconstant +uber-vertex-shader-override-color-p-offset+ 19)
+
 (defconstant +uber-vertex-shader-pc-size+ 20)
 
 (defconstant +fragment-shader-select-box-min-offset+ 0)
@@ -34,10 +41,61 @@
    (name :initarg :name :reader pipeline-name :initform nil)
    (pipeline-layout :accessor pipeline-layout)
    (device-pipeline :accessor device-pipeline)
-
+   
    (global-descriptor-set-layout :initform nil)
+   (global-descriptor-set :initform nil)
    (scene-descriptor-set-layout :initform nil)
-   (per-instance-descriptor-set-layout :initform nil)))
+   (per-instance-descriptor-set-layout :initform nil)
+   
+   (vertex-uniform-buffer :initform nil :accessor pipeline-vertex-uniform-buffer)
+   (fragment-uniform-buffer :initform nil :accessor pipeline-fragment-uniform-buffer)))
+
+(defun update-vertex-uniform-buffer (pipeline view proj)
+  (with-foreign-object (p-stage '(:struct vertex-uniform-buffer))
+    (copy-matrix-to-foreign view (foreign-slot-pointer p-stage '(:struct vertex-uniform-buffer) 'view))
+    (copy-matrix-to-foreign proj (foreign-slot-pointer p-stage '(:struct vertex-uniform-buffer) 'proj))
+    (copy-matrix-to-foreign (m* proj view) (foreign-slot-pointer p-stage '(:struct vertex-uniform-buffer) 'vproj))
+    (copy-uniform-buffer-memory (default-logical-device pipeline)
+				p-stage
+				(allocated-memory (pipeline-vertex-uniform-buffer pipeline))
+				(load-time-value (foreign-type-size '(:struct vertex-uniform-buffer))))))
+
+(defun update-fragment-uniform-buffer (pipeline scene)
+  (let ((lights (scene-lights scene)))
+    (with-foreign-object (p-stage '(:struct fragment-uniform-buffer))
+      (loop for light in lights for i from 0 below 10
+	    do (let ((p-light (mem-aptr p-stage '(:struct light) i)))
+		 (with-slots (position
+			      diffuse
+			      specular
+			      constant-attenuation
+			      linear-attenuation
+			      quadratic-attenuation
+			      spot-cutoff
+			      spot-exponent
+			      spot-direction)
+		     light
+		   (setf (foreign-slot-value p-light '(:struct light) 'pos-x) (clampf (vx position))
+			 (foreign-slot-value p-light '(:struct light) 'pos-y) (clampf (vy position))
+			 (foreign-slot-value p-light '(:struct light) 'pos-z) (clampf (vz position))
+			 (foreign-slot-value p-light '(:struct light) 'diffuse) (canonicalize-color diffuse)
+			 (foreign-slot-value p-light '(:struct light) 'specular) (canonicalize-color specular)
+			 (foreign-slot-value p-light '(:struct light) 'constant-attenuation) (clampf constant-attenuation)
+			 (foreign-slot-value p-light '(:struct light) 'linear-attenuation) (clampf linear-attenuation)
+			 (foreign-slot-value p-light '(:struct light) 'quadratic-attenuation) (clampf quadratic-attenuation)
+			 (foreign-slot-value p-light '(:struct light) 'spot-cutoff) (clampf spot-cutoff)
+			 (foreign-slot-value p-light '(:struct light) 'spot-exponent) (clampf spot-exponent)
+			 (foreign-slot-value p-light '(:struct light) 'spot-direction-x) (clampf (vx spot-direction))
+			 (foreign-slot-value p-light '(:struct light) 'spot-direction-y) (clampf (vy spot-direction))
+			 (foreign-slot-value p-light '(:struct light) 'spot-direction-z) (clampf (vz spot-direction)))))
+	    finally (setf (foreign-slot-value p-stage '(:struct fragment-uniform-buffer) 'num-lights) (1+ i))
+		    (setf (foreign-slot-value p-stage '(:struct fragment-uniform-buffer) 'scene-ambient) (canonicalize-color
+													  (scene-ambient scene)))
+		    (copy-uniform-buffer-memory (default-logical-device pipeline)
+						p-stage
+						(allocated-memory (pipeline-fragment-uniform-buffer pipeline))
+						(load-time-value (foreign-type-size '(:struct fragment-uniform-buffer)))))))
+  (values))
 
 (defmethod make-global-descriptor-set-layout-bindings ((pipeline pipeline-mixin))
   nil)
@@ -120,7 +178,7 @@
   (create-standard-pipeline-device-objects pipeline :app app))
 
 (defmethod initialize-instance :after ((pipeline pipeline-mixin) &rest initargs
-				       &key app)
+				&key app)
   (declare (ignore initargs))
   (create-device-objects pipeline :app app)
   (values))
@@ -156,16 +214,56 @@
 (defclass draw-indexed-pipeline-mixin (pipeline-mixin)
   ())
 
-(defclass ubershader-pipeline-mixin (draw-indexed-pipeline-mixin) ())
+(defclass ubershader-pipeline-mixin (draw-indexed-pipeline-mixin)
 
-(defmethod global-descriptor-set-layout ((pipeline ubershader-pipeline-mixin))
-  (application-ubershader-global-descriptor-set-layout (application pipeline)))
+  ())
+
+(defmethod initialize-instance :after ((instance ubershader-pipeline-mixin) &rest initargs)
+  (declare (ignore initargs))
+  (setf (pipeline-vertex-uniform-buffer instance)
+	(create-uniform-buffer (default-logical-device instance)
+			       (load-time-value (foreign-type-size '(:struct vertex-uniform-buffer)))))
+  (setf (pipeline-fragment-uniform-buffer instance)
+	(create-uniform-buffer (default-logical-device instance)
+			       (load-time-value (foreign-type-size '(:struct fragment-uniform-buffer))))))
+
+(defmethod global-descriptor-set ((pipeline ubershader-pipeline-mixin))
+  ;; apparently each pipeline needs it's own uniform buffer
+  ;; you can't have a [vertex] uniform buffer for the entire application
+  ;; because it doesn't update when switching from 2d to 3d
+  ;; so we have to have a separate global-descriptor-set for each pipeline too
+  ;; but maybe the fragment-uniform-buffer could be a slot on the app
+  ;;   
+  (if (slot-value pipeline 'global-descriptor-set)
+      (slot-value pipeline 'global-descriptor-set)
+      (setf (slot-value pipeline 'global-descriptor-set)
+	    (create-descriptor-set
+	     (default-logical-device pipeline)
+	     (list (global-descriptor-set-layout pipeline))
+	     (descriptor-pool pipeline)
+	     :descriptor-buffer-info (list (make-instance 'descriptor-uniform-buffer-info
+							  :buffer (pipeline-vertex-uniform-buffer pipeline)
+							  :offset 0
+							  :range (load-time-value (foreign-type-size '(:struct vertex-uniform-buffer))))
+					   (make-instance 'descriptor-uniform-buffer-info
+							  :buffer (pipeline-fragment-uniform-buffer pipeline)
+							  :offset 0
+							  :range (load-time-value (foreign-type-size '(:struct fragment-uniform-buffer)))))))))
+
+(defmethod make-global-descriptor-set-layout-bindings ((pipeline ubershader-pipeline-mixin))
+ ;; set 0
+  (list (make-instance 'uniform-buffer-for-vertex-shader-dsl-binding)
+	(make-instance 'vk::uniform-buffer-for-fragment-shader-dsl-binding
+		       :binding 1)))
+
+#+NIL(defun create-ubershader-global-descriptor-set-layout (pipeline)
+  (setf (global-descriptor-set-layout pipeline)
+	(create-descriptor-set-layout
+	 (default-logical-device pipeline)
+	 :bindings (make-ubershader-global-descriptor-set-layout-bindings pipeline))))
 
 (defmethod scene-descriptor-set-layout ((pipeline ubershader-pipeline-mixin))
   (application-select-box-descriptor-set-layout (application pipeline)))
-
-(defmethod make-global-descriptor-set-layout-bindings ((pipeline ubershader-pipeline-mixin))
-  (make-ubershader-global-descriptor-set-layout-bindings (application pipeline)))
 
 (defmethod make-scene-descriptor-set-layout-bindings ((pipeline ubershader-pipeline-mixin))
   (make-select-box-descriptor-set-layout-bindings (application pipeline)))
@@ -182,6 +280,15 @@
                        :offset 0
                        :size (load-time-value (* +uber-vertex-shader-pc-size+
                                                  (foreign-type-size :uint32))))))
+
+(defmethod make-push-constant-ranges ((pipeline ubershader-pipeline-mixin))
+  (append (call-next-method)
+	  (list (make-instance 'push-constant-range
+                               :stage-flags VK_SHADER_STAGE_FRAGMENT_BIT
+                               :offset (load-time-value (* +uber-vertex-shader-pc-size+
+                                                           (foreign-type-size :uint32)))
+                               :size (load-time-value (* +fragment-shader-pc-size+
+							 (foreign-type-size :float)))))))
 
 (defclass texture-pipeline-mixin (ubershader-pipeline-mixin)
   ())
@@ -246,17 +353,6 @@
 
 (defclass 3d-texture-with-normals-pipeline-mixin (3d-texture-pipeline-mixin)
   ())
-
-(defmethod global-descriptor-set-layout ((pipeline 3d-texture-with-normals-pipeline-mixin))
-  (let ((app (application pipeline)))
-    (if (slot-value pipeline 'global-descriptor-set-layout)
-	(slot-value pipeline 'global-descriptor-set-layout)
-	(setf (slot-value pipeline 'global-descriptor-set-layout)
-	      (create-descriptor-set-layout (default-logical-device app) :bindings (make-global-descriptor-set-layout-bindings pipeline))))))
-
-(defmethod make-global-descriptor-set-layout-bindings :around ((pipeline 3d-texture-with-normals-pipeline-mixin))
-  (append (call-next-method)	
-	  (list (make-instance 'vk::uniform-buffer-for-fragment-shader-dsl-binding))))
 
 (defmethod pipeline-vertex-type ((pipeline 3d-texture-with-normals-pipeline-mixin))
   '(:struct textured-3d-vertex-with-normal))
@@ -729,14 +825,6 @@
 (defmethod fragment-shader-pathname ((pipeline msdf-text-pipeline)) 
   (asdf/system:system-relative-pathname :krma "submodules/krma-shader-bin/msdf-texture.frag.spv"))
 
-(defmethod make-push-constant-ranges ((pipeline msdf-text-pipeline))
-  (append (call-next-method)
-          (list (make-instance 'push-constant-range
-                               :stage-flags VK_SHADER_STAGE_FRAGMENT_BIT
-                               :offset (load-time-value (* +uber-vertex-shader-pc-size+
-                                                           (foreign-type-size :uint32)))
-                               :size (load-time-value (* 5 (foreign-type-size :float)))))))
-
 (defclass 2d-triangle-strip-pipeline (triangle-strip-pipeline-mixin
                                       2d-texture-pipeline-mixin)
   ())
@@ -760,12 +848,12 @@
 
 ;;------
 
-(defun ubershader-render-draw-list-cmds (pipeline draw-data draw-list app device command-buffer)
+(defun ubershader-render-draw-list-cmds (pipeline draw-data draw-list app device command-buffer scene view proj width height)
   
   (declare (type draw-indexed-pipeline-mixin pipeline))
   (declare (type draw-list-mixin draw-list))
   (declare (type standard-draw-data draw-data))
-  
+
   (let ((index-array (draw-list-index-array draw-list)))
     (declare (type foreign-adjustable-array index-array))
     
@@ -784,8 +872,17 @@
 	    
             (cmd-bind-pipeline command-buffer (device-pipeline pipeline) :bind-point :graphics)
 
+	    ;; apparently, updating uniform buffers have no effect if done before cmd-bind-pipeline
+	    (update-vertex-uniform-buffer pipeline view proj)
+
+	    (update-fragment-uniform-buffer pipeline scene)
+
+	    (cmd-set-viewport command-buffer :width width :height height
+					     :min-depth 0.0 :max-depth 1.0)
+	    (cmd-set-scissor command-buffer :width width :height height)
+
             (with-foreign-objects ((p-descriptor-sets :pointer 1))
-              (setf (mem-aref p-descriptor-sets :pointer 0) (h (application-ubershader-global-descriptor-set app)))
+              (setf (mem-aref p-descriptor-sets :pointer 0) (h (global-descriptor-set pipeline)))
               (vkCmdBindDescriptorSets (h command-buffer)
                                        VK_PIPELINE_BIND_POINT_GRAPHICS
                                        (h pipeline-layout)
@@ -899,9 +996,9 @@
 				     (setf (mem-aref pvalues2 :float +text-fragment-shader-px-range-offset+) 32.0f0))))))
 			 (let ((select-box-coords (application-select-box-coords app)))
 			   (setf (mem-aref pvalues2 :float +fragment-shader-select-box-min-offset+) (clampf (vx select-box-coords))
-				 (mem-aref pvalues2 :float +fragment-shader-select-box-min-offset+) (clampf (vy select-box-coords))
+				 (mem-aref pvalues2 :float (1+ +fragment-shader-select-box-min-offset+)) (clampf (vy select-box-coords))
 				 (mem-aref pvalues2 :float +fragment-shader-select-box-max-offset+) (clampf (vz select-box-coords))
-				 (mem-aref pvalues2 :float +fragment-shader-select-box-max-offset+) (clampf (vw select-box-coords))))
+				 (mem-aref pvalues2 :float (1+ +fragment-shader-select-box-max-offset+)) (clampf (vw select-box-coords))))
 				 
 
 			 ;; make sure msdf-texture fragment shader can get px-range from font
@@ -924,11 +1021,11 @@
               t)))))))
 
 (defmethod render-draw-list-cmds ((pipeline draw-indexed-pipeline-mixin) draw-data draw-list
-				  app device command-buffer)
+				  app device command-buffer scene view proj width height)
 
-  (ubershader-render-draw-list-cmds pipeline draw-data draw-list app device command-buffer))
+  (ubershader-render-draw-list-cmds pipeline draw-data draw-list app device command-buffer scene view proj width height))
 
-(defun ubershader-render-draw-list (pipeline draw-data draw-list app device command-buffer)
+(defun ubershader-render-draw-list (pipeline draw-data draw-list app device command-buffer scene view proj width height)
   
   (declare (type draw-indexed-pipeline-mixin))
   (declare (type draw-list-mixin draw-list))
@@ -948,8 +1045,16 @@
 
 	(cmd-bind-pipeline command-buffer (device-pipeline pipeline) :bind-point :graphics)
 
+	(update-vertex-uniform-buffer pipeline view proj)
+
+	(update-fragment-uniform-buffer pipeline scene)
+
+	(cmd-set-viewport command-buffer :width width :height height)
+	
+	(cmd-set-scissor command-buffer :width width :height height)
+
 	(with-foreign-objects ((p-descriptor-sets :pointer 1))
-          (setf (mem-aref p-descriptor-sets :pointer 0) (h (application-ubershader-global-descriptor-set app)))
+          (setf (mem-aref p-descriptor-sets :pointer 0) (h (global-descriptor-set pipeline)))
           (vkCmdBindDescriptorSets (h command-buffer)
                                    VK_PIPELINE_BIND_POINT_GRAPHICS
                                    (h pipeline-layout)
@@ -1053,9 +1158,9 @@
 	    
 	    (let ((select-box-coords (application-select-box-coords app)))
 	      (setf (mem-aref pvalues2 :float +fragment-shader-select-box-min-offset+) (clampf (vx select-box-coords))
-		    (mem-aref pvalues2 :float +fragment-shader-select-box-min-offset+) (clampf (vy select-box-coords))
+		    (mem-aref pvalues2 :float (1+ +fragment-shader-select-box-min-offset+)) (clampf (vy select-box-coords))
 		    (mem-aref pvalues2 :float +fragment-shader-select-box-max-offset+) (clampf (vz select-box-coords))
-		    (mem-aref pvalues2 :float +fragment-shader-select-box-max-offset+) (clampf (vw select-box-coords))))
+		    (mem-aref pvalues2 :float (1+ +fragment-shader-select-box-max-offset+)) (clampf (vw select-box-coords))))
 
 	    ;; make sure msdf-texture fragment shader can get px-range from font
 	    (vkCmdPushConstants command-buffer-handle
@@ -1063,12 +1168,8 @@
 				VK_SHADER_STAGE_FRAGMENT_BIT
 				(load-time-value (* +uber-vertex-shader-pc-size+
 						    (foreign-type-size :uint32)))
-				(* (cond ((draw-list-font draw-list)
-					  +lighting-fragment-shader-ambient-offset+)
-					 ((typep pipeline '3d-texture-with-normals-pipeline-mixin)
-					  +fragment-shader-pc-size+)
-					 (t +text-fragment-shader-px-range-offset+))
-				   (load-time-value (foreign-type-size :uint32)))
+				(load-time-value (* +fragment-shader-pc-size+
+						    (foreign-type-size :uint32)))
 				pvalues2))
 
           ;; draw the whole draw list in one command
@@ -1076,5 +1177,51 @@
 			    (foreign-array-fill-pointer index-array)
 			    1 0 0 0))))))
 
-(defmethod render-draw-list ((pipeline draw-indexed-pipeline-mixin) draw-data draw-list app device command-buffer)
-  (ubershader-render-draw-list pipeline draw-data draw-list app device command-buffer))
+(defmethod render-draw-list ((pipeline draw-indexed-pipeline-mixin) draw-data draw-list app device command-buffer scene view proj width height)
+  (ubershader-render-draw-list pipeline draw-data draw-list app device command-buffer scene view proj width height))
+
+(defun read-buffer (buffer lisp-array size memory-resource aligned-size)
+  (let ((memory (allocated-memory buffer))
+        (offset (vk::memory-resource-offset memory-resource))
+        (device (vk::device buffer)))
+    (with-foreign-object (pp-src :pointer)
+
+      (check-vk-result (vkMapMemory (h device) (h memory) offset aligned-size 0 pp-src))
+
+      (let ((p-src (mem-aref pp-src :pointer)))
+	(sb-sys:with-pinned-objects (lisp-array)
+	  (vk::memcpy (sb-sys:vector-sap lisp-array) p-src size))
+
+	(with-foreign-object (p-range '(:struct VkMappedMemoryRange))
+	  (zero-struct p-range '(:struct VkMappedMemoryRange))
+
+	  (with-foreign-slots ((%vk::sType
+				%vk::memory
+				%vk::size
+                                %vk::offset)
+                               p-range (:struct VkMappedMemoryRange))
+
+	    (setf %vk::sType VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE
+		  %vk::memory (h memory)
+		  %vk::size aligned-size
+                  %vk::offset offset))
+
+	  (check-vk-result (vkFlushMappedMemoryRanges (h device) 1 p-range))
+
+	  (vkUnmapMemory (h device) (h memory))
+
+	  (values))))))
+
+(defun read-select-box (app)
+  (let* ((coords (application-select-box-coords app))
+	 (cols (floor (- (vz coords) (vx coords))))
+	 (rows (floor (- (vw coords) (vy coords))))
+	 (array (make-array (* cols rows +select-box-depth+) :element-type '(unsigned-byte 32))))
+    (setf (application-select-box app) (make-array (list cols rows +select-box-depth+)
+						   :element-type '(unsigned-byte 32)
+						   :displaced-to array :displaced-index-offset 0))
+    (read-buffer (vk::memory-pool-buffer
+		  (vk::storage-buffer-memory-pool app))
+		 array (load-time-value (* +select-box-depth+ (foreign-type-size :unsigned-int)))
+		 (application-select-box-memory-resource app)
+		 (aligned-size +select-box-depth+))))

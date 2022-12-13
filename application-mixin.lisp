@@ -1,6 +1,8 @@
 (in-package :krma)
 
-(defconstant +select-box-depth+ 128)
+(eval-when (:compile-toplevel :load-toplevel)
+  (when krma::*debug*
+    (declaim (optimize (safety 3) (debug 3)))))
 
 (defclass pipeline-store-mixin ()
   ((2d-point-list-pipeline :accessor pipeline-store-2d-point-list-pipeline)
@@ -106,6 +108,7 @@
 
 (defclass krma-application-mixin (vulkan-application-mixin)
   ((vk::application-name :initform "krma-application")
+   (frame-rate :initform 0 :accessor application-frame-rate)
    (scene :initform nil :accessor application-scene)
    (pipeline-store :accessor application-pipeline-store)
    (texture-sampler :accessor application-texture-sampler)
@@ -125,23 +128,12 @@
    (select-box-descriptor-set-layout :initform nil :accessor application-select-box-descriptor-set-layout)
    (select-box-descriptor-set :initform nil :accessor application-select-box-descriptor-set)
    (select-box :initform nil :accessor application-select-box)
-   (ubershader-global-descriptor-set-layout :initform nil :accessor application-ubershader-global-descriptor-set-layout)
-   (ubershader-global-descriptor-set :initform nil :accessor application-ubershader-global-descriptor-set)
    (ubershader-per-instance-descriptor-set-layout :initform nil :accessor application-ubershader-per-instance-descriptor-set-layout)
-   (ubershader-per-instance-descriptor-set :initform nil :accessor application-ubershader-per-instance-descriptor-set)
-   (vertex-uniform-buffer :initform nil :accessor application-vertex-uniform-buffer)
-   (fragment-uniform-buffer :initform nil :accessor application-fragment-uniform-buffer)))
-
-(defun make-ubershader-global-descriptor-set-layout-bindings (app)
-  (declare (ignore app))
-  (list (make-instance 'uniform-buffer-for-vertex-shader-dsl-binding)))
-
-(defun create-ubershader-global-descriptor-set-layout (device app)
-  (setf (application-ubershader-global-descriptor-set-layout app)
-	(create-descriptor-set-layout device :bindings (make-ubershader-global-descriptor-set-layout-bindings app))))
+   (ubershader-per-instance-descriptor-set :initform nil :accessor application-ubershader-per-instance-descriptor-set))
+  (:default-initargs :enable-fragment-stores-and-atomics t))
 
 (defun make-select-box-descriptor-set-layout-bindings (app)
-  (declare (ignore app))
+  (declare (ignore app)) ;; set 1
   (list (make-instance 'storage-buffer-for-fragment-shader-dsl-binding)))
 
 (defun create-select-box-descriptor-set-layout (device app)
@@ -149,6 +141,7 @@
 	(create-descriptor-set-layout device :bindings (make-select-box-descriptor-set-layout-bindings app))))
 
 (defun make-ubershader-per-instance-descriptor-set-layout-bindings (app)
+  ;; set 2
   (list (make-instance 'descriptor-set-layout-binding
                        :type VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
                        :count 1
@@ -159,119 +152,69 @@
   (setf (application-ubershader-per-instance-descriptor-set-layout app)
 	(create-descriptor-set-layout device :bindings (make-ubershader-per-instance-descriptor-set-layout-bindings app))))
 
-(defun compute-ubershader-global-descriptor-set (app)
-  (setf (application-ubershader-global-descriptor-set app)
-	(create-descriptor-set
-	 (default-logical-device app)
-	 (list (application-ubershader-global-descriptor-set-layout app))
-	 (default-descriptor-pool app)
-	 :descriptor-buffer-info (list (make-instance 'descriptor-uniform-buffer-info
-						      :buffer (application-vertex-uniform-buffer app)
-						      :offset 0
-						      :range (load-time-value (foreign-type-size '(:struct vertex-uniform-buffer))))
-				       (make-instance 'descriptor-uniform-buffer-info
-						      :buffer (application-fragment-uniform-buffer app)
-						      :offset 0
-						      :range (load-time-value (foreign-type-size '(:struct fragment-uniform-buffer))))))))
+(defmethod initialize-app ((app krma-application-mixin) &rest initargs)
+  (declare (ignorable initargs))
+  #+windows
+  (let ((throttle-frame-rate? (getf initargs :throttle-frame-rate?)))
+    (when throttle-frame-rate?
+      (load-foreign-library "ntdll.dll")))
+  
+  (setf (application-texture-sampler app) (create-sampler (default-logical-device app) :allocator (allocator app)))
+  (create-select-box-descriptor-set-layout (default-logical-device app) app)
+  (create-ubershader-per-instance-descriptor-set-layout (default-logical-device app) app)
+  (setf (application-pipeline-store app) (make-instance 'standard-pipeline-store :app app))
+  (setf (application-scene app) (make-instance (scene-class app)))
+  
+  (let* ((main-window (main-window app))
+	 (device (default-logical-device app))
+	 (index (queue-family-index (render-surface main-window)))
+	 (queue (find-queue device index))
+	 (command-pool (find-command-pool device index))(device (default-logical-device app))
+         (main-window (main-window app))
+         (command-buffer (elt (command-buffers command-pool) 0))
+         (descriptor-pool (default-descriptor-pool app))
+	 (sampler (application-texture-sampler app))
+         (texture-dsl (create-descriptor-set-layout
+                       device
+                       :bindings (list (make-instance 'descriptor-set-layout-binding
+                                                      :type VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
+                                                      :count 1
+                                                      :flags VK_SHADER_STAGE_FRAGMENT_BIT
+                                                      :samplers (list sampler))))))
 
-(defun compute-select-box-descriptor-set (app)
-  (multiple-value-bind (mouse-x mouse-y) (get-cursor-pos (main-window app))
-    (let* ((new-coords (vec4 (- mouse-x 1/2) (- mouse-y 1/2)
-			     (+ mouse-x 1/2) (+ mouse-y 1/2)))
-	   (width (- (vz new-coords) (vx new-coords))) ;; should be 1.0 atm, in the future it might not be
-	   (height (- (vw new-coords) (vy new-coords))) ;; should be 1.0 atm
-	   (new-size (floor (* width height +select-box-depth+ (load-time-value (foreign-type-size :unsigned-int))))))
+    ;; these should be put in initialize-instance of krma-test-application
+    (multiple-value-bind (width height) (get-framebuffer-size main-window)
+      (setf (main-window-width app) width
+	    (main-window-height app) height))
 
-      (setf (application-select-box-coords app) new-coords)
-
-      ;; if select box size has changed or if this is the first time
-      (unless (= new-size (application-select-box-size app))
-      
-	(let ((aligned-size (aligned-size new-size))
-	      (old-descriptor-set (application-select-box-descriptor-set app))
-	      (old-memory-resource (application-select-box-memory-resource app))
-	      (new-memory-resource)
-	      (memory-resource-changed-p nil))
-        
-	  (if old-memory-resource
-	      
-	      (if (<= aligned-size (vk::memory-resource-size old-memory-resource))
-		  
-		  (setq new-memory-resource old-memory-resource) ;; keep resource the same
-		  
-		  (progn
-		    (vk::release-storage-memory app old-memory-resource)
-		    (setq new-memory-resource (vk::acquire-storage-memory-sized app aligned-size :host-visible))
-		    (setq memory-resource-changed-p t)))
-	      
-	      (progn 
-		(setq new-memory-resource (vk::acquire-storage-memory-sized app aligned-size :host-visible))
-		(setq memory-resource-changed-p t)))
-
-	  (if memory-resource-changed-p
-		
-	      (progn
-		(when old-descriptor-set
-		  (vk::free-descriptor-sets (list old-descriptor-set) (default-descriptor-pool app)))
+    (device-wait-idle device)
     
-		(setf (application-select-box-memory-resource app)
-		      new-memory-resource)
+    (reset-command-pool device command-pool)
+    
+    ;; one time commands here.
+    (unless (probe-file (asdf/system:system-relative-pathname :krma "submodules/krma-fonts/rm16cache.json"))
+      (sdf-bmfont:create-bmfont
+       (asdf/system:system-relative-pathname
+	:krma "submodules/krma-fonts/Roboto_Mono/static/RobotoMono-Medium.ttf")
+       (asdf/system:system-relative-pathname :krma "submodules/krma-fonts/rm16cache.json")
+       :size 16 :mode :msdf+a :type :json :spread 8))
 
-		;; create a new descriptor set for new memory resource, offset and range have changed
-		(setf (application-select-box-descriptor-set app)
-		      (create-descriptor-set
-		       (default-logical-device app)
-		       (list (application-select-box-descriptor-set-layout app))
-		       (default-descriptor-pool app)
-		       :descriptor-buffer-info (list (make-instance 'descriptor-storage-buffer-info
-								    :buffer (vk::memory-pool-buffer (vk::storage-buffer-memory-pool app))
-								    :offset (vk::memory-resource-offset new-memory-resource)
-								    :range new-size)))))
-
-	      ;; otherwise return existing descriptor set
-	      ;; if the mouse doesn't move the descriptor set doesn't change
-	      (application-select-box-descriptor-set app)))))))
-		
-
-
-(defun backtrace-string ()
-  (with-output-to-string (*debug-io*)
-    (sb-debug:print-backtrace)))
-
-(defun record-backtrace (app)
-  (setf (application-backtrace app) (backtrace-string)))
-
-(defun record-error-msg (app c)
-  (let ((*print-escape* nil))
-    (setf (application-error-msg app)
-          (format nil "~W" c))))
-
-(defmacro maybe-defer-debug ((app) &body body)
-  (let ((app-sym (gensym)))
-    `(let ((,app-sym ,app))
-       (restart-bind ((ignore (lambda (&optional c)
-                                (declare (ignorable c))
-                                (throw :ignore nil))))
-         (catch :ignore
-           (handler-bind ((error (lambda (c)
-                                   (record-error-msg ,app-sym c)
-                                   (record-backtrace ,app-sym))))
-             ,@body))))))
+    (uiop/filesystem:with-current-directory
+	((asdf/system:system-relative-pathname :krma "submodules/krma-fonts/"))
+      (setf (application-default-font *app*)
+	    (vulkan-make-font
+	     device queue sampler texture-dsl descriptor-pool command-buffer
+	     :cache-file "rm16cache.json")))
+    
+    (let* ((bpp 4)
+           (bitmap (make-array bpp :element-type '(unsigned-byte 8) :initial-element #xff)))
+      
+      (setq *white-texture*
+            (make-vulkan-texture device queue sampler texture-dsl descriptor-pool command-buffer bpp bitmap 1 1)))
+    (values)))
 
 (defmethod initialize-instance :after ((instance krma-application-mixin) &rest initargs)
-  (declare (ignore initargs))
-  (setf (application-texture-sampler instance) (create-sampler (default-logical-device instance) :allocator (allocator instance)))
-  (setf (application-vertex-uniform-buffer instance)
-	(create-uniform-buffer (default-logical-device instance)
-			       (load-time-value (foreign-type-size '(:struct vertex-uniform-buffer)))))
-  (setf (application-fragment-uniform-buffer instance)
-	(create-uniform-buffer (default-logical-device instance)
-			       (load-time-value (foreign-type-size '(:struct fragment-uniform-buffer)))))
-  (create-ubershader-global-descriptor-set-layout (default-logical-device instance) instance)
-  (create-select-box-descriptor-set-layout (default-logical-device instance) instance)
-  (create-ubershader-per-instance-descriptor-set-layout (default-logical-device instance) instance)
-  (setf (application-pipeline-store instance) (make-instance 'standard-pipeline-store :app instance))
-  (setf (application-scene instance) (make-instance (scene-class instance)))
+  (apply #'initialize-app instance initargs)
   (values))
 
 (defclass krma-test-application (krma-application-mixin)
@@ -1030,157 +973,3 @@
   "Immediate-mode function, creates text, returns a no values.  Calls scene-draw-text with color defaulting to *default-color*, font defaulting to (application-default-font *app*), group defaulting to :default, and scene defaulting to (application-scene *app*).  The required arguments should be real numbers.  pos-x and pos-y represent the upper left corner of the text."
   (scene-draw-text scene group font color pos-x pos-y string object-id))
 
-(defun erase-draw-list (draw-list)
-  (declare (type draw-list-mixin draw-list))
-  (setf (foreign-array-fill-pointer (draw-list-index-array draw-list)) 0)
-  (setf (foreign-array-fill-pointer (draw-list-vertex-array draw-list)) 0)
-  (setf (fill-pointer (draw-list-cmd-vector draw-list)) 0))
-
-(defun erase-immediate-mode-draw-data (app)
-  (let* ((scene (application-scene app))
-         (draw-data (im-draw-data scene)))
-    (let ((combinations-1 (3d-cmd-oriented-combinations (application-pipeline-store app) draw-data))
-	  (combinations-2 (3d-draw-list-oriented-combinations (application-pipeline-store app) draw-data))
-	  (combinations-3 (2d-cmd-oriented-combinations (application-pipeline-store app) draw-data))
-	  (combinations-4 (2d-draw-list-oriented-combinations (application-pipeline-store app) draw-data)))
-
-      (loop for (x draw-list) on combinations-1 by #'cddr
-	    do (erase-draw-list draw-list))
-
-      (loop for (x draw-list) on combinations-2 by #'cddr
-	    do (erase-draw-list draw-list))
-
-      (loop for (x draw-list) on combinations-3 by #'cddr
-	    do (erase-draw-list draw-list))
-
-      (loop for (x draw-list) on combinations-4 by #'cddr
-	    do (erase-draw-list draw-list))
-
-      (values))))
-
-(defun call-immediate-mode-work-functions (app)
-  (maybe-defer-debug (app)
-		     (let ((f (immediate-mode-work-function-1 app)))
-		       (when f (funcall f)))))
-
-(defmethod main ((app krma-test-application))
-  (let* ((device (default-logical-device app))
-         (main-window (main-window app))
-         (index (queue-family-index (render-surface main-window)))
-         (queue (find-queue device index))
-         (command-pool (find-command-pool device index))
-         (command-buffer (elt (command-buffers command-pool) 0))
-         (descriptor-pool (default-descriptor-pool app))
-	 (sampler (application-texture-sampler app))
-         (texture-dsl (create-descriptor-set-layout
-                       device
-                       :bindings (list (make-instance 'descriptor-set-layout-binding
-                                                      :type VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
-                                                      :count 1
-                                                      :flags VK_SHADER_STAGE_FRAGMENT_BIT
-                                                      :samplers (list sampler))))))
-
-    ;; these should be put in initialize-instance of krma-test-application
-    (multiple-value-bind (width height) (get-framebuffer-size main-window)
-      (setf (main-window-width app) width
-	    (main-window-height app) height))
-
-    (device-wait-idle device)
-
-    (reset-command-pool device command-pool)
-
-    ;; one time commands here.
-    (unless (probe-file (asdf/system:system-relative-pathname :krma "submodules/krma-fonts/rm16cache.json"))
-      (sdf-bmfont:create-bmfont
-       (asdf/system:system-relative-pathname
-	:krma "submodules/krma-fonts/Roboto_Mono/static/RobotoMono-Medium.ttf")
-       (asdf/system:system-relative-pathname :krma "submodules/krma-fonts/rm16cache.json")
-       :size 16 :mode :msdf+a :type :json :spread 8))
-
-    (uiop/filesystem:with-current-directory
-	((asdf/system:system-relative-pathname :krma "submodules/krma-fonts/"))
-      (setf (application-default-font *app*)
-	    (vulkan-make-font
-	     device queue sampler texture-dsl descriptor-pool command-buffer
-	     :cache-file "rm16cache.json")))
-
-    (let* ((bpp 4)
-           (bitmap (make-array bpp :element-type '(unsigned-byte 8) :initial-element #xff)))
-      (setq *white-texture*
-            (make-vulkan-texture device queue sampler texture-dsl descriptor-pool command-buffer bpp bitmap 1 1)))
-
-    (compute-ubershader-global-descriptor-set app)
-    
-    (let ((image-index)
-          (work-queue)
-          (current-frame-cons (current-frame-cons app))
-          (current-draw-data-cons (current-draw-data-cons app))
-	  (mouse-x)
-	  (mouse-y))
-
-      (with-slots (exit?) app
-
-        (loop while (zerop (glfwWindowShouldClose (h main-window)))
-              do
-	     (glfwPollEvents)
-
-	     ;; maybe create new descriptor set if select box size has changed
-	     (compute-select-box-descriptor-set app)
-
-              (when (recreate-swapchain? main-window)
-                (multiple-value-bind (width height) (get-framebuffer-size main-window)
-                  (recreate-swapchain main-window (swapchain main-window) width height)
-		  (setf (main-window-width app) width
-			(main-window-height app) height)
-                  (setf (recreate-swapchain? main-window) nil)))
-
-              (let* ((swapchain (swapchain main-window))
-                     (frame-count (number-of-images swapchain))
-                     (current-frame (car current-frame-cons))
-                     (current-draw-data (car current-draw-data-cons))
-                     (scene (application-scene app))
-                     (frame-resource0 (elt (frame-resources swapchain) current-frame))
-                     (command-buffer (frame-command-buffer frame-resource0))
-                     (rm-draw-data (aref (rm-draw-data scene) current-draw-data)))
-
-                (erase-immediate-mode-draw-data app)
-                (setq work-queue (draw-data-work-queue rm-draw-data))
-
-                (maybe-defer-debug (app)
-				   (loop with work = nil
-					 while (setq work (sb-concurrency:dequeue work-queue))
-					 do (funcall work)))
-
-                (call-immediate-mode-work-functions app)
-
-                (setq image-index
-                      (frame-begin swapchain (render-pass swapchain)
-                                   current-frame (clear-value main-window)
-                                   command-pool))
-
-                (loop with lambda = nil
-                      while (setq lambda (sb-concurrency:dequeue
-                                          (draw-data-deletion-queue rm-draw-data)))
-                      do (funcall lambda))
-
-		(update-2d-camera scene)
-		(update-3d-camera scene)
-                ;; render here.
-		(render-scene scene app command-buffer rm-draw-data (im-draw-data scene))
-
-                (frame-end swapchain queue current-frame)
-
-                (frame-present swapchain queue current-frame image-index main-window)
-
-                ;; this needs to be the only thread that modifies current-frame
-                (sb-ext:atomic-update (car current-frame-cons)
-                                      #'(lambda (cf) (mod (1+ cf) frame-count)))
-                (sb-ext:atomic-update (car current-draw-data-cons)
-                                      #'(lambda (cdd) (mod (1+ cdd) 2)))))
-
-        (shutdown-application app)))))
-
-(defun run ()
-  #+darwin(sb-int:set-floating-point-modes :traps nil)
-  (let ((app (make-instance 'krma-test-application)))
-    (main app)))

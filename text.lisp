@@ -1,5 +1,9 @@
 (in-package :krma)
 
+(eval-when (:compile-toplevel :load-toplevel)
+  (when krma::*debug*
+    (declaim (optimize (safety 3) (debug 3)))))
+
 (defclass font ()
   ((cache-file :initarg :cache-file :accessor font-cache-file)
    (px-range :accessor font-px-range)

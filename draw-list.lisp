@@ -1,7 +1,66 @@
 (in-package :krma)
 
-(declaim (optimize (safety 0) (speed 3) (debug 3))
-	 (sb-ext:muffle-conditions sb-ext:compiler-note))
+(eval-when (:compile-toplevel :load-toplevel)
+  (when *muffle-compilation-notes*
+    #+sbcl(declaim (sb-ext:muffle-conditions sb-ext:compiler-note))))
+
+(eval-when (:compile-toplevel :load-toplevel)
+  (when krma::*debug*
+    (declaim (optimize (safety 3) (debug 3))))
+  (unless krma::*debug*
+    (declaim (optimize (speed 3) (safety 0) (debug 0)))
+    (declaim (inline %draw-list-draw-2d-point))
+    (declaim (inline %draw-list-add-2d-point))
+    (declaim (inline %draw-list-draw-3d-point))
+    (declaim (inline %draw-list-add-3d-point))
+    (declaim (inline %draw-list-draw-2d-line))
+    (declaim (inline %draw-list-add-2d-line))
+    (declaim (inline %draw-list-draw-3d-line))
+    (declaim (inline %draw-list-add-3d-line))
+    (declaim (inline %draw-list-draw-2d-polyline))
+    (declaim (inline %draw-list-draw-2d-rectangle))
+    (declaim (inline %draw-list-add-2d-polyline))
+    (declaim (inline %draw-list-add-2d-rectangle))
+    (declaim (inline %draw-list-draw-multicolor-2d-polyline))
+    (declaim (inline %draw-list-add-multicolor-2d-polyline))
+    (declaim (inline %draw-list-draw-2d-line-list))
+    (declaim (inline %draw-list-add-2d-line-list))
+    (declaim (inline %draw-list-draw-2d-circular-arc))
+    (declaim (inline %draw-list-add-2d-circular-arc))
+    (declaim (inline %draw-list-draw-2d-circle))
+    (declaim (inline %draw-list-add-2d-circle))
+    (declaim (inline %draw-list-draw-3d-polyline))
+    (declaim (inline %draw-list-add-3d-polyline))
+    (declaim (inline %draw-list-draw-multicolor-3d-polyline))
+    (declaim (inline %draw-list-add-multicolor-3d-polyline))
+    (declaim (inline %draw-list-draw-filled-2d-triangle-list))
+    (declaim (inline %draw-list-add-filled-2d-triangle-strip/list))
+    (declaim (inline %draw-list-draw-filled-2d-rectangle-list))
+    (declaim (inline %draw-list-add-filled-2d-rectangle-list))
+    (declaim (inline %draw-list-draw-textured-2d-rectangle-list))
+    (declaim (inline %draw-list-add-textured-2d-rectangle-list))
+    (declaim (inline %draw-list-draw-filled-2d-convex-polygon))
+    (declaim (inline %draw-list-add-filled-2d-convex-polygon))
+    (declaim (inline %draw-list-draw-filled-3d-triangle-strip/list))
+    (declaim (inline %draw-list-add-filled-3d-triangle-strip/list))
+    (declaim (inline %draw-list-draw-filled-3d-triangle-strip/list-with-normals))
+    (declaim (inline %draw-list-add-filled-3d-triangle-strip/list-with-normals))
+    (declaim (inline %draw-list-draw-multicolor-3d-triangle-strip/list-with-normals))
+    (declaim (inline %draw-list-add-multicolor-3d-triangle-strip/list-with-normals))
+    (declaim (inline %draw-list-draw-textured-3d-triangle-strip/list))
+    (declaim (inline %draw-list-add-textured-3d-triangle-strip/list))
+    (declaim (inline %draw-list-draw-textured-3d-triangle-strip/list-with-normals))
+    (declaim (inline %draw-list-add-textured-3d-triangle-strip/list-with-normals))
+    (declaim (inline %draw-list-draw-multicolor-3d-convex-polygon-with-normals))
+    (declaim (inline %draw-list-add-multicolor-3d-convex-polygon-with-normals))
+    (declaim (inline %draw-list-draw-multicolor-3d-convex-polygon))
+    (declaim (inline %draw-list-add-multicolor-3d-convex-polygon))
+    (declaim (inline %draw-list-draw-filled-3d-convex-polygon-with-normals))
+    (declaim (inline %draw-list-add-filled-3d-convex-polygon-with-normals))
+    (declaim (inline %draw-list-draw-filled-3d-convex-polygon))
+    (declaim (inline %draw-list-add-filled-3d-convex-polygon))
+    (declaim (inline %draw-list-draw-filled-sphere))
+    (declaim (inline %draw-list-add-filled-sphere))))
 
 (defstruct (debug-2d-vertex)
   (x)
@@ -123,7 +182,7 @@
 ;; so you can't have more than 65536 points for the small draw-list
 ;; the large draw list would be used if you're drawing starts in a simulated sky or something
 ;; in which case you might want a different vertex type with point size
-(declaim (inline %draw-list-draw-2d-point))
+
 (defun %draw-list-draw-2d-point (2d-draw-list ub32-oid ub32-color sf-x sf-y)
   ;; for point-list-pipeline
   (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
@@ -137,7 +196,7 @@
           (index-array-push-extend index-array offset)
           (values))))))
 
-(declaim (inline %draw-list-add-2d-point))
+
 (defun %draw-list-add-2d-point (2d-draw-list ub32-oid atom-group model-mtx sf-point-size ub32-color sf-x sf-y)
   ;; for point-list-pipeline
   (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
@@ -156,7 +215,7 @@
 	  (vector-push-extend cmd (draw-list-cmd-vector 2d-draw-list))
 	  cmd)))))
 
-(declaim (inline %draw-list-draw-3d-point))
+
 (defun %draw-list-draw-3d-point (3d-draw-list ub32-oid ub32-color sf-x sf-y sf-z)
   ;; for point-list pipeline
   (declare (type 3d-vertex-draw-list-mixin 3d-draw-list))
@@ -170,7 +229,7 @@
           (index-array-push-extend index-array offset)
           (values))))))
 
-(declaim (inline %draw-list-add-3d-point))
+
 (defun %draw-list-add-3d-point (3d-draw-list ub32-oid atom-group model-mtx sf-point-size ub32-color sf-x sf-y sf-z)
   ;; for point-list-pipeline
   (declare (type 3d-vertex-draw-list-mixin 3d-draw-list))
@@ -189,7 +248,7 @@
 	  (vector-push-extend cmd (draw-list-cmd-vector 3d-draw-list))
 	  cmd)))))
 
-(declaim (inline %draw-list-draw-2d-line))
+
 (defun %draw-list-draw-2d-line (2d-draw-list ub32-oid ub32-color sf-x0 sf-y0 sf-x1 sf-y1)
   ;; for line-list pipeline
   (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
@@ -206,7 +265,7 @@
         (index-array-push-extend ia offset1)
         (values)))))
 
-#+NOTYET(declaim (inline %draw-list-add-2d-line))
+
 (defun %draw-list-add-2d-line (2d-draw-list ub32-oid atom-group model-mtx sf-line-thickness ub32-color sf-x0 sf-y0 sf-x1 sf-y1)
   ;; for line-list pipeline
   (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
@@ -228,7 +287,7 @@
         (vector-push-extend cmd (draw-list-cmd-vector 2d-draw-list))
         cmd))))
 
-(declaim (inline %draw-list-draw-3d-line))
+
 (defun %draw-list-draw-3d-line (3d-draw-list ub32-oid ub32-color sf-x0 sf-y0 sf-z0 sf-x1 sf-y1 sf-z1)
   ;; for line-list pipeline
   (declare (type 3d-vertex-draw-list-mixin 3d-draw-list))
@@ -245,7 +304,7 @@
         (index-array-push-extend ia offset1)
         (values)))))
 
-(declaim (inline %draw-list-add-3d-line))
+
 (defun %draw-list-add-3d-line (3d-draw-list ub32-oid atom-group model-mtx sf-line-thickness ub32-color
 			       sf-x0 sf-y0 sf-z0 sf-x1 sf-y1 sf-z1)
   ;; for line-list pipeline
@@ -268,7 +327,7 @@
 	(vector-push-extend cmd (draw-list-cmd-vector 3d-draw-list))
 	cmd))))
 
-(declaim (inline %draw-list-draw-2d-polyline))
+
 (defun %draw-list-draw-2d-polyline (2d-draw-list ub32-oid bool-closed? ub32-color seq-vertices)
   ;; for line-list pipeline
   (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
@@ -303,7 +362,7 @@
 		 (index-array-push-extend index-array vtx-offset))
 	       (return (values))))))))
 
-(declaim (inline %draw-list-draw-2d-rectangle))
+
 (defun %draw-list-draw-2d-rectangle (2d-draw-list ub32-oid ub32-color sf-x0 sf-y0 sf-x1 sf-y1)
   ;; for line-list pipeline
   (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
@@ -313,7 +372,7 @@
                                (list sf-x0 sf-y0 sf-x0 sf-y1 sf-x1 sf-y1 sf-x1 sf-y0)))
 
 
-(declaim (inline %draw-list-add-2d-polyline))
+
 (defun %draw-list-add-2d-polyline (2d-draw-list ub32-oid atom-group model-mtx bool-closed?
 				   sf-line-thickness ub32-color seq-vertices)
   ;; for line-strip pipeline
@@ -348,7 +407,7 @@
         (vector-push-extend cmd (draw-list-cmd-vector 2d-draw-list))
         cmd))))
 
-(declaim (inline %draw-list-add-2d-rectangle))
+
 (defun %draw-list-add-2d-rectangle (2d-draw-list ub32-oid atom-group model-mtx sf-line-thickness ub32-color
                                     sf-x0 sf-y0 sf-x1 sf-y1)
   ;; for line-strip pipeline
@@ -359,7 +418,6 @@
 			      ub32-color (list sf-x0 sf-y0 sf-x0 sf-y1 sf-x1 sf-y1 sf-x1 sf-y0)))
 
 ;; the argument `seq-vertices' is a cl sequence of x y color ... repeating
-(declaim (inline %draw-list-draw-multicolor-2d-polyline))
 (defun %draw-list-draw-multicolor-2d-polyline (2d-draw-list ub32-oid bool-closed? seq-vertices)
   ;; uses line-list
   (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
@@ -395,7 +453,7 @@
 		 (index-array-push-extend index-array vtx-offset))
 	       (return (values))))))))
 
-(declaim (inline %draw-list-add-multicolor-2d-polyline))
+
 (defun %draw-list-add-multicolor-2d-polyline (2d-draw-list ub32-oid atom-group model-mtx bool-closed? sf-line-thickness
 					      seq-vertices)
   ;; uses line-strip
@@ -432,7 +490,7 @@
         (vector-push-extend cmd cmd-vector)
         cmd))))
 
-(declaim (inline %draw-list-draw-2d-line-list))
+
 (defun %draw-list-draw-2d-line-list (2d-draw-list ub32-oid ub32-color seq-vertices)
   (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
   (declare (type sequence seq-vertices))
@@ -456,7 +514,7 @@
 		     (index-array-push-extend index-array offset))
 		   finally (return (values))))))))))
 
-(declaim (inline %draw-list-add-2d-line-list))
+
 (defun %draw-list-add-2d-line-list (2d-draw-list ub32-oid atom-group model-mtx sf-line-thickness ub32-color seq-vertices)
   (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
   (declare (type sequence seq-vertices))
@@ -489,7 +547,7 @@
         (vector-push-extend cmd cmd-vector)
         cmd))))
 
-(declaim (inline %draw-list-draw-2d-circular-arc))
+
 (defun %draw-list-draw-2d-circular-arc (2d-draw-list ub32-oid bool-closed? ub32-color
 					df-center-x df-center-y df-radius df-start-angle df-end-angle
 					fixnum-number-of-segments)
@@ -530,7 +588,7 @@
 	      (return (values)))))))
 
 
-(declaim (inline %draw-list-add-2d-circular-arc))
+
 (defun %draw-list-add-2d-circular-arc (2d-draw-list ub32-oid atom-group model-mtx bool-closed? sf-line-thickness ub32-color
                                        df-center-x df-center-y df-radius df-start-angle df-end-angle
                                        fixnum-number-of-segments
@@ -572,7 +630,7 @@
 	    (vector-push-extend cmd (draw-list-cmd-vector 2d-draw-list))
 	    cmd))))))
 
-(declaim (inline %draw-list-draw-2d-circle))
+
 (defun %draw-list-draw-2d-circle (2d-draw-list ub32-oid ub32-color
 				  df-center-x df-center-y df-radius
 				  fixnum-number-of-segments)
@@ -606,7 +664,7 @@
 		 (incf theta step))
 	    finally (return (values))))))
 
-(declaim (inline %draw-list-add-2d-circle))
+
 (defun %draw-list-add-2d-circle (2d-draw-list ub32-oid atom-group model-mtx sf-line-thickness ub32-color
                                  df-center-x df-center-y df-radius fixnum-number-of-segments
                                  &optional (cmd-constructor #'make-standard-draw-indexed-cmd))
@@ -638,7 +696,7 @@
           (vector-push-extend cmd (draw-list-cmd-vector 2d-draw-list))
           cmd)))))
 
-(declaim (inline %draw-list-draw-3d-polyline))
+
 (defun %draw-list-draw-3d-polyline (3d-draw-list ub32-oid bool-closed? ub32-color seq-vertices)
   ;; for line-list pipeline
   (declare (type 3d-vertex-draw-list-mixin 3d-draw-list))
@@ -682,7 +740,7 @@
                  (index-array-push-extend index-array vtx-offset))
                (return (values))))))))
 
-(declaim (inline %draw-list-add-3d-polyline))
+
 (defun %draw-list-add-3d-polyline (3d-draw-list ub32-oid atom-group model-mtx bool-closed? sf-line-thickness ub32-color
 				   seq-vertices
 				   &optional (cmd-constructor #'make-standard-draw-indexed-cmd))
@@ -734,7 +792,7 @@
         (vector-push-extend cmd (draw-list-cmd-vector 3d-draw-list))
         cmd))))
 
-(declaim (inline %draw-list-draw-multicolor-3d-polyline))
+
 (defun %draw-list-draw-multicolor-3d-polyline (3d-draw-list ub32-oid bool-closed? seq-vertices)
   ;; uses line-list
   (declare (type 3d-vertex-draw-list-mixin 3d-draw-list))
@@ -772,7 +830,7 @@
 		 (index-array-push-extend index-array vtx-offset))
 	       (return (values))))))))
 
-(declaim (inline %draw-list-add-multicolor-3d-polyline))
+
 (defun %draw-list-add-multicolor-3d-polyline
     (3d-draw-list ub32-oid atom-group model-mtx bool-closed? sf-line-thickness seq-vertices)
   ;; line-strip
@@ -809,7 +867,7 @@
         (vector-push-extend cmd (draw-list-cmd-vector 3d-draw-list))
         cmd))))
 
-(declaim (inline %draw-list-draw-filled-2d-triangle-list))
+
 (defun %draw-list-draw-filled-2d-triangle-list (2d-draw-list ub32-oid ub32-color seq-vertices)
   ;; triangle list
   (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
@@ -829,7 +887,7 @@
                  (index-array-push-extend index-array offset))
 	       finally (return (values))))))))
 
-(declaim (inline %draw-list-add-filled-2d-triangle-strip/list))
+
 (defun %draw-list-add-filled-2d-triangle-strip/list (2d-draw-list ub32-oid atom-group model-mtx ub32-color seq-vertices)
   (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
   (declare (type (unsigned-byte 32) ub32-oid ub32-color))
@@ -859,7 +917,7 @@
         (vector-push-extend cmd (draw-list-cmd-vector 2d-draw-list))
         cmd))))
 
-(declaim (inline %draw-list-draw-filled-2d-rectangle-list))
+
 (defun %draw-list-draw-filled-2d-rectangle-list (2d-draw-list ub32-oid ub32-color seq-vertices)
   ;; triangle list
   (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
@@ -896,7 +954,7 @@
 	       finally (assert (>= number-of-vertices 4))
 	       (return (values))))))))
 
-(declaim (inline %draw-list-add-filled-2d-rectangle-list))
+
 (defun %draw-list-add-filled-2d-rectangle-list (2d-draw-list ub32-oid atom-group model-mtx ub32-color seq-vertices)
   ;; triangle-list
   (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
@@ -937,7 +995,7 @@
         (vector-push-extend cmd (draw-list-cmd-vector 2d-draw-list))
         cmd))))
 
-(declaim (inline %draw-list-draw-textured-2d-rectangle-list))
+
 (defun %draw-list-draw-textured-2d-rectangle-list (2d-draw-list ub32-oid ub32-color seq-vertices)
   ;; used to implement draw-text and group-add-text
   (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
@@ -978,7 +1036,7 @@
 	      finally (assert (>= (foreign-array-fill-pointer vertex-array) (+ vtx-offset 4)))
 		(return (values)))))))))
 
-(declaim (inline %draw-list-add-textured-2d-rectangle-list))
+
 (defun %draw-list-add-textured-2d-rectangle-list (2d-draw-list ub32-oid atom-group model-mtx texture ub32-color seq-vertices
                                                   &optional (cmd-constructor #'make-standard-draw-indexed-cmd))
   ;; used to implement add-text
@@ -1028,7 +1086,7 @@
 	(vector-push-extend cmd (draw-list-cmd-vector 2d-draw-list))
 	cmd))))
 
-(declaim (inline %draw-list-draw-filled-2d-convex-polygon))
+
 (defun %draw-list-draw-filled-2d-convex-polygon (2d-draw-list ub32-oid ub32-color seq-vertices)
   (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
   (declare (type (unsigned-byte 32) ub32-oid ub32-color))
@@ -1057,7 +1115,7 @@
 	       finally (assert (>= number-of-vertices 3))
 	       (return (values))))))))
 
-(declaim (inline %draw-list-add-filled-2d-convex-polygon))
+
 (defun %draw-list-add-filled-2d-convex-polygon (2d-draw-list ub32-oid atom-group model-mtx ub32-color seq-vertices)
   (declare (type 2d-vertex-draw-list-mixin 2d-draw-list))
   (declare (type (unsigned-byte 32) ub32-oid ub32-color))
@@ -1090,7 +1148,7 @@
         (vector-push-extend cmd (draw-list-cmd-vector 2d-draw-list))
         cmd))))
 
-(declaim (inline %draw-list-draw-filled-3d-triangle-strip/list))
+
 (defun %draw-list-draw-filled-3d-triangle-strip/list (3d-draw-list ub32-oid ub32-color seq-vertices)
   (declare (type 3d-vertex-draw-list-mixin 3d-draw-list))
   (declare (type (unsigned-byte 32) ub32-oid ub32-color))
@@ -1115,7 +1173,7 @@
 		    finally (assert (>= number-of-vertices 3))
 		    (return (values))))))))
 
-(declaim (inline %draw-list-add-filled-3d-triangle-strip/list))
+
 (defun %draw-list-add-filled-3d-triangle-strip/list (3d-draw-list ub32-oid atom-group model-mtx ub32-color seq-vertices)
   (declare (type 3d-vertex-draw-list-mixin 3d-draw-list))
   (declare (type (unsigned-byte 32) ub32-oid ub32-color))
@@ -1146,7 +1204,7 @@
         (vector-push-extend cmd (draw-list-cmd-vector 3d-draw-list))
         cmd))))
 
-(declaim (inline %draw-list-draw-filled-3d-triangle-strip/list-with-normals))
+
 (defun %draw-list-draw-filled-3d-triangle-strip/list-with-normals (3d-draw-list ub32-oid ub32-color seq-vertices)
   (declare (type 3d-vertex-draw-list-mixin 3d-draw-list))
   (declare (type (unsigned-byte 32) ub32-oid ub32-color))
@@ -1174,7 +1232,7 @@
 		    finally (assert (>= number-of-vertices 3))
 		    (return (values))))))))
 
-(declaim (inline %draw-list-add-filled-3d-triangle-strip/list-with-normals))
+
 (defun %draw-list-add-filled-3d-triangle-strip/list-with-normals
     (3d-draw-list ub32-oid atom-group model-mtx ub32-color seq-vertices light-position)
   (declare (type 3d-vertex-draw-list-mixin 3d-draw-list))
@@ -1208,7 +1266,7 @@
         (vector-push-extend cmd (draw-list-cmd-vector 3d-draw-list))
         cmd))))
 
-(declaim (inline %draw-list-draw-multicolor-3d-triangle-strip/list-with-normals))
+
 (defun %draw-list-draw-multicolor-3d-triangle-strip/list-with-normals (3d-draw-list ub32-oid seq-vertices)
   (declare (type 3d-vertex-draw-list-mixin 3d-draw-list))
   (declare (type sequence seq-vertices))
@@ -1237,7 +1295,7 @@
 		    finally (assert (>= number-of-vertices 3))
 		    (return (values))))))))
 
-(declaim (inline %draw-list-add-multicolor-3d-triangle-strip/list-with-normals))
+
 (defun %draw-list-add-multicolor-3d-triangle-strip/list-with-normals
     (3d-draw-list ub32-oid atom-group model-mtx seq-vertices light-position)
   (declare (type 3d-vertex-draw-list-mixin 3d-draw-list))
@@ -1272,7 +1330,7 @@
         (vector-push-extend cmd (draw-list-cmd-vector 3d-draw-list))
         cmd))))
 
-(declaim (inline %draw-list-draw-textured-3d-triangle-strip/list))
+
 (defun %draw-list-draw-textured-3d-triangle-strip/list (3d-draw-list ub32-oid ub32-color seq-vertices)
   ;; set the draw-list-texture!
   (declare (type 3d-vertex-draw-list-mixin 3d-draw-list))
@@ -1301,7 +1359,7 @@
 	       finally (assert (>= number-of-vertices 3))
 	       (return (values))))))))
 
-(declaim (inline %draw-list-add-textured-3d-triangle-strip/list))
+
 (defun %draw-list-add-textured-3d-triangle-strip/list (3d-draw-list ub32-oid atom-group model-mtx texture ub32-color seq-vertices)
   (declare (type 3d-vertex-draw-list-mixin 3d-draw-list))
   (declare (type (unsigned-byte 32) ub32-oid ub32-color))
@@ -1336,7 +1394,7 @@
         (vector-push-extend cmd (draw-list-cmd-vector 3d-draw-list))
         cmd))))
 
-(declaim (inline %draw-list-draw-textured-3d-triangle-strip/list-with-normals))
+
 (defun %draw-list-draw-textured-3d-triangle-strip/list-with-normals (3d-draw-list ub32-oid ub32-color seq-vertices)
   ;; set the draw-list-texture!
   (declare (type 3d-vertex-draw-list-mixin 3d-draw-list))
@@ -1369,7 +1427,7 @@
 	       finally (assert (>= number-of-vertices 3))
 	       (return (values))))))))
 
-(declaim (inline %draw-list-add-textured-3d-triangle-strip/list-with-normals))
+
 (defun %draw-list-add-textured-3d-triangle-strip/list-with-normals
     (3d-draw-list ub32-oid atom-group model-mtx texture ub32-color seq-vertices light-position)
   (declare (type 3d-vertex-draw-list-mixin 3d-draw-list))
@@ -1410,7 +1468,7 @@
         (vector-push-extend cmd (draw-list-cmd-vector 3d-draw-list))
         cmd))))
 
-(declaim (inline %draw-list-draw-multicolor-3d-convex-polygon-with-normals))
+
 (defun %draw-list-draw-multicolor-3d-convex-polygon-with-normals (3d-draw-list ub32-oid seq-vertices)
   (declare (type 3d-vertex-with-normal-draw-list-mixin 3d-draw-list))
   (declare (type sequence seq-vertices))
@@ -1460,7 +1518,7 @@
 	         finally (assert (>= number-of-vertices 3))
 		 (return (values)))))))))
 
-(declaim (inline %draw-list-add-multicolor-3d-convex-polygon-with-normals))
+
 (defun %draw-list-add-multicolor-3d-convex-polygon-with-normals (3d-draw-list ub32-oid atom-group model-mtx seq-vertices light-position)
   (declare (type 3d-vertex-with-normal-draw-list-mixin 3d-draw-list))
   (declare (type sequence seq-vertices))
@@ -1511,7 +1569,7 @@
 	(vector-push-extend cmd (draw-list-cmd-vector 3d-draw-list))
 	cmd))))
 
-(declaim (inline %draw-list-draw-multicolor-3d-convex-polygon))
+
 (defun %draw-list-draw-multicolor-3d-convex-polygon (3d-draw-list ub32-oid seq-vertices)
   (declare (type 3d-vertex-draw-list-mixin 3d-draw-list))
   (declare (type sequence seq-vertices))
@@ -1558,7 +1616,7 @@
 		 finally (assert (>= number-of-vertices 3))
 		 (return (values)))))))))
 
-(declaim (inline %draw-list-add-multicolor-3d-convex-polygon))
+
 (defun %draw-list-add-multicolor-3d-convex-polygon (3d-draw-list ub32-oid atom-group model-mtx seq-vertices)
   (declare (type 3d-vertex-draw-list-mixin 3d-draw-list))
   (declare (type sequence seq-vertices))
@@ -1607,7 +1665,7 @@
         (vector-push-extend cmd (draw-list-cmd-vector 3d-draw-list))
         cmd))))
 
-(declaim (inline %draw-list-draw-filled-3d-convex-polygon-with-normals))
+
 (defun %draw-list-draw-filled-3d-convex-polygon-with-normals (3d-draw-list ub32-oid ub32-color seq-vertices)
   (declare (type 3d-vertex-with-normal-draw-list-mixin 3d-draw-list))
   (declare (type sequence seq-vertices))
@@ -1659,7 +1717,7 @@
 		 (index-array-push-extend index-array offset)
 	         finally (return (values)))))))))
 
-(declaim (inline %draw-list-add-filled-3d-convex-polygon-with-normals))
+
 (defun %draw-list-add-filled-3d-convex-polygon-with-normals
     (3d-draw-list ub32-oid atom-group model-mtx ub32-color seq-vertices light-position)
   (declare (type 3d-vertex-with-normal-draw-list-mixin 3d-draw-list))
@@ -1713,7 +1771,7 @@
 	(vector-push-extend cmd (draw-list-cmd-vector 3d-draw-list))
 	cmd))))
 
-(declaim (inline %draw-list-draw-filled-3d-convex-polygon))
+
 (defun %draw-list-draw-filled-3d-convex-polygon (3d-draw-list ub32-oid ub32-color seq-vertices)
   (declare (type 3d-vertex-draw-list-mixin 3d-draw-list))
   (declare (type sequence seq-vertices))
@@ -1759,7 +1817,7 @@
 		   (index-array-push-extend index-array offset)
 		   finally (return (values))))))))))
 
-(declaim (inline %draw-list-add-filled-3d-convex-polygon))
+
 (defun %draw-list-add-filled-3d-convex-polygon (3d-draw-list ub32-oid atom-group model-mtx ub32-color seq-vertices)
   (declare (type 3d-vertex-with-normal-draw-list-mixin 3d-draw-list))
   (declare (type sequence seq-vertices))
@@ -1808,7 +1866,7 @@
           (vector-push-extend cmd (draw-list-cmd-vector 3d-draw-list))
           cmd)))))
 
-(declaim (inline %draw-list-draw-filled-sphere))
+
 (defun %draw-list-draw-filled-sphere (3d-draw-list
 				      ub32-oid
 				      ub32-color
@@ -1875,7 +1933,7 @@
 		    finally (return-from block (values))))))))))
 
 
-(declaim (inline %draw-list-add-filled-sphere))
+
 (defun %draw-list-add-filled-sphere (3d-draw-list
 				     ub32-oid
 				     atom-group

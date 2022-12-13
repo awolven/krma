@@ -1,5 +1,9 @@
 (in-package :krma)
 
+(eval-when (:compile-toplevel :load-toplevel)
+  (when krma::*debug*
+    (declaim (optimize (safety 3) (debug 3)))))
+
 (defun compact-draw-list (draw-list &optional (cmd-constructor #'make-standard-draw-indexed-cmd))
   (block nil
     (if (not (draw-list-needs-compaction? draw-list))

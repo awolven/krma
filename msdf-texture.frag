@@ -2,17 +2,36 @@
 #extension GL_ARB_separate_shader_objects : enable
 
 #define SELECT_BOX_DEPTH 128
+#define MAX_LIGHTS 10
 
-layout(set = 1, binding = 0) buffer select_buffer {
+struct light { // not used
+  vec4 position;
+  uint diffuse;
+  uint specular;
+  float constantAttenuation, linearAttenuation, quadraticAttenuation;
+  float spotCutoff, spotExponent;
+  vec3 spotDirection;
+};
+
+layout(set = 0, binding = 1) uniform uniformBuffer { // not used
+  light lights[MAX_LIGHTS];
+  uint num_lights;
+  uint scene_ambient;
+} ub;
+
+layout(set = 1, binding = 0) buffer writeonly select_buffer {
   uint selected_objects[][SELECT_BOX_DEPTH];
 } ;
 
 layout(set = 2 , binding = 0) uniform sampler2D image;
 
 layout(push_constant) uniform pushConstant {
-  layout(offset = 80) vec2 selectBoxMin;
-  layout(offset = 88) vec2 selectBoxMax;  
+  layout(offset = 80) vec4 selectBox;
   layout(offset = 96) float pxRange;
+  layout(offset = 100) uint uint_ambient; // not used
+  layout(offset = 104) uint uint_diffuse; // not used
+  layout(offset = 108) uint uint_specular; // not used
+  layout(offset = 112) float shininess; // not used
 } pc;
 
 layout(location = 0) flat in uint inObjectId;
@@ -45,15 +64,15 @@ void main(){
   vec4 frag_col = vert_color;//mix(pc.color, vert_color, vert_color.a);
   out_color = vec4(frag_col.rgb, frag_col.a*opacity);
 
-  if (pc.selectBoxMin.x <= gl_FragCoord.x &&
-      pc.selectBoxMin.y <= gl_FragCoord.y &&
-      gl_FragCoord.x <= pc.selectBoxMax.x &&
-      gl_FragCoord.y <= pc.selectBoxMax.y) {
+  if (pc.selectBox.x <= gl_FragCoord.x &&
+      pc.selectBox.y <= gl_FragCoord.y &&
+      gl_FragCoord.x <= pc.selectBox.z &&
+      gl_FragCoord.y <= pc.selectBox.w) {
     
     uint zIndex = uint(gl_FragCoord.z * SELECT_BOX_DEPTH);
-    uint row_size = uint(pc.selectBoxMax.x) - uint(pc.selectBoxMin.x);
-    uint offset = uint(gl_FragCoord.y - pc.selectBoxMin.y) * row_size
-      + uint(gl_FragCoord.x - pc.selectBoxMin.x);
+    uint row_size = uint(pc.selectBox.z) - uint(pc.selectBox.x);
+    uint offset = uint(gl_FragCoord.y - pc.selectBox.y) * row_size
+      + uint(gl_FragCoord.x - pc.selectBox.x);
     selected_objects[offset][zIndex] = inObjectId;
   } 
 }

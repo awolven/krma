@@ -1,6 +1,13 @@
 (in-package :krma)
 
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defvar *debug* vk::*debug*)
+  (defvar *muffle-compilation-notes* t))
+
+(defvar *default-application-class* 'krma-test-application)
+
 (defconstant +buffer-alignment+ 128)
+(defconstant +select-box-depth+ 128)
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (if (eq 8 (cffi:foreign-type-size :pointer))
@@ -32,3 +39,5 @@
 (defvar *default-spot-cutoff* 180.0f0)
 (defvar *default-spot-exponent* 10.0f0)
 (defvar *default-spot-direction* (vec3 0 1 0))
+
+(defvar *default-scene-ambient* #x333333ff)

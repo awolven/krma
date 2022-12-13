@@ -19,15 +19,14 @@ layout(set = 0, binding = 1) uniform uniformBuffer {
   uint scene_ambient;
 } ub;
 
-layout(set = 1, binding = 0) buffer select_buffer {
+layout(set = 1, binding = 0) buffer writeonly select_buffer {
   uint selected_objects[][SELECT_BOX_DEPTH];
 };
 
 layout(set = 2 , binding = 0) uniform sampler2D texSampler;
 
 layout(push_constant) uniform pushConstant {
-  layout(offset = 80) vec2 selectBoxMin;
-  layout(offset = 88) vec2 selectBoxMax;  
+  layout(offset = 80) vec4 selectBox;
   layout(offset = 96) float pxRange;
   layout(offset = 100) uint uint_ambient;
   layout(offset = 104) uint uint_diffuse;
@@ -116,15 +115,16 @@ void main () {
   
   outColor = color * vec4(totalLighting, 1.0);
 
-  if (pc.selectBoxMin.x <= gl_FragCoord.x &&
-      pc.selectBoxMin.y <= gl_FragCoord.y &&
-      gl_FragCoord.x <= pc.selectBoxMax.x &&
-      gl_FragCoord.y <= pc.selectBoxMax.y) {
-    
+  if (pc.selectBox.x <= gl_FragCoord.x &&
+      pc.selectBox.y <= gl_FragCoord.y &&
+      gl_FragCoord.x <= pc.selectBox.z &&
+      gl_FragCoord.y <= pc.selectBox.w) {
+
+    // does fragcoord.z go from [0, 1) ? if so, zIndex is correct
     uint zIndex = uint(gl_FragCoord.z * SELECT_BOX_DEPTH);
-    uint row_size = uint(pc.selectBoxMax.x) - uint(pc.selectBoxMin.x);
-    uint offset = uint(gl_FragCoord.y - pc.selectBoxMin.y) * row_size
-      + uint(gl_FragCoord.x - pc.selectBoxMin.x);
+    uint row_size = uint(pc.selectBox.z) - uint(pc.selectBox.x);
+    uint offset = uint(gl_FragCoord.y - pc.selectBox.y) * row_size
+      + uint(gl_FragCoord.x - pc.selectBox.x); 
     selected_objects[offset][zIndex] = inObjectId;
   } 
 }

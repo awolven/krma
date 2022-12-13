@@ -1,7 +1,14 @@
 (in-package :krma)
 
-(declaim (optimize (safety 3) (speed 3) (debug 3))
-         (sb-ext:muffle-conditions sb-ext:compiler-note))
+(eval-when (:compile-toplevel :load-toplevel)
+  (when *muffle-compilation-notes*
+    #+sbcl(declaim (sb-ext:muffle-conditions sb-ext:compiler-note))))
+
+(eval-when (:compile-toplevel :load-toplevel)
+  (when krma::*debug*
+    (declaim (optimize (safety 3) (debug 3))))
+  (unless krma::*debug*
+    (declaim (optimize (safety 0) (speed 3) (debug 0)))))
 
 (cffi:defcfun ("memcpy" memcpy) :pointer
   (dst :pointer)

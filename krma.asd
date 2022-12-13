@@ -4,7 +4,8 @@
 	       :float-features
 	       :3d-vectors :3d-matrices
 	       :cl-vulkan ;;#+darwin :cl-metal
-	       :sdf/bmfont :3b-bmfont/json)
+	       :sdf/bmfont :3b-bmfont/json
+	       :trivial-main-thread)
   :author "Andrew K Wolven <awolven@gmail.com>"
   :serial t
   :components
@@ -22,7 +23,8 @@
    (:file "application-mixin")
    (:file "vulkan-pipelines")
    (:file "pipeline-combinations")
-   (:file "text")))
+   (:file "text")
+   (:file "main")))
 
 (pushnew :krma *features*)
 (pushnew (asdf/system:system-relative-pathname :krma "submodules/sdf/") asdf:*central-registry* :test #'equalp)

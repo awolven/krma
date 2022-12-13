@@ -1,7 +1,14 @@
 (in-package :krma)
 
-#+NOTYET(declaim (optimize (speed 3) (safety 3) (debug 3))
-	 (sb-ext:muffle-conditions sb-ext:compiler-note))
+(eval-when (:compile-toplevel :load-toplevel)
+  (when *muffle-compilation-notes*
+    (declaim (sb-ext:muffle-conditions sb-ext:compiler-note))))
+
+(eval-when (:compile-toplevel :load-toplevel)
+  (when krma::*debug*
+    (declaim (optimize (safety 3) (debug 3))))
+  (unless krma::*debug*
+    (declaim (optimize (speed 3) (safety 0) (debug 0)))))
 
 (defparameter +default-znear+ 0.001)
 (defparameter +default-zfar+ 3000.0)
@@ -44,16 +51,6 @@
 			    (clampf (aref array (+ i (* j 4)))))))
     (values)))
 
-(defmethod update-vertex-uniform-buffer (app scene view proj)
-  (with-foreign-object (p-stage '(:struct vertex-uniform-buffer))
-    (copy-matrix-to-foreign view (foreign-slot-pointer p-stage '(:struct vertex-uniform-buffer) 'view))
-    (copy-matrix-to-foreign proj (foreign-slot-pointer p-stage '(:struct vertex-uniform-buffer) 'proj))
-    (copy-matrix-to-foreign (m* proj view) (foreign-slot-pointer p-stage '(:struct vertex-uniform-buffer) 'vproj))
-    (copy-uniform-buffer-memory (default-logical-device app)
-				p-stage
-				(allocated-memory (application-vertex-uniform-buffer app))
-				(load-time-value (foreign-type-size '(:struct vertex-uniform-buffer))))))
-
 (defcstruct light
   (pos-x :float)
   (pos-y :float)
@@ -86,10 +83,6 @@
   (num-lights :unsigned-int)
   (scene-ambient :unsigned-int))
 
-(defun update-fragment-uniform-buffer (app scene)
-  (declare (ignore app scene))
-  (values))
-
 (defclass krma-essential-scene-mixin ()
   ((application :initarg :app)
    (im-draw-data :initform (make-immediate-mode-draw-data "IM Draw Data")
@@ -102,13 +95,12 @@
                            (make-retained-mode-draw-data "RM Draw Data 1"))))
    (lights :initform (list (make-instance 'light)) :accessor scene-lights)
    
-   (vertex-uniform-buffer :accessor vertex-uniform-buffer)
-   (fragment-uniform-buffer :accessor fragment-uniform-buffer)
-
    (3d-camera-projection-matrix)
    (3d-camera-view-matrix)
    (2d-camera-projection-matrix)
-   (2d-camera-view-matrix)))
+   (2d-camera-view-matrix)
+
+   (ambient :initform *default-scene-ambient* :accessor scene-ambient)))
 
 (defun finalize-scene (scene)
   (let ((draw-data (im-draw-data scene)))
@@ -160,6 +152,8 @@
 
 (defmethod render-scene ((scene krma-essential-scene-mixin)
 			 app command-buffer rm-draw-data im-draw-data)
+
+  ;; todo: think about having separate clos objects for 3d-scene and 2d-scene
   
   (let ((device (default-logical-device app))
 	(pipeline-store (application-pipeline-store app)))
@@ -174,40 +168,54 @@
 
 	(let ()
 
-	  (cmd-set-viewport command-buffer :x 0.0f0 :y 0.0f0
-			    :width (coerce width 'single-float)
-			    :height (coerce height 'single-float))
-	  (cmd-set-scissor command-buffer :x 0 :y 0 :width width :height height)
-	  
-	  (update-fragment-uniform-buffer app scene)
-
-	  (update-vertex-uniform-buffer app scene 3d-camera-view-matrix 3d-camera-projection-matrix)
-	  
 	  (loop for (p dl) on (3d-cmd-oriented-combinations pipeline-store rm-draw-data) by #'cddr
-	     do (render-draw-list-cmds p rm-draw-data dl app device command-buffer))
+		do (render-draw-list-cmds p rm-draw-data dl app device command-buffer
+					  scene
+					  3d-camera-view-matrix 3d-camera-projection-matrix
+					  width height))
 
 	  (loop for (p dl) on (3d-draw-list-oriented-combinations pipeline-store rm-draw-data) by #'cddr
-	     do (render-draw-list p rm-draw-data dl app device command-buffer))
+		do (render-draw-list p rm-draw-data dl app device command-buffer
+				     scene
+				     3d-camera-view-matrix 3d-camera-projection-matrix
+				     width height))
 
 	  (loop for (p dl) on (3d-cmd-oriented-combinations pipeline-store im-draw-data) by #'cddr
-	     do (render-draw-list-cmds p im-draw-data dl app device command-buffer))
+		do (render-draw-list-cmds p im-draw-data dl app device command-buffer
+					  scene
+					  3d-camera-view-matrix 3d-camera-projection-matrix
+					  width height))
 	  
 	  (loop for (p dl) on (3d-draw-list-oriented-combinations pipeline-store im-draw-data) by #'cddr
-	     do (render-draw-list p im-draw-data dl app device command-buffer))
+		do (render-draw-list p im-draw-data dl app device command-buffer
+				     scene
+				     3d-camera-view-matrix 3d-camera-projection-matrix
+				     width height))
 
-	  (update-vertex-uniform-buffer app scene 2d-camera-view-matrix 2d-camera-projection-matrix)
-	  
 	  (loop for (p dl) on (2d-cmd-oriented-combinations pipeline-store rm-draw-data) by #'cddr
-	     do (render-draw-list-cmds p rm-draw-data dl app device command-buffer))
+		do (render-draw-list-cmds p rm-draw-data dl app device command-buffer
+					  scene
+					  2d-camera-view-matrix 2d-camera-projection-matrix
+					  width height))
 
 	  (loop for (p dl) on (2d-draw-list-oriented-combinations pipeline-store rm-draw-data) by #'cddr
-	     do (render-draw-list p rm-draw-data dl app device command-buffer))
+		do (render-draw-list p rm-draw-data dl app device command-buffer
+				     scene
+				     2d-camera-view-matrix 2d-camera-projection-matrix
+				     width height))
 
 	  (loop for (p dl) on (2d-cmd-oriented-combinations pipeline-store im-draw-data) by #'cddr
-	     do (render-draw-list-cmds p im-draw-data dl app device command-buffer))
+		do (render-draw-list-cmds p im-draw-data dl app device command-buffer
+					  scene
+					  2d-camera-view-matrix 2d-camera-projection-matrix
+					  width height))
 	  
 	  (loop for (p dl) on (2d-draw-list-oriented-combinations pipeline-store im-draw-data) by #'cddr
-	     do (render-draw-list p im-draw-data dl app device command-buffer)))
+		do (render-draw-list p im-draw-data dl app device command-buffer
+				     scene
+				     2d-camera-view-matrix 2d-camera-projection-matrix
+				     width height)))
+	
 	(values)))))
 
 ;; 2d-point
