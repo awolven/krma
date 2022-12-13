@@ -8,14 +8,28 @@
   (when krma::*debug*
     (declaim (optimize (safety 3) (debug 3))))
   (unless krma::*debug*
-    (declaim (optimize (safety 0) (speed 3) (debug 0)))))
+    (declaim (optimize (safety 0) (speed 3) (debug 0)))
+    (declaim (inline d2r) (type double-float d2r))
+    (declaim (inline canonicalize-color) (type (unsigned-byte 32) canonicalize-color))
+    (declaim (inline clampf) (type single-float clampf))))
 
 (cffi:defcfun ("memcpy" memcpy) :pointer
   (dst :pointer)
   (src :pointer)
   (count size-t))
 
-(declaim (type double-float d2r))
+(defun color-p (item)
+  (or (typep item '(unsigned-byte 32))
+      (typep item 'vec4)
+      (typep item 'vec3)
+      (and (typep item 'vector)
+	   (or (= (length item) 4)
+	       (= (length item) 3)))))
+
+(deftype color ()
+  `(satisfies color-p))
+
+
 (defun d2r (d)
   (declare (type real d))
   (* d #.(/ pi 180)))
@@ -103,7 +117,7 @@
                       f0             f0             f0              f1)))
 
 
-(declaim (inline clampf) (type single-float clampf))
+
 (defun clampf (number)
   "Clamp real number to single-float limits."
   (block nil
@@ -152,13 +166,35 @@
 	    (return least-positive-single-float))
 	  (coerce number 'single-float)))))))
     
-(declaim (inline canonicalize-color) (type (unsigned-byte 32) color))
+
 (defun canonicalize-color (color)
   (etypecase color
     ((unsigned-byte 32) color)
+    (vec3
+     (let ((r (cl:the (integer 0 #xff) (round (* #xff (vx color)))))
+	   (g (cl:the (integer 0 #xff) (round (* #xff (vy color)))))
+	   (b (cl:the (integer 0 #xff) (round (* #xff (vz color))))))
+       (cl:the (unsigned-byte 32) (logior (ash r 24) (ash g 16) (ash b 8) #xff))))
+    (vec4
+     (let ((r (cl:the (integer 0 #xff) (round (* #xff (vx color)))))
+	   (g (cl:the (integer 0 #xff) (round (* #xff (vy color)))))
+	   (b (cl:the (integer 0 #xff) (round (* #xff (vz color)))))
+	   (a (cl:the (integer 0 #xff) (round (* #xff (vw color))))))
+       (cl:the (unsigned-byte 32) (logior (ash r 24) (ash g 16) (ash b 8) a))))
     (vector
-     (let ((r (cl:the (integer 0 #xff) (round (* #xff (aref color 0)))))
-	   (g (cl:the (integer 0 #xff) (round (* #xff (aref color 1)))))
-	   (b (cl:the (integer 0 #xff) (round (* #xff (aref color 2)))))
-	   (a (cl:the (integer 0 #xff) (round (* #xff (aref color 3))))))
-       (cl:the (unsigned-byte 32) (logior (ash r 24) (ash g 16) (ash b 8) a))))))
+     (let ((length (length color)))
+       (if (= length 3)
+	   (let ((r (cl:the (integer 0 #xff) (round (* #xff (aref color 0)))))
+		 (g (cl:the (integer 0 #xff) (round (* #xff (aref color 1)))))
+		 (b (cl:the (integer 0 #xff) (round (* #xff (aref color 2))))))
+	     (cl:the (unsigned-byte 32) (logior (ash r 24) (ash g 16) (ash b 8) #xff)))
+	   (if (> length 3)
+	       (let ((r (cl:the (integer 0 #xff) (round (* #xff (aref color 0)))))
+		     (g (cl:the (integer 0 #xff) (round (* #xff (aref color 1)))))
+		     (b (cl:the (integer 0 #xff) (round (* #xff (aref color 2)))))
+		     (a (cl:the (integer 0 #xff) (round (* #xff (aref color 3))))))
+		 (cl:the (unsigned-byte 32) (logior (ash r 24) (ash g 16) (ash b 8) a)))
+	       (progn
+		 (warn "~S is not a color" color)
+		 #xffffffff)))))))
+	     

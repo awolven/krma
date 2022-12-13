@@ -6,17 +6,19 @@
 
 struct light {
   vec4 position;
+  vec4 spotDirection;
   uint diffuse;
   uint specular;
   float constantAttenuation, linearAttenuation, quadraticAttenuation;
-  float spotCutoff, spotExponent;
-  vec3 spotDirection;
+  float spotCutoff, spotExponent, padding;
 };
 
 layout(set = 0, binding = 1) uniform uniformBuffer {
   light lights[MAX_LIGHTS];
   uint num_lights;
   uint scene_ambient;
+  uint padding1;
+  uint padding2;
 } ub;
 
 layout(set = 1, binding = 0) buffer writeonly select_buffer {
@@ -28,10 +30,10 @@ layout(set = 2 , binding = 0) uniform sampler2D texSampler;
 layout(push_constant) uniform pushConstant {
   layout(offset = 80) vec4 selectBox;
   layout(offset = 96) float pxRange;
-  layout(offset = 100) uint uint_ambient;
-  layout(offset = 104) uint uint_diffuse;
-  layout(offset = 108) uint uint_specular;
-  layout(offset = 112) float shininess;
+  layout(offset = 100) uint uint_material_ambient;
+  layout(offset = 104) uint uint_material_diffuse;
+  layout(offset = 108) uint uint_material_specular;
+  layout(offset = 112) float material_shininess;
 } pc;
 
 layout(location = 0) flat in uint inObjectId;
@@ -50,31 +52,39 @@ vec4 float_color(uint uint_color) {
 	      (0x000000ff & uint_color)/255.0);
 }
 
+uint uint_color(vec4 float_color) {
+  return ((uint(float_color.x * 255) << 24) +
+	  (uint(float_color.y * 255) << 16) +
+	  (uint(float_color.z * 255) << 8) +
+	  (uint(float_color.w * 255)));
+}  
+
 void main () {
   vec4 color = vec4(fragColor * texture(texSampler, fragTexCoord));
-  vec4 ambient = float_color(pc.uint_ambient);
-  vec4 diffuse = float_color(pc.uint_diffuse);
-  vec4 specular = float_color(pc.uint_specular);
-  float shininess = pc.shininess;
+  vec4 material_ambient = float_color(pc.uint_material_ambient);
+  vec4 material_diffuse = float_color(pc.uint_material_diffuse);
+  vec4 material_specular = float_color(pc.uint_material_specular);
+  float material_shininess = pc.material_shininess;
   
   vec3 normalDirection = normalize(normal);
-  vec3 viewDirection = normalize(vec3(view_inv * vec4(0.0, 0.0, 0.0, 1.0) - world_position));
+  vec3 viewDirection = normalize((view_inv * vec4(0.0, 0.0, 0.0, 1.0) - world_position).xyz);
   vec3 lightDirection;
   float attenuation;
-  vec3 totalLighting = vec3(ub.scene_ambient) * vec3(ambient);
-
-  
+  vec3 totalLighting = float_color(ub.scene_ambient).xyz * material_ambient.xyz;
 
   for (int index = 0; index < ub.num_lights; index++) // for all light sources
     {
+      vec3 light_diffuse = float_color(ub.lights[index].diffuse).xyz;
+      vec3 light_specular = float_color(ub.lights[index].specular).xyz;
+
       if (0.0 == ub.lights[index].position.w) // directional light?
 	{
 	  attenuation = 1.0; // no attenuation
-	  lightDirection = normalize(vec3(ub.lights[index].position));
+	  lightDirection = normalize((ub.lights[index].position).xyz);
 	} 
       else // point light or spotlight (or other kind of light) 
 	{
-	  vec3 positionToLightSource = vec3(ub.lights[index].position - world_position);
+	  vec3 positionToLightSource = (ub.lights[index].position - world_position).xyz;
 	  float distance = length(positionToLightSource);
 	  lightDirection = normalize(positionToLightSource);
 	  attenuation = 1.0 / (ub.lights[index].constantAttenuation
@@ -83,7 +93,7 @@ void main () {
 	  
 	  if (ub.lights[index].spotCutoff <= 90.0) // spotlight?
 	    {
-	      float clampedCosine = max(0.0, dot(-lightDirection, normalize(ub.lights[index].spotDirection)));
+	      float clampedCosine = max(0.0, dot(-lightDirection, normalize(ub.lights[index].spotDirection.xyz)));
 	      if (clampedCosine < cos(radians(ub.lights[index].spotCutoff))) // outside of spotlight cone?
 		{
 		  attenuation = 0.0;
@@ -96,7 +106,7 @@ void main () {
 	}
 
       vec3 diffuseReflection = attenuation 
-	* vec3(ub.lights[index].diffuse) * vec3(diffuse)
+	* light_diffuse * (material_diffuse).xyz
 	* max(0.0, dot(normalDirection, lightDirection));
       
       vec3 specularReflection;
@@ -106,11 +116,23 @@ void main () {
 	}
       else // light source on the right side
 	{
-	  specularReflection = attenuation * vec3(ub.lights[index].specular) * vec3(specular) 
-	    * pow(max(0.0, dot(reflect(-lightDirection, normalDirection), viewDirection)), shininess);
+	  specularReflection = attenuation * light_specular * (material_specular).xyz
+	    * pow(max(0.0, dot(reflect(-lightDirection, normalDirection), viewDirection)), material_shininess);
 	}
 
       totalLighting = totalLighting + diffuseReflection + specularReflection;
+      selected_objects[0][0] = pc.uint_material_ambient;
+      selected_objects[0][1] = pc.uint_material_diffuse;
+      selected_objects[0][2] = pc.uint_material_specular;
+      selected_objects[0][3] = ub.lights[0].diffuse;
+      selected_objects[0][4] = ub.lights[0].specular;
+      selected_objects[0][5] = uint_color(color);
+      selected_objects[0][6] = uint_color(vec4(totalLighting, 0.0));
+      selected_objects[0][7] = uint_color(vec4(light_diffuse, 0.0));
+      selected_objects[0][8] = uint_color(vec4(light_specular, 0.0));
+      selected_objects[0][9] = uint_color(vec4(diffuseReflection, 0.0));
+      selected_objects[0][10] = uint_color(vec4(specularReflection, 0.0));
+      selected_objects[0][11] = uint_color(color * vec4(totalLighting, 1.0));
     }
   
   outColor = color * vec4(totalLighting, 1.0);
@@ -124,7 +146,11 @@ void main () {
     uint zIndex = uint(gl_FragCoord.z * SELECT_BOX_DEPTH);
     uint row_size = uint(pc.selectBox.z) - uint(pc.selectBox.x);
     uint offset = uint(gl_FragCoord.y - pc.selectBox.y) * row_size
-      + uint(gl_FragCoord.x - pc.selectBox.x); 
-    selected_objects[offset][zIndex] = inObjectId;
+      + uint(gl_FragCoord.x - pc.selectBox.x);
+    //selected_objects[offset][zIndex] = inObjectId;
+    selected_objects[0][12] = ub.scene_ambient;
+    selected_objects[0][13] = ub.num_lights;
+    selected_objects[0][14] = 67;
+    
   } 
 }

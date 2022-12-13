@@ -29,6 +29,35 @@
     (setf (application-error-msg app)
           (format nil "~W" c))))
 
+(defun clear-buffer (buffer value aligned-size memory-resource)
+  (let ((memory (allocated-memory buffer))
+	(offset (vk::memory-resource-offset memory-resource))
+	(device (vk::device buffer)))
+	      
+    (with-foreign-object (pp-dst :pointer)
+		
+      (check-vk-result (vkMapMemory (h device) (h memory) offset aligned-size 0 pp-dst))
+		
+      (vk::memset (mem-aref pp-dst :pointer) value aligned-size)
+
+      (with-foreign-object (p-range '(:struct VkMappedMemoryRange))
+	(zero-struct p-range '(:struct VkMappedMemoryRange))
+		  
+	(with-foreign-slots ((%vk::sType
+			      %vk::memory
+			      %vk::size
+			      %vk::offset)
+			     p-range (:struct VkMappedMemoryRange))
+		    
+	  (setf %vk::sType VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE
+		%vk::memory (h memory)
+		%vk::size aligned-size
+		%vk::offset offset))
+		  
+	(check-vk-result (vkFlushMappedMemoryRanges (h device) 1 p-range))
+
+	(vkUnmapMemory (h device) (h memory))))))
+
 (defun compute-select-box-descriptor-set (app)
   (multiple-value-bind (mouse-x mouse-y) (get-cursor-pos (main-window app))
     (let* ((new-coords (vec4 (- mouse-x 1/2) (- mouse-y 1/2)
@@ -59,63 +88,34 @@
 	    (progn 
 	      (setq new-memory-resource (vk::acquire-storage-memory-sized app aligned-size :host-visible))
 	      (setq memory-resource-changed-p t)))
-	
-	(flet ((clear-buffer (buffer value aligned-size memory-resource)
-		 (let ((memory (allocated-memory buffer))
-		       (offset (vk::memory-resource-offset memory-resource))
-		       (device (vk::device buffer)))
-	      
-		   (with-foreign-object (pp-dst :pointer)
-		
-		     (check-vk-result (vkMapMemory (h device) (h memory) offset aligned-size 0 pp-dst))
-		
-		     (vk::memset (mem-aref pp-dst :pointer) value aligned-size)
 
-		     (with-foreign-object (p-range '(:struct VkMappedMemoryRange))
-		       (zero-struct p-range '(:struct VkMappedMemoryRange))
-		  
-		       (with-foreign-slots ((%vk::sType
-					     %vk::memory
-					     %vk::size
-					     %vk::offset)
-					    p-range (:struct VkMappedMemoryRange))
-		    
-			 (setf %vk::sType VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE
-			       %vk::memory (h memory)
-			       %vk::size aligned-size
-			       %vk::offset offset))
-		  
-		       (check-vk-result (vkFlushMappedMemoryRanges (h device) 1 p-range))
-
-		       (vkUnmapMemory (h device) (h memory)))))))
+	(let ((buffer (vk::memory-pool-buffer (vk::storage-buffer-memory-pool app))))
 	  
-	  (let ((buffer (vk::memory-pool-buffer (vk::storage-buffer-memory-pool app))))
-	    
-	    (clear-buffer buffer 0 aligned-size new-memory-resource)
-
-	    (if memory-resource-changed-p
+	  (if memory-resource-changed-p
 		
-		(progn
-		  (when old-descriptor-set
-		    (vk::free-descriptor-sets (list old-descriptor-set) (default-descriptor-pool app)))
+	      (progn
+		(clear-buffer buffer 0 aligned-size new-memory-resource)
 		  
-		  (setf (application-select-box-memory-resource app)
-			new-memory-resource)
+		(when old-descriptor-set
+		  (vk::free-descriptor-sets (list old-descriptor-set) (default-descriptor-pool app)))
 		  
-		  ;; create a new descriptor set for new memory resource, offset and range have changed
-		  (setf (application-select-box-descriptor-set app)
-			(create-descriptor-set
-			 (default-logical-device app)
-			 (list (application-select-box-descriptor-set-layout app))
-			 (default-descriptor-pool app)
-			 :descriptor-buffer-info (list (make-instance 'descriptor-storage-buffer-info
-								      :buffer buffer
-								      :offset (vk::memory-resource-offset new-memory-resource)
-								      :range new-size)))))
+		(setf (application-select-box-memory-resource app)
+		      new-memory-resource)
+		  
+		;; create a new descriptor set for new memory resource, offset and range have changed
+		(setf (application-select-box-descriptor-set app)
+		      (create-descriptor-set
+		       (default-logical-device app)
+		       (list (application-select-box-descriptor-set-layout app))
+		       (default-descriptor-pool app)
+		       :descriptor-buffer-info (list (make-instance 'descriptor-storage-buffer-info
+								    :buffer buffer
+								    :offset (vk::memory-resource-offset new-memory-resource)
+								    :range new-size)))))
 
-		;; otherwise return existing descriptor set
-		;; if the mouse doesn't move the descriptor set doesn't change
-		(application-select-box-descriptor-set app))))))))
+	      ;; otherwise return existing descriptor set
+	      ;; if the mouse doesn't move the descriptor set doesn't change
+	      (application-select-box-descriptor-set app)))))))
 
 (defun erase-draw-list (draw-list)
   (declare (type draw-list-mixin draw-list))
@@ -155,7 +155,7 @@
     ;; maybe create new descriptor set if select box size has changed
     (maybe-defer-debug (app)
       (compute-select-box-descriptor-set app))
-    
+
     (maybe-defer-debug (app)
       (erase-immediate-mode-draw-data app))
     
@@ -183,11 +183,11 @@
     (maybe-defer-debug (app)
       (multiple-value-bind (w h) (get-framebuffer-size (main-window app))
 	(draw-text (format nil "fps: ~4,0f" (application-frame-rate app)) (- w 100) (- h 25) :color #x000000ff))))
-  
+
   ;; render here.
   (maybe-defer-debug (app)
     (render-scene scene app command-buffer rm-draw-data (im-draw-data scene)))
-
+  
   (maybe-defer-debug (app)
     (read-select-box app))
 

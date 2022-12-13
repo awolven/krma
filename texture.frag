@@ -6,17 +6,19 @@
 
 struct light { // not used
   vec4 position;
+  vec4 spotDirection;
   uint diffuse;
   uint specular;
   float constantAttenuation, linearAttenuation, quadraticAttenuation;
-  float spotCutoff, spotExponent;
-  vec3 spotDirection;
+  float spotCutoff, spotExponent, padding;
 };
 
 layout(set = 0, binding = 1) uniform uniformBuffer { // not used
   light lights[MAX_LIGHTS];
   uint num_lights;
   uint scene_ambient;
+  uint padding1;
+  uint padding2;
 } ub;
 
 layout(set = 1, binding = 0) buffer writeonly select_buffer {

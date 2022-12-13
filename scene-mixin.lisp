@@ -56,6 +56,10 @@
   (pos-y :float)
   (pos-z :float)
   (pos-w :float)
+  (spot-direction-x :float)
+  (spot-direction-y :float)
+  (spot-direction-z :float)
+  (spot-direction-w :float)
   (diffuse :unsigned-int)
   (specular :unsigned-int)
   (constant-attenuation :float)
@@ -63,25 +67,73 @@
   (quadratic-attenuation :float)
   (spot-cutoff :float)
   (spot-exponent :float)
-  (spot-direction-x :float)
-  (spot-direction-y :float)
-  (spot-direction-z :float))
-
-(defclass light () ;; todo: add :type kwd to slot defs.
-  ((position :initform *default-light-position* :initarg :position :accessor light-position)
-   (diffuse :initform *default-diffuse-color* :initarg :diffuse :accessor light-diffuse)
-   (specular :initform *default-specular-color* :initarg :specular :accessor light-specular)
-   (constant-attenuation :initform *default-constant-attenuation* :initarg :constant-attenuation :accessor light-constant-attenuation)
-   (linear-attenuation :initform *default-linear-attenuation* :initarg :linear-attenuation :accessor light-linear-attenuation)
-   (quadratic-attenuation :initform *default-quadratic-attenuation* :initarg :quadratic-attenuation :accessor light-quadratic-attenuation)
-   (spot-cutoff :initform *default-spot-cutoff* :initarg :spot-cutoff :accessor light-spot-cutoff)
-   (spot-exponent :initform *default-spot-exponent* :initarg :spot-exponent :accessor light-spot-exponent)
-   (spot-direction :initform *default-spot-direction* :initarg :spot-direction :accessor light-spot-direction)))
+  (padding :float))
 
 (defcstruct fragment-uniform-buffer
   (lights (:array (:struct light) 10))
   (num-lights :unsigned-int)
-  (scene-ambient :unsigned-int))
+  (scene-ambient :unsigned-int)
+  (padding1 :unsigned-int)
+  (padding2 :unsigned-int))
+
+(defclass light-mixin () ;; todo: add :type kwd to slot defs.
+  ((position :initform *default-light-position* :initarg :position :accessor light-position :type (or vec3 vec4))
+   (diffuse :initform *default-diffuse-color* :initarg :diffuse :accessor light-diffuse :type color)
+   (specular :initform *default-specular-color* :initarg :specular :accessor light-specular :type color)
+   (constant-attenuation :initform *default-constant-attenuation* :initarg :constant-attenuation :accessor light-constant-attenuation :type real)
+   (linear-attenuation :initform *default-linear-attenuation* :initarg :linear-attenuation :accessor light-linear-attenuation :type real)
+   (quadratic-attenuation :initform *default-quadratic-attenuation* :initarg :quadratic-attenuation :accessor light-quadratic-attenuation :type real)
+   (spot-cutoff :initform *default-spot-cutoff* :initarg :spot-cutoff :accessor light-spot-cutoff :type real)
+   (spot-exponent :initform *default-spot-exponent* :initarg :spot-exponent :accessor light-spot-exponent :type real)
+   (spot-direction :initform *default-spot-direction* :initarg :spot-direction :accessor light-spot-direction :type (or vec3 vec4))))
+
+(defclass directional-light (light-mixin) ())
+
+(defclass point-light (light-mixin) ())
+(defclass spot-light (light-mixin) ())
+
+(defun update-fragment-uniform-buffer (pipeline scene)
+  (let ((lights (scene-lights scene)))
+    (with-foreign-object (p-stage '(:struct fragment-uniform-buffer))
+      (let ((p-lights (foreign-slot-pointer p-stage '(:struct fragment-uniform-buffer) 'lights)))
+	(loop  for i from 0 for light in lights
+	       when (typep light 'light-mixin)
+	       do (let ((p-light (mem-aptr p-lights '(:struct light) i)))
+		    (with-slots (position
+				 diffuse
+				 specular
+				 constant-attenuation
+				 linear-attenuation
+				 quadratic-attenuation
+				 spot-cutoff
+				 spot-exponent
+				 spot-direction)
+			light
+		      (setf (foreign-slot-value p-light '(:struct light) 'pos-x) (clampf (vx position))
+			    (foreign-slot-value p-light '(:struct light) 'pos-y) (clampf (vy position))
+			    (foreign-slot-value p-light '(:struct light) 'pos-z) (clampf (vz position))
+			    (foreign-slot-value p-light '(:struct light) 'pos-w) (typecase light
+										   (directional-light 0.0)
+										   ((point-light spot-light) 1.0)
+										   (t 0.0))
+			    (foreign-slot-value p-light '(:struct light) 'diffuse) (canonicalize-color diffuse)
+			    (foreign-slot-value p-light '(:struct light) 'specular) (canonicalize-color specular)
+			    (foreign-slot-value p-light '(:struct light) 'constant-attenuation) (clampf constant-attenuation)
+			    (foreign-slot-value p-light '(:struct light) 'linear-attenuation) (clampf linear-attenuation)
+			    (foreign-slot-value p-light '(:struct light) 'quadratic-attenuation) (clampf quadratic-attenuation)
+			    (foreign-slot-value p-light '(:struct light) 'spot-cutoff) (clampf spot-cutoff)
+			    (foreign-slot-value p-light '(:struct light) 'spot-exponent) (clampf spot-exponent)
+			    (foreign-slot-value p-light '(:struct light) 'spot-direction-x) (clampf (vx spot-direction))
+			    (foreign-slot-value p-light '(:struct light) 'spot-direction-y) (clampf (vy spot-direction))
+			    (foreign-slot-value p-light '(:struct light) 'spot-direction-z) (clampf (vz spot-direction)))))
+	       finally (setf (foreign-slot-value p-stage '(:struct fragment-uniform-buffer) 'num-lights) i)
+		       (setf (foreign-slot-value p-stage '(:struct fragment-uniform-buffer) 'scene-ambient) (canonicalize-color
+													     (scene-ambient scene)))
+		       (copy-uniform-buffer-memory (default-logical-device pipeline)
+						   p-stage
+						   (allocated-memory (pipeline-fragment-uniform-buffer pipeline))
+						   (load-time-value (foreign-type-size '(:struct fragment-uniform-buffer))))))))
+  (values))
 
 (defclass krma-essential-scene-mixin ()
   ((application :initarg :app)
@@ -93,7 +145,7 @@
                           (list
                            (make-retained-mode-draw-data "RM Draw Data 0")
                            (make-retained-mode-draw-data "RM Draw Data 1"))))
-   (lights :initform (list (make-instance 'light)) :accessor scene-lights)
+   (lights :initform (list (make-instance 'directional-light)) :accessor scene-lights)
    
    (3d-camera-projection-matrix)
    (3d-camera-view-matrix)
@@ -1934,18 +1986,22 @@
   (rm-dispatch-to-render-thread (scene draw-data)
     (%group-apply-model-matrix-1 draw-data group matrix)))
 
+#+NIL
 (declaim (inline %group-set-light-position-1))
+#+NIL
 (defun %group-set-light-position-1 (draw-data atom-group light-position)
   (let ((group (gethash atom-group (draw-data-group-hash-table draw-data))))
     (if group
         (setf (group-light-position group) (when light-position (vcopy light-position)))
         (warn "while in %group-set-light-position-1 ...no group named ~S" atom-group))))
 
+#+NIL
 (defun group-set-light-position-1 (draw-data group position)
   (declare (type (or vec3 null) position))
   (declare (type (and atom t) group))
   (%group-set-light-position-1 draw-data group position))
 
+#+NIL
 (defun group-set-light-position (scene group position)
   (declare (type krma-essential-scene-mixin scene))
   (declare (type (or vec3 null) position))

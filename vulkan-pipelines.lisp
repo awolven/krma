@@ -60,42 +60,7 @@
 				(allocated-memory (pipeline-vertex-uniform-buffer pipeline))
 				(load-time-value (foreign-type-size '(:struct vertex-uniform-buffer))))))
 
-(defun update-fragment-uniform-buffer (pipeline scene)
-  (let ((lights (scene-lights scene)))
-    (with-foreign-object (p-stage '(:struct fragment-uniform-buffer))
-      (loop for light in lights for i from 0 below 10
-	    do (let ((p-light (mem-aptr p-stage '(:struct light) i)))
-		 (with-slots (position
-			      diffuse
-			      specular
-			      constant-attenuation
-			      linear-attenuation
-			      quadratic-attenuation
-			      spot-cutoff
-			      spot-exponent
-			      spot-direction)
-		     light
-		   (setf (foreign-slot-value p-light '(:struct light) 'pos-x) (clampf (vx position))
-			 (foreign-slot-value p-light '(:struct light) 'pos-y) (clampf (vy position))
-			 (foreign-slot-value p-light '(:struct light) 'pos-z) (clampf (vz position))
-			 (foreign-slot-value p-light '(:struct light) 'diffuse) (canonicalize-color diffuse)
-			 (foreign-slot-value p-light '(:struct light) 'specular) (canonicalize-color specular)
-			 (foreign-slot-value p-light '(:struct light) 'constant-attenuation) (clampf constant-attenuation)
-			 (foreign-slot-value p-light '(:struct light) 'linear-attenuation) (clampf linear-attenuation)
-			 (foreign-slot-value p-light '(:struct light) 'quadratic-attenuation) (clampf quadratic-attenuation)
-			 (foreign-slot-value p-light '(:struct light) 'spot-cutoff) (clampf spot-cutoff)
-			 (foreign-slot-value p-light '(:struct light) 'spot-exponent) (clampf spot-exponent)
-			 (foreign-slot-value p-light '(:struct light) 'spot-direction-x) (clampf (vx spot-direction))
-			 (foreign-slot-value p-light '(:struct light) 'spot-direction-y) (clampf (vy spot-direction))
-			 (foreign-slot-value p-light '(:struct light) 'spot-direction-z) (clampf (vz spot-direction)))))
-	    finally (setf (foreign-slot-value p-stage '(:struct fragment-uniform-buffer) 'num-lights) (1+ i))
-		    (setf (foreign-slot-value p-stage '(:struct fragment-uniform-buffer) 'scene-ambient) (canonicalize-color
-													  (scene-ambient scene)))
-		    (copy-uniform-buffer-memory (default-logical-device pipeline)
-						p-stage
-						(allocated-memory (pipeline-fragment-uniform-buffer pipeline))
-						(load-time-value (foreign-type-size '(:struct fragment-uniform-buffer)))))))
-  (values))
+
 
 (defmethod make-global-descriptor-set-layout-bindings ((pipeline pipeline-mixin))
   nil)
@@ -1162,6 +1127,19 @@
 		    (mem-aref pvalues2 :float +fragment-shader-select-box-max-offset+) (clampf (vz select-box-coords))
 		    (mem-aref pvalues2 :float (1+ +fragment-shader-select-box-max-offset+)) (clampf (vw select-box-coords))))
 
+	    (let* ((material (if group (group-material group) (make-material "default")))
+		   (ambient (material-ambient material))
+		   (diffuse (material-diffuse material))
+		   (specular (material-specular material))
+		   (shininess (material-shininess material)))
+
+	      (setf (mem-aref pvalues2 :unsigned-int +lighting-fragment-shader-ambient-offset+) (canonicalize-color ambient)
+		    (mem-aref pvalues2 :unsigned-int +lighting-fragment-shader-diffuse-offset+) (canonicalize-color diffuse)
+		    (mem-aref pvalues2 :unsigned-int +lighting-fragment-shader-specular-offset+) (canonicalize-color specular)
+		    (mem-ref pvalues2 :float (load-time-value
+					      (* +lighting-fragment-shader-shininess-offset+ (foreign-type-size :float))))
+		    (clampf shininess)))
+	    
 	    ;; make sure msdf-texture fragment shader can get px-range from font
 	    (vkCmdPushConstants command-buffer-handle
 				(h pipeline-layout)
@@ -1224,4 +1202,9 @@
 		  (vk::storage-buffer-memory-pool app))
 		 array (load-time-value (* +select-box-depth+ (foreign-type-size :unsigned-int)))
 		 (application-select-box-memory-resource app)
-		 (aligned-size +select-box-depth+))))
+		 (aligned-size +select-box-depth+))
+    
+    (let ((size (* cols rows +select-box-depth+ (load-time-value (foreign-type-size :unsigned-int)))))
+      
+      (clear-buffer (vk::memory-pool-buffer (vk::storage-buffer-memory-pool app)) 0 (aligned-size size)
+		    (application-select-box-memory-resource app)))))

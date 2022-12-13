@@ -87,6 +87,19 @@
     (declaim (inline %draw-data-add-text-quad-list))
     (declaim (inline %draw-data-draw-text-quad-list))))
 
+(defstruct (material
+	    (:constructor make-material
+		(name &optional (ambient #(1.0 0.5 0.31 1.0))
+			(diffuse #(1.0 0.5 0.31 1.0))
+			(specular #(0.5 0.5 0.5 1.0))
+			(shininess 32.0f0))))
+  (name)
+  (ambient)
+  (diffuse)
+  (specular)
+  (shininess))
+	    
+
 (defstruct (group
 	     (:conc-name "GROUP-")
 	     (:constructor make-group
@@ -96,7 +109,7 @@
   (name)
   (color-override nil)
   (model-matrix nil)
-  (light-position nil))
+  (material (make-material "default")))
 
 (defstruct (standard-draw-data
 	     (:conc-name "DRAW-DATA-")
