@@ -240,7 +240,7 @@
       (update-counts current-frame-cons current-draw-data-cons frame-count))))
 
 (defvar *threshold* 0.008)
-(defvar *test* 1000000000)
+(defvar *test* 1290)
 
 (defun krma-application-main (app &rest args &key (show-frame-rate? t) (throttle-frame-rate? t) &allow-other-keys)
   (declare (ignore args))
@@ -270,14 +270,15 @@
 		 (setq frames 0))
 	       (when throttle-frame-rate?
 		 (setq dt-total (- time old-time))
-		 (loop while (> dt-total 0) for i from 0 to 100
+		 (loop while (> dt-total 0) for i from 0 below 1
 		       do
 			  (let ((dt))
 			    (if (> dt-total *threshold*)
 				(setq dt *threshold*)
 				(progn
 				  (setq dt dt-total)))
-			    #+windows(nt-delay-execution (floor (* dt 840000)))
+			    ;; because the time resolution sucks, frame rate throttling sucks.
+			    #+windows(nt-delay-execution (* dt *test*))
 			    #+unix(sb-unix:nanosleep 0 (floor (* dt 840000000)))
 			    (decf dt-total dt)))
 		 (setq old-time time))
