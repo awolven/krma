@@ -240,6 +240,7 @@
       (update-counts current-frame-cons current-draw-data-cons frame-count))))
 
 (defvar *threshold* 0.008)
+(defvar *test* 1000000000)
 
 (defun krma-application-main (app &rest args &key (show-frame-rate? t) (throttle-frame-rate? t) &allow-other-keys)
   (declare (ignore args))
@@ -276,8 +277,8 @@
 				(setq dt *threshold*)
 				(progn
 				  (setq dt dt-total)))
-			    #+windows(nt-delay-execution (floor (* dt 1000)))
-			    #+unix(sb-unix:nanosleep (* dt 1000000))
+			    #+windows(nt-delay-execution (floor (* dt 840000)))
+			    #+unix(sb-unix:nanosleep 0 (floor (* dt 840000000)))
 			    (decf dt-total dt)))
 		 (setq old-time time))
 	       (frame-iteration app queue command-pool show-frame-rate?)))
