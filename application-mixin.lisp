@@ -17,13 +17,15 @@
    (3d-triangle-list-pipeline :accessor pipeline-store-3d-triangle-list-pipeline)
    (3d-triangle-list-with-normals-pipeline :accessor pipeline-store-3d-triangle-list-with-normals-pipeline)
    (3d-triangle-strip-pipeline :accessor pipeline-store-3d-triangle-strip-pipeline)
-   (3d-triangle-strip-with-normals-pipeline :accessor pipeline-store-3d-triangle-strip-with-normals-pipeline)
-   ))
+   (3d-triangle-strip-with-normals-pipeline :accessor pipeline-store-3d-triangle-strip-with-normals-pipeline))
+  (:documentation "Abstract superclass of a krma pipeline store. Define your own concrete type with new pipelines based on this mixin.  Pipeline store is used with pipeline combination generic functions to pair pipelines with draw lists to render in generic function `render-scene."))
 
 (defclass standard-pipeline-store (pipeline-store-mixin)
-  ())
+  ()
+  (:documentation "An concrete class based on pipeline-store-mixin used in krma-test-application."))
 
 (defmethod initialize-instance :after ((instance pipeline-store-mixin) &rest initargs &key app)
+  "Define your own method for initialize-instance for pipeline store to instantiate your own custom pipelines."
   (declare (ignore initargs))
   (with-slots (3d-point-list-pipeline
                3d-line-list-pipeline
@@ -134,7 +136,8 @@
 		 :accessor compacting-complete-semaphore)
    (fic-semaphore :initform (bt:make-semaphore :name "frame-iteration-complete")
 		  :accessor frame-iteration-complete-semaphore))
-  (:default-initargs :enable-fragment-stores-and-atomics t))
+  (:default-initargs :enable-fragment-stores-and-atomics t)
+  (:documentation "Abstract superclass for top-level application objects.  Base your own top-level application class on this mixin.  Objects based on this type will be bound to vk:*app* after instantiation."))
 
 (defun make-select-box-descriptor-set-layout-bindings (app)
   (declare (ignore app)) ;; set 1
@@ -222,7 +225,11 @@
   (values))
 
 (defclass krma-test-application (krma-application-mixin)
-  ((vk::application-name :initform "krma-test-application")))
+  ((vk::application-name :initform "krma-test-application"))
+  (:documentation "A demo application for krma."))
+
+(defgeneric scene-class (application)
+  (:documentation "Define your own scene-class method for your custom application object to tell krma which type of scene to use in your application."))
 
 (defmethod scene-class ((application krma-test-application))
   'standard-scene)

@@ -141,6 +141,9 @@
   (u :float)
   (v :float))
 
+(setf (documentation 'symbol 'textured-2d-vertex)
+      "The name of a foreign 2d vertex structure for points, lines and triangles.")
+
 
 (defun (setf textured-2d-vertex-oid) (value bytes offset)
   (declare (type (unsigned-byte 32) value))
@@ -207,6 +210,7 @@
 
 
 (defun textured-2d-vertex-array-push-extend (textured-2d-vertex-array ub32-oid sf-x sf-y sf-u sf-v ub32-color)
+  "Function for adding textured-2d-vertex to a textured-2d-vertex-array."
   (declare (type textured-2d-vertex-array textured-2d-vertex-array))
   (declare (type single-float sf-x sf-y sf-u sf-v))
   (declare (type (unsigned-byte 32) ub32-oid ub32-color))
@@ -242,6 +246,7 @@
           (incf fill-pointer))))))
 
 (defun standard-2d-vertex-array-push-extend (vertex-array ub32-oid sf-x sf-y ub32-color)
+  "Function calls `textured-2d-vertex-array-push-extend' and is a shortcut for adding vertices which show no texture."
   (declare (type textured-2d-vertex-array vertex-array))
   (declare (type single-float sf-x sf-y))
   (declare (type (unsigned-byte 32) ub32-oid ub32-color))
@@ -256,6 +261,9 @@
   (u :float)
   (v :float))
 
+(setf (documentation 'symbol 'textured-3d-vertex)
+      "The name of a foreign 3d vertex structure for points, lines and triangles.")
+
 (defcstruct textured-3d-vertex-with-normal
   (oid :unsigned-int)
   (col :unsigned-int)
@@ -267,6 +275,9 @@
   (nx :float)
   (ny :float)
   (nz :float))
+
+(setf (documentation 'symbol 'textured-3d-vertex-with-normal)
+      "The name of a foreign 3d vertex structure for triangles with different shading styles.")
 
 (defstruct (textured-3d-vertex-array
             (:include vertex-array)
@@ -344,6 +355,7 @@
 
 
 (defun textured-3d-vertex-array-push-extend (textured-3d-vertex-array ub32-oid sf-x sf-y sf-z sf-u sf-v ub32-color)
+  "Function for adding textured-3d-vertex to a textured-3d-vertex-array."
   (declare (type textured-3d-vertex-array textured-3d-vertex-array))
   (declare (type single-float sf-x sf-y sf-u sf-v))
   (declare (type (unsigned-byte 32) ub32-oid ub32-color))
@@ -379,6 +391,7 @@
 
 
 (defun standard-3d-vertex-array-push-extend (vertex-array ub32-oid sf-x sf-y sf-z ub32-color)
+  "Function calls `textured-3d-vertex-array-push-extend' and is a shortcut for adding vertices which show no texture."
   (declare (type textured-3d-vertex-array vertex-array))
   (declare (type single-float sf-x sf-y sf-z))
   (declare (type (unsigned-byte 32) ub32-oid ub32-color))
@@ -489,6 +502,7 @@
 
 
 (defun textured-3d-vertex-with-normal-array-push-extend (textured-3d-vertex-with-normal-array ub32-oid sf-x sf-y sf-z sf-nx sf-ny sf-nz sf-u sf-v ub32-color)
+  "Function for adding textured-3d-vertex-with-normal to a textured-3d-vertex-with-normal-array."
   (declare (type textured-3d-vertex-with-normal-array textured-3d-vertex-with-normal-array))
   (declare (type single-float sf-x sf-y sf-u sf-v sf-nx sf-ny sf-nz))
   (declare (type (unsigned-byte 32) ub32-oid ub32-color))
@@ -531,6 +545,7 @@
 							 sf-x sf-y sf-z
 							 sf-nx sf-ny sf-nz
 							 ub32-color)
+  "Function calls `textured-3d-vertex-with-normal-array-push-extend' and is a shortcut for adding vertices with normals which show no texture."
   (declare (type textured-3d-vertex-with-normal-array vertex-array))
   (declare (type single-float sf-x sf-y sf-z sf-nx sf-ny sf-nz))
   (declare (type (unsigned-byte 32) ub32-oid ub32-color))

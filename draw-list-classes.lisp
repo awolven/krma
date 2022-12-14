@@ -47,7 +47,8 @@
     :initarg :point-size)
    (group :accessor draw-list-group
 	  :initform nil
-	  :initarg :group)))
+	  :initarg :group))
+  (:documentation "The base class for draw lists in krma."))
 
 ;; we are using textured vertices for standard (non-textured) primitives
 ;; for two reasons:
@@ -59,22 +60,27 @@
 ;; since this is a function of the pipeline, not the draw-list
 ;; and different pipelines using different primitives can use the same draw-lists
 (defclass 2d-vertex-draw-list-mixin (draw-list-mixin)
-  ((vertex-array
-    :initform (make-textured-2d-vertex-array))))
+  ((vertex-array :initform (make-textured-2d-vertex-array)))
+  (:documentation "The base class for draw lists using textured-2d-vertex as the vertex structure."))
 
 (defclass 2d-vertex-draw-list (2d-vertex-draw-list-mixin)
-  ())
+  ()
+  (:documentation "A concrete class based on 2d-vertex-draw-list-mixin."))
 
 (defclass 3d-vertex-draw-list-mixin (draw-list-mixin)
   ((vertex-array
-    :initform (make-textured-3d-vertex-array))))
+    :initform (make-textured-3d-vertex-array)))
+  (:documentation "The base class for draw lists using textured-3d-vertex as the vertex structure."))
 
 (defclass 3d-vertex-draw-list (3d-vertex-draw-list-mixin)
-  ())
+  ()
+  (:documentation "A concrete class based on 3d-vertex-draw-list-mixin."))
 
 (defclass 3d-vertex-with-normal-draw-list-mixin (draw-list-mixin)
   ((vertex-array
-    :initform (make-textured-3d-vertex-with-normal-array))))
+    :initform (make-textured-3d-vertex-with-normal-array)))
+  (:documentation "A base class for draw lists using 3d-vertex-with-normal as the vertex structure.  This is the vertex structure used in diffuse/specular lighting."))
 
 (defclass 3d-vertex-with-normal-draw-list (3d-vertex-with-normal-draw-list-mixin)
-  ())
+  ()
+  (:documentation "A concrete class based on 3d-vertex-with-normal-draw-list-mixin."))

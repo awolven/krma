@@ -8,6 +8,7 @@
   (require :sb-concurrency))
 
 (defmacro maybe-defer-debug ((app) &body body)
+  "Sets up `ignore' restart, and records error message and backtrace in application object."
   (let ((app-sym (gensym)))
     `(let ((,app-sym ,app))
        (restart-bind ((ignore (lambda (&optional c)
@@ -18,11 +19,6 @@
                                    (record-error-msg ,app-sym c)
                                    (record-backtrace ,app-sym))))
              ,@body))))))
-
-(defun gen-rm-handle ()
-  "generate retained-mode primitive handle"
-  (sb-ext:atomic-incf (car (retained-mode-handle-count-cons *app*)))
-  (car (retained-mode-handle-count-cons *app*)))
 
 (defmacro rm-dispatch-to-render-thread-with-handle ((resource draw-data-var handle-var) &body body)
   (let ((dd0-sym (gensym))

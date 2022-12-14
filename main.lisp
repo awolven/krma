@@ -321,10 +321,14 @@
     
     (shutdown-application app)))
 
+(defgeneric main (application &rest args &key &allow-other-keys)
+  (:documentation "Define your own main function for your custom application if necessary."))
+
 (defmethod main ((app krma-test-application) &rest args &key &allow-other-keys)
   (apply #'krma-application-main app args))
   
 (defun run-1 (&rest args &key (class *default-application-class*) (throttle-frame-rate? t) &allow-other-keys)
+  "Function to call from main thread to create and run an application object."
   ;; #+darwin(sb-int:set-floating-point-modes :traps nil) ;; this happens in vk:create-instance now.
   (let ((args (copy-list args)))
     (remf args :class)
@@ -335,6 +339,7 @@
       t)))
 
 (defun run (&rest args &key (class *default-application-class*) (show-frame-rate? krma::*debug*) &allow-other-keys)
+  "Function which can be called from any thread to create and run an application object."
   (trivial-main-thread:call-in-main-thread
    (lambda ()
      (let ((args (copy-list args)))

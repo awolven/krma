@@ -10,9 +10,6 @@
   (unless krma::*debug*
     (declaim (optimize (speed 3) (safety 0) (debug 0)))))
 
-(defparameter +default-znear+ 0.001)
-(defparameter +default-zfar+ 3000.0)
-
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (require :sb-concurrency))
 
@@ -37,11 +34,6 @@
   (m23 :float)
   (m33 :float))
 
-(defcstruct vertex-uniform-buffer
-  (view (:struct 3DMatrix))
-  (proj (:struct 3DMatrix))
-  (vproj (:struct 3DMatrix)))
-
 (defun copy-matrix-to-foreign (lisp-matrix p-matrix)
   ;; glsl expects transpose of what is in marr of mat4
   (let ((array (marr lisp-matrix)))
@@ -51,23 +43,10 @@
 			    (clampf (aref array (+ i (* j 4)))))))
     (values)))
 
-(defcstruct light
-  (pos-x :float)
-  (pos-y :float)
-  (pos-z :float)
-  (pos-w :float)
-  (spot-direction-x :float)
-  (spot-direction-y :float)
-  (spot-direction-z :float)
-  (spot-direction-w :float)
-  (diffuse :unsigned-int)
-  (specular :unsigned-int)
-  (constant-attenuation :float)
-  (linear-attenuation :float)
-  (quadratic-attenuation :float)
-  (spot-cutoff :float)
-  (spot-exponent :float)
-  (padding :float))
+(defcstruct vertex-uniform-buffer
+  (view (:struct 3DMatrix))
+  (proj (:struct 3DMatrix))
+  (vproj (:struct 3DMatrix)))
 
 (defcstruct fragment-uniform-buffer
   (lights (:array (:struct light) 10))
@@ -75,22 +54,6 @@
   (scene-ambient :unsigned-int)
   (padding1 :unsigned-int)
   (padding2 :unsigned-int))
-
-(defclass light-mixin () ;; todo: add :type kwd to slot defs.
-  ((position :initform *default-light-position* :initarg :position :accessor light-position :type (or vec3 vec4))
-   (diffuse :initform *default-diffuse-color* :initarg :diffuse :accessor light-diffuse :type color)
-   (specular :initform *default-specular-color* :initarg :specular :accessor light-specular :type color)
-   (constant-attenuation :initform *default-constant-attenuation* :initarg :constant-attenuation :accessor light-constant-attenuation :type real)
-   (linear-attenuation :initform *default-linear-attenuation* :initarg :linear-attenuation :accessor light-linear-attenuation :type real)
-   (quadratic-attenuation :initform *default-quadratic-attenuation* :initarg :quadratic-attenuation :accessor light-quadratic-attenuation :type real)
-   (spot-cutoff :initform *default-spot-cutoff* :initarg :spot-cutoff :accessor light-spot-cutoff :type real)
-   (spot-exponent :initform *default-spot-exponent* :initarg :spot-exponent :accessor light-spot-exponent :type real)
-   (spot-direction :initform *default-spot-direction* :initarg :spot-direction :accessor light-spot-direction :type (or vec3 vec4))))
-
-(defclass directional-light (light-mixin) ())
-
-(defclass point-light (light-mixin) ())
-(defclass spot-light (light-mixin) ())
 
 (defun update-fragment-uniform-buffer (pipeline scene)
   (let ((lights (scene-lights scene)))
@@ -152,7 +115,8 @@
    (2d-camera-projection-matrix)
    (2d-camera-view-matrix)
 
-   (ambient :initform *default-scene-ambient* :accessor scene-ambient)))
+   (ambient :initform *default-scene-ambient* :accessor scene-ambient))
+  (:documentation "Absract base class for application scenes in krma. Define your own scene classes with this mixin as a superclass."))
 
 (defun finalize-scene (scene)
   (let ((draw-data (im-draw-data scene)))
@@ -166,13 +130,16 @@
   (finalize-scene instance)
   (values))
 
-(defclass standard-scene (krma-essential-scene-mixin) ())
+(defclass standard-scene (krma-essential-scene-mixin)
+  ()
+  (:documentation "A concrete scene class based on krma-essential-scene-mixin used in krma-test-application."))
 
 
 (defmethod update-2d-camera (scene &optional
 				     (proj (mortho-vulkan 0 (main-window-width *app*)
 							  (main-window-height *app*) 0 0 1))
 				     (view (meye 4)))
+  "Function which takes a projection matrix and a view matrix from a 2d-camera and stores it in the scene so that the scene need not know about the camera class directly. Called before render-scene."
   (declare (type krma-essential-scene-mixin scene))
   (with-slots (2d-camera-projection-matrix
 	       2d-camera-view-matrix)
@@ -185,14 +152,15 @@
 (defmethod update-3d-camera (scene &optional
 				     (proj (mperspective-vulkan 45 (/ (main-window-width *app*)
 								      (main-window-height *app*))
-								+default-znear+ +default-zfar+)
+								*default-znear* *default-zfar*)
 					   #+NIL(mortho-vulkan -1500 1500
 							       (* -1500 (/ (main-window-height *app*)
 									   (main-window-width *app*)))
 							       (* 1500 (/ (main-window-height *app*)
 									  (main-window-width *app*)))
-							       +default-znear+ +default-zfar+))
+							       *default-znear* *default-zfar*))
 				     (view (mlookat (vec3 0 0 1500) (vec3 0 0 0) (vec3 0 1 0))))
+  "Function which takes a projection matrix and a view matrix from a 3d-camera and stores it in the scene so that the scene need not know about the camera class directly. Called before render-scene."
   (declare (type krma-essential-scene-mixin scene))
   (with-slots (3d-camera-projection-matrix
 	       3d-camera-view-matrix)
@@ -204,6 +172,7 @@
 
 (defmethod render-scene ((scene krma-essential-scene-mixin)
 			 app command-buffer rm-draw-data im-draw-data)
+  "The default method to render krma scenes.  You can define your own methods for your own scene classes and call-next-method if you like."
 
   ;; todo: think about having separate clos objects for 3d-scene and 2d-scene
   

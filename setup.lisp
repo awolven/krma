@@ -24,6 +24,9 @@
 (defconstant +tex-white-pixel-u+ 0.0f0)
 (defconstant +tex-white-pixel-v+ 0.0f0)
 
+(defvar *default-znear* 0.001)
+(defvar *default-zfar* 3000.0)
+
 (defvar *white-texture*)
 (defvar *default-color* #xffffffff)
 (defvar *identity-matrix* (3d-matrices::meye 4))
@@ -40,4 +43,5 @@
 (defvar *default-spot-exponent* 10.0f0)
 (defvar *default-spot-direction* (vec3 0 1 0))
 (defvar *default-scene-ambient* #xffffffff)
+(defvar *default-material*)
 (defvar *compact-trigger* 1/3) ;; must be real number between 0 and 1

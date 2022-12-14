@@ -1901,7 +1901,7 @@
 
 (defun %prim-reserve (draw-list vertex-count index-count vertex-type-size index-type-size)
   "%prim-reserve [potentially] allocates memory on the draw-list for indices and vertices
-you can use prim-reserve when seq-vertices is an array"
+you can use prim-reserve when seq-vertices is an array."
   (declare (type fixnum vertex-count index-count vertex-type-size index-type-size))
   (declare (type draw-list-mixin draw-list))
   (let ((res nil))

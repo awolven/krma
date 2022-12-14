@@ -18,18 +18,6 @@
   (src :pointer)
   (count size-t))
 
-(defun color-p (item)
-  (or (typep item '(unsigned-byte 32))
-      (typep item 'vec4)
-      (typep item 'vec3)
-      (and (typep item 'vector)
-	   (or (= (length item) 4)
-	       (= (length item) 3)))))
-
-(deftype color ()
-  `(satisfies color-p))
-
-
 (defun d2r (d)
   (declare (type real d))
   (* d #.(/ pi 180)))
@@ -116,57 +104,6 @@
                       f0             f0             (/ f1 (- n f))  (/ n (- n f))
                       f0             f0             f0              f1)))
 
-
-
-(defun clampf (number)
-  "Clamp real number to single-float limits."
-  (block nil
-    (when (typep number 'single-float)
-      (return number))
-    (etypecase number
-      (real
-       (etypecase number
-	 (double-float
-	  (when (= number 0.0d0)
-	    (return 0.0f0))
-	  (when (< (cl:the double-float (load-time-value (/ least-negative-single-float 2.0d0)))
-		   number
-		   (cl:the double-float (load-time-value (/ least-positive-single-float 2.0d0))))
-	    (return 0.0f0))
-	  (when (< number 0.0d0)
-	    (when (> number (cl:the single-float least-negative-single-float))
-	      (return least-negative-single-float))
-	    (when (< number (cl:the single-float most-negative-single-float))
-	      (return most-negative-single-float))
-	    (return (coerce number 'single-float)))
-	  (when (< number (cl:the single-float least-positive-single-float))
-	    (return least-positive-single-float))
-	  (when (> number (cl:the single-float most-positive-single-float))
-	    (return most-positive-single-float))
-	  (coerce number 'single-float))
-      
-	 (integer
-	  (when (= number 0)
-	    (return 0.0f0))
-	  (when (< number (cl:the single-float most-negative-single-float))
-	    (return most-negative-single-float))
-	  (when (> number (cl:the single-float most-positive-single-float))
-	    (return most-positive-single-float))
-	  (coerce number 'single-float))
-	 (rational
-	  (when (< (cl:the double-float (load-time-value (/ least-negative-single-float 2.0d0)))
-		   number
-		   (cl:the double-float (load-time-value (/ least-positive-single-float 2.0d0))))
-	    (return 0.0f0))
-	  (when (< number 0)
-	    (when (> number (cl:the single-float least-negative-single-float))
-	      (return least-negative-single-float))
-	    (return (coerce number 'single-float)))
-	  (when (< number (cl:the single-float least-positive-single-float))
-	    (return least-positive-single-float))
-	  (coerce number 'single-float)))))))
-    
-
 (defun canonicalize-color (color)
   (etypecase color
     ((unsigned-byte 32) color)
@@ -197,4 +134,19 @@
 	       (progn
 		 (warn "~S is not a color" color)
 		 #xffffffff)))))))
+
+(defun color-p (item)
+  (or (typep item '(unsigned-byte 32))
+      (typep item 'vec4)
+      (typep item 'vec3)
+      (and (typep item 'vector)
+	   (or (= (length item) 4)
+	       (= (length item) 3)))))
+
+(deftype color ()
+  `(satisfies color-p))
 	     
+(defun gen-rm-handle ()
+  "Generate retained-mode primitive handle."
+  (sb-ext:atomic-incf (car (retained-mode-handle-count-cons *app*)))
+  (car (retained-mode-handle-count-cons *app*)))

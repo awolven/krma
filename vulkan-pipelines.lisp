@@ -959,12 +959,31 @@
 				 (if px-range
 				     (setf (mem-aref pvalues2 :float +text-fragment-shader-px-range-offset+) (clampf px-range))
 				     (setf (mem-aref pvalues2 :float +text-fragment-shader-px-range-offset+) 32.0f0))))))
+			 
 			 (let ((select-box-coords (application-select-box-coords app)))
 			   (setf (mem-aref pvalues2 :float +fragment-shader-select-box-min-offset+) (clampf (vx select-box-coords))
 				 (mem-aref pvalues2 :float (1+ +fragment-shader-select-box-min-offset+)) (clampf (vy select-box-coords))
 				 (mem-aref pvalues2 :float +fragment-shader-select-box-max-offset+) (clampf (vz select-box-coords))
 				 (mem-aref pvalues2 :float (1+ +fragment-shader-select-box-max-offset+)) (clampf (vw select-box-coords))))
-				 
+
+			 (when (typep pipeline '3d-texture-with-normals-pipeline-mixin)
+			   (let* ((cmd-material (cmd-material cmd))
+				  (material (if cmd-material
+						cmd-material
+						(if group
+						    (group-material group)
+						    *default-material*)))
+				  (ambient (material-ambient material))
+				  (diffuse (material-diffuse material))
+				  (specular (material-specular material))
+				  (shininess (material-shininess material)))
+
+			     (setf (mem-aref pvalues2 :unsigned-int +lighting-fragment-shader-ambient-offset+) (canonicalize-color ambient)
+				   (mem-aref pvalues2 :unsigned-int +lighting-fragment-shader-diffuse-offset+) (canonicalize-color diffuse)
+				   (mem-aref pvalues2 :unsigned-int +lighting-fragment-shader-specular-offset+) (canonicalize-color specular)
+				   (mem-ref pvalues2 :float (load-time-value
+							     (* +lighting-fragment-shader-shininess-offset+ (foreign-type-size :float))))
+				   (clampf shininess))))				 
 
 			 ;; make sure msdf-texture fragment shader can get px-range from font
 			 (vkCmdPushConstants command-buffer-handle
@@ -982,7 +1001,7 @@
 
 	      (loop for cmd across cmd-vector
 		    when cmd
-		    do (render-standard-draw-indexed-cmd cmd))
+		      do (render-standard-draw-indexed-cmd cmd))
               t)))))))
 
 (defmethod render-draw-list-cmds ((pipeline draw-indexed-pipeline-mixin) draw-data draw-list
@@ -1127,18 +1146,19 @@
 		    (mem-aref pvalues2 :float +fragment-shader-select-box-max-offset+) (clampf (vz select-box-coords))
 		    (mem-aref pvalues2 :float (1+ +fragment-shader-select-box-max-offset+)) (clampf (vw select-box-coords))))
 
-	    (let* ((material (if group (group-material group) (make-material "default")))
-		   (ambient (material-ambient material))
-		   (diffuse (material-diffuse material))
-		   (specular (material-specular material))
-		   (shininess (material-shininess material)))
+	    (when (typep pipeline '3d-texture-with-normals-pipeline-mixin)
+	      (let* ((material (if group (group-material group) (make-material "default")))
+		     (ambient (material-ambient material))
+		     (diffuse (material-diffuse material))
+		     (specular (material-specular material))
+		     (shininess (material-shininess material)))
 
-	      (setf (mem-aref pvalues2 :unsigned-int +lighting-fragment-shader-ambient-offset+) (canonicalize-color ambient)
-		    (mem-aref pvalues2 :unsigned-int +lighting-fragment-shader-diffuse-offset+) (canonicalize-color diffuse)
-		    (mem-aref pvalues2 :unsigned-int +lighting-fragment-shader-specular-offset+) (canonicalize-color specular)
-		    (mem-ref pvalues2 :float (load-time-value
-					      (* +lighting-fragment-shader-shininess-offset+ (foreign-type-size :float))))
-		    (clampf shininess)))
+		(setf (mem-aref pvalues2 :unsigned-int +lighting-fragment-shader-ambient-offset+) (canonicalize-color ambient)
+		      (mem-aref pvalues2 :unsigned-int +lighting-fragment-shader-diffuse-offset+) (canonicalize-color diffuse)
+		      (mem-aref pvalues2 :unsigned-int +lighting-fragment-shader-specular-offset+) (canonicalize-color specular)
+		      (mem-ref pvalues2 :float (load-time-value
+						(* +lighting-fragment-shader-shininess-offset+ (foreign-type-size :float))))
+		      (clampf shininess))))
 	    
 	    ;; make sure msdf-texture fragment shader can get px-range from font
 	    (vkCmdPushConstants command-buffer-handle

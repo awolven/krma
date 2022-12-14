@@ -7,12 +7,16 @@
 	       :sdf/bmfont :3b-bmfont/json
 	       :trivial-main-thread)
   :author "Andrew K Wolven <awolven@gmail.com>"
+  :license "MIT"
   :serial t
   :components
   ((:file "package")
    (:file "setup")
    (:file "utilities")
    (:file "macros")
+   (:file "lights")
+   (:file "materials")
+   (:file "groups")
    (:file "draw-list-classes")
    (:file "foreign-arrays")
    (:file "cmds")
