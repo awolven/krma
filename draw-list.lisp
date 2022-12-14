@@ -60,30 +60,8 @@
     (declaim (inline %draw-list-draw-filled-3d-convex-polygon))
     (declaim (inline %draw-list-add-filled-3d-convex-polygon))
     (declaim (inline %draw-list-draw-filled-sphere))
-    (declaim (inline %draw-list-add-filled-sphere))))
-
-(defstruct (debug-2d-vertex)
-  (x)
-  (y)
-  (u)
-  (v)
-  (col))
-
-;; debugging
-(defun get-vertex-at (draw-list index)
-  (let* ((va (draw-list-vertex-array draw-list))
-         (ptr (inc-pointer (foreign-array-ptr va) (* (foreign-array-foreign-type-size va) index))))
-    (make-debug-2d-vertex :x (foreign-slot-value ptr (foreign-array-foreign-type va) 'x)
-                          :y (foreign-slot-value ptr (foreign-array-foreign-type va) 'y)
-                          :u (foreign-slot-value ptr (foreign-array-foreign-type va) 'u)
-                          :v (foreign-slot-value ptr (foreign-array-foreign-type va) 'v)
-                          :col (foreign-slot-value ptr (foreign-array-foreign-type va) 'col))))
-
-;; debugging
-(defun get-index-at (draw-list index)
-  (let* ((ia (draw-list-index-array draw-list))
-         (ptr (inc-pointer (foreign-array-ptr ia) (* (foreign-array-foreign-type-size ia) index))))
-    (mem-aref ptr (foreign-array-foreign-type ia))))
+    (declaim (inline %draw-list-add-filled-sphere))
+    (declaim (inline %prim-reserve))))
 
 (defmacro with-draw-list-transaction ((fn-name draw-list first-index initial-vtx-offset)
 				      &body body)
@@ -97,91 +75,6 @@
 	   (setf (foreign-array-fill-pointer (draw-list-index-array ,draw-list-sym)) ,first-index
 		 (foreign-array-fill-pointer (draw-list-vertex-array ,draw-list-sym)) ,initial-vtx-offset)
 	   nil)))))
-
-#+NOTYET
-(defun %prim-reserve (draw-list vertex-count index-count vertex-type-size index-type-size)
-  ;; prim-reserve [potentially] allocates memory on the draw-list for indices and vertices
-  ;; you can use prim-reserve when seq-vertices is an array
-  ;; you can use index-array-set and vertex-array-set instead of
-  ;; index-array-push-extend and ...-vertex-array-push-extend
-  ;; and optimize out the incf of the fill pointer, if you were so anal retentive  
-  (declare (type fixnum vertex-count index-count vertex-type-size index-type-size))
-  ;; todo: make sure arguments passed into this function:
-  ;; vertex-count * vertex-type-size < most-positive-fixnum
-  ;; index-count * index-type-size < most-positive-fixnum
-  (let ((res nil))
-    (with-slots (ptr fill-pointer allocated-count) (draw-list-vertex-array draw-list)
-      (let ((reqd-size (+ vertex-count (cl:the fixnum fill-pointer))))
-	(declare (type fixnum reqd-size))
-	;; fill-pointer will always be less than or equal to allocated-count
-	#+NIL(assert (< (cl:the fixnum fill-pointer) (cl:the fixnum
-							     (- most-positive-fixnum
-								(cl:the fixnum (* vertex-count vertex-type-size))))))
-        (unless (<= reqd-size (cl:the fixnum allocated-count))
-          (let ((new-count allocated-count))
-	    (declare (type fixnum new-count))
-            (tagbody
-             try-again
-	       ;; don't let new-count overflow (that's alot of memory on a 64 bit machine!)
-	       (assert (< new-count #.(/ most-positive-fixnum 2)))
-               (setq new-count (* 2 new-count))
-               (if (<= reqd-size new-count)
-                   (go exit)
-                   (go try-again))
-             exit
-               (let ((new-array (foreign-alloc :unsigned-char :count (* new-count vertex-type-size)))
-                     (old-array ptr))
-                 (memcpy new-array old-array
-			 (cl:the fixnum (* (cl:the fixnum fill-pointer) vertex-type-size)))
-                 (setf ptr new-array)
-                 (setf allocated-count new-count)
-                 (foreign-free old-array)
-                 (setq res t)))))))
-
-    (with-slots (ptr fill-pointer allocated-count) (draw-list-index-array draw-list)
-      (let ((reqd-size (+ index-count (cl:the fixnum fill-pointer))))
-	(declare (type fixnum reqd-size))
-	#+NIL(assert (< (cl:the fixnum fill-pointer) (cl:the fixnum
-							     (- most-positive-fixnum
-								(cl:the fixnum (* index-count index-type-size))))))
-        (unless (<= reqd-size (cl:the fixnum allocated-count))
-          (let ((new-count allocated-count))
-	    (declare (type fixnum new-count))
-            (tagbody
-             try-again
-	       (assert (< new-count #.(/ most-positive-fixnum 2)))
-               (setq new-count (* 2 new-count))
-               (if (<= reqd-size new-count)
-                   (go exit)
-                   (go try-again))
-             exit
-               (let ((new-array (foreign-alloc :unsigned-char :count (* new-count index-type-size)))
-                     (old-array ptr))
-                 (memcpy new-array old-array (cl:the fixnum (* (cl:the fixnum fill-pointer) index-type-size)))
-                 (setf ptr new-array)
-                 (setf allocated-count new-count)
-                 (foreign-free old-array)
-                 (setq res t)))))))
-    res))
-
-;; whether we use a draw-index style of drawing points
-;; or just a 'draw' style of drawing points depends on
-;; how we want to delete them.
-;; this function returns the index (n) of the vertex-index
-;; of the vertex in the vertex-array of the point
-;; so if you want to delete the point incrementally
-;; repack the index array without the nth index, you can leave the vertex-array alone
-;; so the returned 'n' is your reciept to deal with that point in the future
-;; another possibility would be to use a "draw" command instead of a
-;; "draw-indexed" command where you would have to delete the point
-;; from the vertex-array based on comparing the coordinates (and repack the vertex array)
-;; I don't think that is as efficient as using an index array, because of repetative compare ops
-;; To "recompact" this draw-list, re-make a vertex array, minus all the 'n' vertices
-;; and write the index array as a continuous sequence of non-negative integers
-;; this is intended to be drawn in one draw-indexed call
-;; so you can't have more than 65536 points for the small draw-list
-;; the large draw list would be used if you're drawing starts in a simulated sky or something
-;; in which case you might want a different vertex type with point size
 
 (defun %draw-list-draw-2d-point (2d-draw-list ub32-oid ub32-color sf-x sf-y)
   ;; for point-list-pipeline
@@ -2005,3 +1898,70 @@
                       nil *white-texture* nil nil light-position)))
 	    (vector-push-extend cmd (draw-list-cmd-vector 3d-draw-list))
 	    cmd))))))
+
+(defun %prim-reserve (draw-list vertex-count index-count vertex-type-size index-type-size)
+  "%prim-reserve [potentially] allocates memory on the draw-list for indices and vertices
+you can use prim-reserve when seq-vertices is an array"
+  (declare (type fixnum vertex-count index-count vertex-type-size index-type-size))
+  (declare (type draw-list-mixin draw-list))
+  (let ((res nil))
+    (block nil
+      (with-slots (bytes fill-pointer allocated-count) (draw-list-vertex-array draw-list)
+	(let ((reqd-size (+ vertex-count (cl:the fixnum fill-pointer))))
+	(declare (type fixnum reqd-size))
+	  (when (<= reqd-size (cl:the fixnum allocated-count))
+	    (return))
+	  (let ((new-count allocated-count))
+	    (declare (type fixnum new-count))
+	    (tagbody
+	     try-again
+	       (setq new-count (* 2 new-count))
+	       (if (<= reqd-size new-count)
+		   (go exit)
+		   (go try-again))
+	     exit
+	       (let ((vertex-type-size-in-uints (ash vertex-type-size -2)))
+		 (declare (type fixnum vertex-type-size-in-uints))
+		 (let* ((old-lisp-array bytes)
+			(new-lisp-array (make-array (* (cl:the (integer 0 #.(ash most-positive-fixnum -9)) new-count)
+						       (ash (cl:the (integer 0 512) vertex-type-size-in-uints) -2))
+						    :element-type (array-element-type old-lisp-array))))
+		   (sb-sys:with-pinned-objects (new-lisp-array old-lisp-array)
+		     (let ((new-lisp-array-ptr (sb-sys:vector-sap new-lisp-array))
+			   (old-lisp-array-ptr (sb-sys:vector-sap old-lisp-array)))
+		       (vk::memcpy new-lisp-array-ptr old-lisp-array-ptr
+				   (cl:the fixnum (ash (* (cl:the (integer 0 #.(ash most-positive-fixnum -9)) fill-pointer)
+							  vertex-type-size-in-uints)
+						       2)))))
+		   (setf bytes new-lisp-array)
+		   (setf allocated-count new-count)
+		   (setq res t))))))))
+    (block nil
+      (with-slots (bytes fill-pointer allocated-count) (draw-list-index-array draw-list)
+	(let ((reqd-size (+ index-count (cl:the fixnum fill-pointer))))
+	  (declare (type fixnum reqd-size))
+	  (when (<= reqd-size (cl:the fixnum allocated-count))
+	    (return))
+	  (let ((new-count allocated-count))
+	    (declare (type fixnum new-count))
+	    (tagbody
+	     try-again
+	       (setq new-count (* 2 new-count))
+	       (if (<= reqd-size new-count)
+		   (go exit)
+		   (go try-again))
+	     exit
+	       (let* ((old-lisp-array bytes)
+		      (new-lisp-array (make-array (cl:the fixnum new-count)
+						  :element-type (array-element-type old-lisp-array))))
+		 (sb-sys:with-pinned-objects (new-lisp-array old-lisp-array)
+		   (let ((new-lisp-array-ptr (sb-sys:vector-sap new-lisp-array))
+			 (old-lisp-array-ptr (sb-sys:vector-sap old-lisp-array)))
+		     (vk::memcpy new-lisp-array-ptr old-lisp-array-ptr
+				 (cl:the fixnum (* (cl:the (integer 0 #.(ash most-positive-fixnum -2)) fill-pointer)
+						   index-type-size)))))
+		 
+		 (setf bytes new-lisp-array)
+		 (setf allocated-count new-count)
+		 (setq res t)))))))
+    res))

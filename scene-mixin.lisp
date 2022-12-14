@@ -114,7 +114,7 @@
 			    (foreign-slot-value p-light '(:struct light) 'pos-z) (clampf (vz position))
 			    (foreign-slot-value p-light '(:struct light) 'pos-w) (typecase light
 										   (directional-light 0.0)
-										   ((point-light spot-light) 1.0)
+										   (light-mixin 1.0)
 										   (t 0.0))
 			    (foreign-slot-value p-light '(:struct light) 'diffuse) (canonicalize-color diffuse)
 			    (foreign-slot-value p-light '(:struct light) 'specular) (canonicalize-color specular)
@@ -1472,35 +1472,10 @@
            (vertices (compute-text-coordinates pos-x pos-y string glyph-table scale-w scale-h)))
       (%draw-data-draw-text-quad-list (im-draw-data scene) object-id group font (canonicalize-color color) vertices))))
 
-(declaim (inline %resinstance-cmd))
-(defun %reinstance-cmd (cmd constructor group model-mtx sf-line-thickness sf-point-size ub32-color-override light-position)
-  (declare (type standard-draw-indexed-cmd cmd))
-  (declare (type function constructor))
-  (declare (type (or single-float null) sf-line-thickness sf-point-size))
-  (declare (type (or (unsigned-byte 32) null) ub32-color-override))
-  (declare (type (or mat4 null) model-mtx))
-  (declare (type (or vec3 null) light-position))
-  (let ((first-idx (cmd-first-idx cmd))
-        (elem-count (cmd-elem-count cmd))
-        (vtx-offset (cmd-vtx-offset cmd))
-        (draw-list (cmd-draw-list cmd))
-        (texture (cmd-texture cmd)))
-    (setq group (or group (cmd-group cmd)))
-    (setq model-mtx (or model-mtx (cmd-model-mtx cmd)))
-    (setq sf-line-thickness (or sf-line-thickness (cmd-line-thickness cmd)))
-    (setq ub32-color-override (or ub32-color-override (cmd-color-override cmd)))
-    (setq sf-point-size (or sf-point-size (cmd-point-size cmd)))
-    (setq light-position (or light-position (cmd-light-position cmd)))
-    (let ((cmd (funcall constructor
-                        draw-list
-                        first-idx elem-count vtx-offset
-                        group (when model-mtx (mcopy model-mtx))
-                        ub32-color-override texture sf-line-thickness sf-point-size
-                        (when light-position (vcopy light-position)))))
-      (vector-push-extend cmd (draw-list-cmd-vector draw-list))
-      cmd)))
 
-(declaim (inline %reinstance-primitive-1))
+
+;;(declaim (inline %reinstance-primitive-1))
+#+update-me
 (defun %reinstance-primitive-1 (ht new-handle handle
                                 group model-mtx sf-line-thickness sf-point-size ub32-color-override light-position font)
   (let ((cmd (gethash handle ht)))
@@ -1512,9 +1487,9 @@
             (setq constructor #'(lambda (&rest args)
                                   (apply #'make-text-draw-indexed-cmd font args))))
           (setf (gethash new-handle ht)
-                (%reinstance-cmd cmd constructor
-                                 group model-mtx sf-line-thickness ub32-color-override sf-point-size light-position))))))
+                )))))
 
+#+update-me
 (defun reinstance-primitive-1 (draw-data new-handle handle
                                &key 
 				 (group nil)
@@ -1531,7 +1506,7 @@
      ht new-handle handle
      group model-matrix (clampf line-thickness) (clampf point-size) (canonicalize-color color-override) light-position font)))
 
-
+#+update-me
 (defun reinstance-primitive (scene handle
                              &key 
 			       (group nil)
@@ -1727,6 +1702,9 @@
         (sb-concurrency:enqueue #'(lambda () (%primitive-set-line-thickness-1 ht1 handle thickness)) wq1)
         (values)))))
 
+
+(defvar *compact-trigger* 1/4)
+
 (defun %delete-primitive-1 (ht handle)
   (handler-case
       (let ((cmd (gethash handle ht)))
@@ -1734,13 +1712,18 @@
             (warn "while in %delete-primitive-1 ...could not find primitive to delete ~S" handle)
             (let* ((draw-list (cmd-draw-list cmd))
                    (cmd-vector (draw-list-cmd-vector draw-list)))
-              (loop for entry across cmd-vector
+              (loop for entry across cmd-vector with holes = 0
                     for i from 0
+		    unless entry
+		      do (incf holes)
                     when (eq cmd entry)
 		      do (setf (aref cmd-vector i) nil)
-			 (setf (draw-list-needs-compaction? draw-list) t)
+			 (incf holes)
 			 (remhash handle ht)
-			 (return (values))))))
+			 ;; we don't return from here because we want to count the holes
+		    finally (when (> holes (floor (* i *compact-trigger*)))
+			      (setf (draw-list-needs-compaction? draw-list) t))
+			    (return (values))))))
     (error (c)
       (warn (concatenate 'string "while in %delete-primitive-1 ..." (princ-to-string c)))
       (values))))

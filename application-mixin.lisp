@@ -129,7 +129,11 @@
    (select-box-descriptor-set :initform nil :accessor application-select-box-descriptor-set)
    (select-box :initform nil :accessor application-select-box)
    (ubershader-per-instance-descriptor-set-layout :initform nil :accessor application-ubershader-per-instance-descriptor-set-layout)
-   (ubershader-per-instance-descriptor-set :initform nil :accessor application-ubershader-per-instance-descriptor-set))
+   (ubershader-per-instance-descriptor-set :initform nil :accessor application-ubershader-per-instance-descriptor-set)
+   (cc-semaphore :initform (bt:make-semaphore :name "compacting-complete" :count 1)
+		 :accessor compacting-complete-semaphore)
+   (fic-semaphore :initform (bt:make-semaphore :name "frame-iteration-complete")
+		  :accessor frame-iteration-complete-semaphore))
   (:default-initargs :enable-fragment-stores-and-atomics t))
 
 (defun make-select-box-descriptor-set-layout-bindings (app)

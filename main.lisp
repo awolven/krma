@@ -149,7 +149,7 @@
   (let ((f (immediate-mode-work-function-1 app)))
     (when f (funcall f))))
 
-(defun before-frame-begin (app rm-draw-data)
+(defun before-frame-begin (app rm-draw-data-pair current-draw-data)
   (let ((work-queue))
 
     ;; maybe create new descriptor set if select box size has changed
@@ -159,7 +159,7 @@
     (maybe-defer-debug (app)
       (erase-immediate-mode-draw-data app))
     
-    (setq work-queue (draw-data-work-queue rm-draw-data))
+    (setq work-queue (draw-data-work-queue (aref rm-draw-data-pair current-draw-data)))
     
     (maybe-defer-debug (app)
       (loop with work = nil
@@ -201,7 +201,7 @@
 
 (defun frame-iteration (app queue command-pool show-frame-rate?)
   (let ((main-window (main-window app)))
-
+    
     (glfwPollEvents)
 		 
     (when (recreate-swapchain? main-window)
@@ -210,7 +210,7 @@
 	(setf (main-window-width app) width
 	      (main-window-height app) height)
 	(setf (recreate-swapchain? main-window) nil)))
-
+    
     (let* ((swapchain (swapchain main-window))
 	   (frame-count (number-of-images swapchain))
 	   (image-index)
@@ -221,16 +221,16 @@
 	   (scene (application-scene app))
 	   (frame-resource (elt (frame-resources swapchain) current-frame))
 	   (command-buffer (frame-command-buffer frame-resource))
-	   (rm-draw-data (aref (rm-draw-data scene) current-draw-data)))
+	   (rm-draw-data-pair (rm-draw-data scene)))
 
-      (before-frame-begin app rm-draw-data)
+      (before-frame-begin app rm-draw-data-pair current-draw-data)
 
       (setq image-index
 	    (frame-begin swapchain (render-pass swapchain)
 			 current-frame (clear-value main-window)
 			 command-pool))
 
-      (during-frame app command-buffer scene rm-draw-data show-frame-rate?)
+      (during-frame app command-buffer scene (aref rm-draw-data-pair current-draw-data)  show-frame-rate?)
 		       
       (frame-end swapchain queue current-frame)
 		       
@@ -238,6 +238,34 @@
 
       ;; this needs to be the only thread that modifies current-frame
       (update-counts current-frame-cons current-draw-data-cons frame-count))))
+
+
+(defun compactor-thread-iteration (app)
+  (bt:wait-on-semaphore (frame-iteration-complete-semaphore app))
+  (let* ((current-draw-data-cons (current-draw-data-cons app))
+	 (scene (application-scene app))
+	 (rm-draw-data-pair (rm-draw-data scene)))
+    (compact-draw-lists
+     app
+     ;; the draw data that is not currently being modified
+     (aref rm-draw-data-pair (mod (1+ (car current-draw-data-cons)) 2))))
+  (bt:signal-semaphore (compacting-complete-semaphore app)))
+
+(defun compactor-loop (app)
+  ;; doesn't start until after first render loop iteration
+  (tagbody
+   again
+     (compactor-thread-iteration app)
+     ;; todo: make close button on window setf application-exit? to t.
+     (when (application-exit? app)
+       (go exit))
+     (go again)
+   exit))
+
+(defun start-compactor-thread (app)
+  (bt:make-thread #'(lambda ()
+		      (compactor-loop app))
+		  :name "draw-list-compactor-thread"))
 
 (defvar *threshold* 0.008)
 (defvar *test* 1290)
@@ -251,6 +279,7 @@
 	 (command-pool (find-command-pool device index)))
     
     (loop while (zerop (glfwWindowShouldClose (h main-window)))
+	  initially (start-compactor-thread app)
 	  with frames = 0
 	  with delta-time = 1
 	  with time = (/ (get-internal-real-time) internal-time-units-per-second)
@@ -269,6 +298,8 @@
 		 (setq base-time time)
 		 (setq frames 0))
 	       (when throttle-frame-rate?
+		 #+ignore
+		 (
 		 (setq dt-total (- time old-time))
 		 (loop while (> dt-total 0) for i from 0 below 1
 		       do
@@ -282,7 +313,11 @@
 			    #+unix(sb-unix:nanosleep 0 (floor (* dt 840000000)))
 			    (decf dt-total dt)))
 		 (setq old-time time))
-	       (frame-iteration app queue command-pool show-frame-rate?)))
+		 )
+	       (frame-iteration app queue command-pool show-frame-rate?)
+	       ;; first time use of compacting complete semaphore is :count 1
+	       (bt:wait-on-semaphore (compacting-complete-semaphore app))
+	       (bt:signal-semaphore (frame-iteration-complete-semaphore app))))
     
     (shutdown-application app)))
 

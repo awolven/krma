@@ -117,9 +117,7 @@
 		retry
 		  (handler-case
 
-		      (ecase ftype
-			(:unsigned-short (setf (aref (cl:the (simple-array (unsigned-byte 16)) bytes) fp) index))
-			(:unsigned-int (setf (aref (cl:the (simple-array (unsigned-byte 32)) bytes) fp) index)))
+		      (setf (aref bytes fp) index)
 		    
 		    (type-error (c)
 		      (format t "~&upgrading index array from unsigned-short to unsigned-int.")
