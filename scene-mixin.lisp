@@ -1703,8 +1703,6 @@
         (values)))))
 
 
-(defvar *compact-trigger* 1/4)
-
 (defun %delete-primitive-1 (ht handle)
   (handler-case
       (let ((cmd (gethash handle ht)))

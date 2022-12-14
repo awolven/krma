@@ -121,6 +121,8 @@ void main () {
 	}
 
       totalLighting = totalLighting + diffuseReflection + specularReflection;
+
+      /* // for lighting debug:
       selected_objects[0][0] = pc.uint_material_ambient;
       selected_objects[0][1] = pc.uint_material_diffuse;
       selected_objects[0][2] = pc.uint_material_specular;
@@ -133,6 +135,7 @@ void main () {
       selected_objects[0][9] = uint_color(vec4(diffuseReflection, 0.0));
       selected_objects[0][10] = uint_color(vec4(specularReflection, 0.0));
       selected_objects[0][11] = uint_color(color * vec4(totalLighting, 1.0));
+      */
     }
   
   outColor = color * vec4(totalLighting, 1.0);
@@ -147,10 +150,11 @@ void main () {
     uint row_size = uint(pc.selectBox.z) - uint(pc.selectBox.x);
     uint offset = uint(gl_FragCoord.y - pc.selectBox.y) * row_size
       + uint(gl_FragCoord.x - pc.selectBox.x);
-    //selected_objects[offset][zIndex] = inObjectId;
+    selected_objects[offset][zIndex] = inObjectId;
+    /*
     selected_objects[0][12] = ub.scene_ambient;
     selected_objects[0][13] = ub.num_lights;
     selected_objects[0][14] = 67;
-    
+    */
   } 
 }

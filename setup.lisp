@@ -39,5 +39,5 @@
 (defvar *default-spot-cutoff* 180.0f0)
 (defvar *default-spot-exponent* 10.0f0)
 (defvar *default-spot-direction* (vec3 0 1 0))
-
-(defvar *default-scene-ambient* #x333333ff)
+(defvar *default-scene-ambient* #xffffffff)
+(defvar *compact-trigger* 1/3) ;; must be real number between 0 and 1

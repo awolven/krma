@@ -1203,8 +1203,8 @@
 		 array (load-time-value (* +select-box-depth+ (foreign-type-size :unsigned-int)))
 		 (application-select-box-memory-resource app)
 		 (aligned-size +select-box-depth+))
-    
+
     (let ((size (* cols rows +select-box-depth+ (load-time-value (foreign-type-size :unsigned-int)))))
-      
+
       (clear-buffer (vk::memory-pool-buffer (vk::storage-buffer-memory-pool app)) 0 (aligned-size size)
 		    (application-select-box-memory-resource app)))))
