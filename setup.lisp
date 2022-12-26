@@ -6,7 +6,7 @@
 
 (defvar *default-application-class* 'krma-test-application)
 
-(defconstant +buffer-alignment+ 128)
+(defconstant +buffer-alignment+ 256) ;; todo: query non-coherent-atom-size of physical device
 (defconstant +select-box-depth+ 128)
 
 (eval-when (:compile-toplevel :load-toplevel :execute)

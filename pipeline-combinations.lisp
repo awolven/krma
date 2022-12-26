@@ -110,6 +110,12 @@
     (maphash #'(lambda (k v)
 		 (declare (ignore k))
 		 (push v res)
+		 (push text-pipeline res))
+	     (draw-data-2d-triangle-list-draw-list-for-text-table draw-data))
+
+    (maphash #'(lambda (k v)
+		 (declare (ignore k))
+		 (push v res)
 		 (push triangle-pipeline res))
 	     (draw-data-2d-triangle-list-draw-list-table draw-data))
     
@@ -124,12 +130,7 @@
 		 (push v res)
 		 (push point-pipeline res))
 	     (draw-data-2d-point-list-draw-list-table draw-data))
-
-    (maphash #'(lambda (k v)
-		 (declare (ignore k))
-		 (push v res)
-		 (push text-pipeline res))
-	     (draw-data-2d-triangle-list-draw-list-for-text-table draw-data))
+    
     res))
 
 (defmethod 3d-cmd-oriented-combinations ((pipeline-store pipeline-store-mixin) (draw-data immediate-mode-draw-data))

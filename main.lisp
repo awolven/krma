@@ -17,6 +17,12 @@
     (setf (cffi:mem-aref p-delay-interval :int64) (- (floor microseconds 10)))
     (NtDelayExecution alertable p-delay-interval)))
 
+(defcfun ("glfwGetWindowContentScale" glfwGetWindowContentScale) :void
+  (window :pointer)
+  (xscale :pointer)
+  (yscale :pointer))
+    
+
 (defun backtrace-string ()
   (with-output-to-string (*debug-io*)
     (sb-debug:print-backtrace)))
@@ -60,6 +66,11 @@
 
 (defun compute-select-box-descriptor-set (app)
   (multiple-value-bind (mouse-x mouse-y) (get-cursor-pos (main-window app))
+    (with-foreign-objects ((&xscale :float)
+			   (&yscale :float))
+      (glfwGetWindowContentScale (h (main-window app)) &xscale &yscale)
+      (setq mouse-x (* (mem-aref &xscale :float) mouse-x))
+      (setq mouse-y (* (mem-aref &yscale :float) mouse-y)))
     (let* ((new-coords (vec4 (- mouse-x 1/2) (- mouse-y 1/2)
 			     (+ mouse-x 1/2) (+ mouse-y 1/2)))
 	   (width (round (- (vz new-coords) (vx new-coords)))) ;; should be 1.0 atm, in the future it might not be
