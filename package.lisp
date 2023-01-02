@@ -67,6 +67,7 @@
 	   #:textured-3d-vertex-with-normal-array-push-extend
 	   #:standard-3d-vertex-with-normal-array-push-extend
 
+	   #:application-scene
 	   #:pipeline-store-mixin
 	   #:standard-pipeline-store
 	   #:krma-application-mixin

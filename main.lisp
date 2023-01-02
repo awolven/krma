@@ -193,7 +193,11 @@
   (when show-frame-rate?
     (maybe-defer-debug (app)
       (multiple-value-bind (w h) (get-framebuffer-size (main-window app))
-	(draw-text (format nil "fps: ~4,0f" (application-frame-rate app)) (- w 100) (- h 25) :color #x000000ff))))
+	(with-foreign-objects ((&xscale :float)
+			       (&yscale :float))
+	  (glfwGetWindowContentScale (h (main-window app)) &xscale &yscale)
+	  (draw-text (format nil "fps: ~4,0f" (application-frame-rate app))
+		     (- (/ w (mem-aref &xscale :float)) 100) (- (/ h (mem-aref &yscale :float)) 25) :color #x000000ff)))))
 
   ;; render here.
   (maybe-defer-debug (app)
