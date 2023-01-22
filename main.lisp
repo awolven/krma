@@ -17,12 +17,6 @@
     (setf (cffi:mem-aref p-delay-interval :int64) (- (floor microseconds 10)))
     (NtDelayExecution alertable p-delay-interval)))
 
-(defcfun ("glfwGetWindowContentScale" glfwGetWindowContentScale) :void
-  (window :pointer)
-  (xscale :pointer)
-  (yscale :pointer))
-    
-
 (defun backtrace-string ()
   (with-output-to-string (*debug-io*)
     (sb-debug:print-backtrace)))
@@ -65,12 +59,10 @@
 	(vkUnmapMemory (h device) (h memory))))))
 
 (defun compute-select-box-descriptor-set (app)
-  (multiple-value-bind (mouse-x mouse-y) (get-cursor-pos (main-window app))
-    (with-foreign-objects ((&xscale :float)
-			   (&yscale :float))
-      (glfwGetWindowContentScale (h (main-window app)) &xscale &yscale)
-      (setq mouse-x (* (mem-aref &xscale :float) mouse-x))
-      (setq mouse-y (* (mem-aref &yscale :float) mouse-y)))
+  (multiple-value-bind (mouse-x mouse-y) (get-os-window-cursor-pos (main-window app))
+    (multiple-value-bind (xscale yscale) (get-os-window-content-scale (main-window app))
+      (setq mouse-x (* xscale mouse-x))
+      (setq mouse-y (* yscale mouse-y)))
     (let* ((new-coords (vec4 (- mouse-x 1/2) (- mouse-y 1/2)
 			     (+ mouse-x 1/2) (+ mouse-y 1/2)))
 	   (width (round (- (vz new-coords) (vx new-coords)))) ;; should be 1.0 atm, in the future it might not be
@@ -192,12 +184,10 @@
 
   (when show-frame-rate?
     (maybe-defer-debug (app)
-      (multiple-value-bind (w h) (get-framebuffer-size (main-window app))
-	(with-foreign-objects ((&xscale :float)
-			       (&yscale :float))
-	  (glfwGetWindowContentScale (h (main-window app)) &xscale &yscale)
-	  (draw-text (format nil "fps: ~4,0f" (application-frame-rate app))
-		     (- (/ w (mem-aref &xscale :float)) 100) (- (/ h (mem-aref &yscale :float)) 25) :color #x000000ff)))))
+      (multiple-value-bind (w h) (get-os-window-framebuffer-size (main-window app))
+	(multiple-value-bind (xscale yscale) (get-os-window-content-scale (main-window app))
+	  (draw-text (format nil "fps: ~4,0f" (window-frame-rate (main-window app)))
+		     (- (/ w xscale) 100) (- (/ h yscale) 25) :color #x000000ff)))))
 
   ;; render here.
   (maybe-defer-debug (app)
@@ -217,10 +207,10 @@
 (defun frame-iteration (app queue command-pool show-frame-rate?)
   (let ((main-window (main-window app)))
     
-    (glfwPollEvents)
+    ;;(poll-application-events app)
 		 
     (when (recreate-swapchain? main-window)
-      (multiple-value-bind (width height) (get-framebuffer-size main-window)
+      (multiple-value-bind (width height) (get-os-window-framebuffer-size main-window)
 	(recreate-swapchain main-window (swapchain main-window) width height)
 	(setf (main-window-width app) width
 	      (main-window-height app) height)
@@ -285,6 +275,61 @@
 (defvar *threshold* 0.008)
 (defvar *test* 1290)
 
+#+(and noglfw nil)
+(defun krma-application-main (app &rest args &key (show-frame-rate? t) &allow-other-keys)
+  (declare (ignore args))
+  (setf (window-show-frame-rate? (main-window app)) show-frame-rate?)
+;;  (ns::|setNeedsDisplay:| (abstract-os::window-content-view (main-window app)) t)
+  (unwind-protect (progn
+		    (start-compactor-thread app)
+		    (ns::|run| app))
+    (shutdown-application app)))
+
+#+(and noglfw darwin)
+(defmethod abstract-os::application-did-finish-launching ((application vulkan-application-mixin) notification)
+  (declare (ignorable notification))
+  ;;(abstract-os::post-empty-event application)
+  ;;(ns::|stop:| application nil)
+  (start-compactor-thread application)
+  (values))
+
+
+
+(defmethod abstract-os::content-view-draw-rect ((window vk::vulkan-window-mixin) view rect)
+  (with-slots ((app vk::application) queue command-pool) window
+    (maybe-defer-debug (app)
+      (update-frame-rate window))
+    (maybe-defer-debug (app)
+      (frame-iteration app queue command-pool t))))
+
+(defun krma-application-main (app &rest args &key (show-frame-rate? t) &allow-other-keys)
+  (declare (ignorable args))
+  #+(and noglfw darwin)
+  (abstract-os::cocoa-finish-init app)
+
+  (let* ((main-window (main-window app)))
+    (setf (window-show-frame-rate? (main-window app)) show-frame-rate?)
+    (with-slots (queue command-pool) main-window
+      (loop until (os-window-should-close? main-window)
+	 initially (start-compactor-thread app)
+	 do
+
+	   (maybe-defer-debug (app)
+	     (poll-application-events app))
+	   
+	   (maybe-defer-debug (app)
+	     (update-frame-rate main-window))
+       
+	   (maybe-defer-debug (app)
+	     (frame-iteration app queue command-pool show-frame-rate?))
+       
+	 ;; first time use of compacting complete semaphore is :count 1
+	   (bt:wait-on-semaphore (compacting-complete-semaphore app))
+	   (bt:signal-semaphore (frame-iteration-complete-semaphore app)))))
+
+  (shutdown-application app))
+    
+#+OLD
 (defun krma-application-main (app &rest args &key (show-frame-rate? t) (throttle-frame-rate? t) &allow-other-keys)
   (declare (ignore args))
   (let* ((main-window (main-window app))
@@ -293,7 +338,7 @@
 	 (queue (find-queue device index))
 	 (command-pool (find-command-pool device index)))
     
-    (loop while (zerop (glfwWindowShouldClose (h main-window)))
+    (loop until (os-window-should-close? main-window)
 	  initially (start-compactor-thread app)
 	  with frames = 0
 	  with delta-time = 1

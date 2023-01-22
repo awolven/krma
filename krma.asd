@@ -1,3 +1,6 @@
+(cl:pushnew :vulkan cl:*features*)
+#+darwin(cl:pushnew :metal cl:*features*)
+
 (defsystem krma
   :description "A platform independent graphics primitive rendering library."
   :depends-on (:cffi

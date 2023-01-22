@@ -108,6 +108,41 @@
 			 :name :3d-triangle-strip-with-normals-pipeline)))
   (values))
 
+(defclass window-frame-rate-mixin ()
+  ((show-frame-rate? :initform t :accessor window-show-frame-rate?)
+   (frame-rate :initform 0 :accessor window-frame-rate)
+   (frames :initform 0 :accessor %window-frames)
+   (delta-time :initform 0 :accessor %window-delta-time)
+   (time :initform (/ (get-internal-real-time) internal-time-units-per-second) :accessor %window-time)
+   (base-time :initform 0 :accessor %window-base-time)))
+
+(defclass krma-window-mixin (window-frame-rate-mixin vk:vulkan-window-mixin)
+  ((queue :accessor window-queue)
+   (command-pool :accessor window-command-pool)))
+
+(defclass krma-window (krma-window-mixin)
+  ())
+
+(defun update-frame-rate (window)
+  (let ((app (vk::application window)))
+    (with-slots (frame-rate frames delta-time time base-time) window
+      (maybe-defer-debug (app)
+	(incf frames)
+	(setq time (/ (get-internal-real-time) internal-time-units-per-second))
+	(setq delta-time (- time base-time))
+	(when (>= delta-time 1)
+	  (setf frame-rate (float (/ frames delta-time)))
+	  (setq base-time time)
+	  (setq frames 0))))))
+
+#+NIL
+(defmethod abstract-os::input-window-damaged ((window krma-window-mixin))
+  (with-slots (app queue command-pool show-frame-rate?) window
+    (update-frame-rate window)
+    (frame-iteration app queue command-pool show-frame-rate?)
+    (bt:wait-on-semaphore (compacting-complete-semaphore app))
+    (bt:signal-semaphore (frame-iteration-complete-semaphore app))))
+
 (defclass krma-application-mixin (vulkan-application-mixin)
   ((vk::application-name :initform "krma-application")
    (frame-rate :initform 0 :accessor application-frame-rate)
@@ -190,7 +225,7 @@
                                                       :samplers (list sampler))))))
 
     ;; these should be put in initialize-instance of krma-test-application
-    (multiple-value-bind (width height) (get-framebuffer-size main-window)
+    (multiple-value-bind (width height) (get-os-window-framebuffer-size main-window)
       (setf (main-window-width app) width
 	    (main-window-height app) height))
 
@@ -218,6 +253,12 @@
       
       (setq *white-texture*
             (make-vulkan-texture device queue sampler texture-dsl descriptor-pool command-buffer bpp bitmap 1 1)))
+
+    (with-slots (queue command-pool) main-window
+      (let ((index (queue-family-index (render-surface main-window))))
+	(setf queue (find-queue device index))
+	(setf command-pool (find-command-pool device index))))
+    
     (values)))
 
 (defmethod initialize-instance :after ((instance krma-application-mixin) &rest initargs)
@@ -227,6 +268,12 @@
 (defclass krma-test-application (krma-application-mixin)
   ((vk::application-name :initform "krma-test-application"))
   (:documentation "A demo application for krma."))
+
+(defmethod default-application-class-for-window ((window krma-window-mixin))
+  *default-application-class*)
+
+(defmethod default-window-class-for-application ((application krma-application-mixin))
+  *default-window-class*)
 
 (defgeneric scene-class (application)
   (:documentation "Define your own scene-class method for your custom application object to tell krma which type of scene to use in your application."))

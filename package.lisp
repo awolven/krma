@@ -5,9 +5,39 @@
   (ql:quickload :cffi))
 
 (defpackage :krma
-  (:use :cl :cffi :vk :%vk :$glfw :3d-vectors :3d-matrices)
-  (:import-from :vk #:main)
+  (:use :cl :cffi :vk :%vk #-noglfw :$glfw :3d-vectors :3d-matrices)
+  (:import-from :vk #:main
+		#:*app*
+		#:exit?
+		#:application-exit?
+		#:default-application-class-for-window
+		#:default-window-class-for-application
+		#:os-window-should-close?
+		#:poll-application-events
+		#:wait-application-events
+		#:os-window-title
+		#:get-os-window-pos
+		#:set-os-window-pos
+		#:get-os-window-cursor-pos
+		#:get-os-window-size
+		#:focus-os-window
+		#:hide-os-window
+		#:show-os-window
+		#:maximize-os-window
+		#:restore-os-window
+		#:iconify-os-window
+		#:get-os-window-frame-size
+		#:get-os-window-framebuffer-size
+		#:set-os-window-size
+		#:set-os-window-aspect-ratio
+		#:get-os-window-content-scale
+		#:set-os-window-size-limits
+		#:destroy-os-window
+		#:shutdown-application)
+  
   (:export #:*default-application-class*
+	   #:default-application-class-for-window
+	   #:default-window-class-for-application
 	   #:2pi
 	   #:*default-znear*
 	   #:*default-zfar*
