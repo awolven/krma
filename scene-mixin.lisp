@@ -2,7 +2,7 @@
 
 (eval-when (:compile-toplevel :load-toplevel)
   (when *muffle-compilation-notes*
-    (declaim (sb-ext:muffle-conditions sb-ext:compiler-note))))
+    #+sbcl(declaim (sb-ext:muffle-conditions sb-ext:compiler-note))))
 
 (eval-when (:compile-toplevel :load-toplevel)
   (when krma::*debug*
@@ -10,6 +10,7 @@
   (unless krma::*debug*
     (declaim (optimize (speed 3) (safety 0) (debug 0)))))
 
+#+sbcl
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (require :sb-concurrency))
 
@@ -118,6 +119,7 @@
    (ambient :initform *default-scene-ambient* :accessor scene-ambient))
   (:documentation "Absract base class for application scenes in krma. Define your own scene classes with this mixin as a superclass."))
 
+#+sbcl
 (defun finalize-scene (scene)
   (let ((draw-data (im-draw-data scene)))
     (sb-ext:finalize scene
@@ -136,8 +138,7 @@
 
 
 (defmethod update-2d-camera (scene &optional
-				     (proj (mortho-vulkan 0 (main-window-width *app*)
-							  (main-window-height *app*) 0 0 1))
+				     (proj (mortho-vulkan 0 640 480 0 0 1))
 				     (view (meye 4)))
   "Function which takes a projection matrix and a view matrix from a 2d-camera and stores it in the scene so that the scene need not know about the camera class directly. Called before render-scene."
   (declare (type krma-essential-scene-mixin scene))
@@ -150,14 +151,12 @@
     (values)))
 
 (defmethod update-3d-camera (scene &optional
-				     (proj (mperspective-vulkan 45 (/ (main-window-width *app*)
-								      (main-window-height *app*))
-								*default-znear* *default-zfar*)
+				     (proj (mperspective-vulkan
+					    45 (/ 640 480)
+					    *default-znear* *default-zfar*)
 					   #+NIL(mortho-vulkan -1500 1500
-							       (* -1500 (/ (main-window-height *app*)
-									   (main-window-width *app*)))
-							       (* 1500 (/ (main-window-height *app*)
-									  (main-window-width *app*)))
+							       (* -1500 (/ 640 480))
+							       (* 1500 (/ 640 480))
 							       *default-znear* *default-zfar*))
 				     (view (mlookat (vec3 0 0 1500) (vec3 0 0 0) (vec3 0 1 0))))
   "Function which takes a projection matrix and a view matrix from a 3d-camera and stores it in the scene so that the scene need not know about the camera class directly. Called before render-scene."
@@ -171,13 +170,13 @@
     (values)))
 
 (defmethod render-scene ((scene krma-essential-scene-mixin)
-			 app command-buffer rm-draw-data im-draw-data)
+			 dpy command-buffer rm-draw-data im-draw-data)
   "The default method to render krma scenes.  You can define your own methods for your own scene classes and call-next-method if you like."
 
   ;; todo: think about having separate clos objects for 3d-scene and 2d-scene
   
-  (let ((device (default-logical-device app))
-	(pipeline-store (application-pipeline-store app)))
+  (let ((device (default-logical-device dpy))
+	(pipeline-store (krma-pipeline-store dpy)))
 
     (with-slots (width height) app
 
@@ -190,49 +189,49 @@
 	(let ()
 
 	  (loop for (p dl) on (3d-cmd-oriented-combinations pipeline-store rm-draw-data) by #'cddr
-		do (render-draw-list-cmds p rm-draw-data dl app device command-buffer
+		do (render-draw-list-cmds p rm-draw-data dl dpy device command-buffer
 					  scene
 					  3d-camera-view-matrix 3d-camera-projection-matrix
 					  width height))
 
 	  (loop for (p dl) on (3d-draw-list-oriented-combinations pipeline-store rm-draw-data) by #'cddr
-		do (render-draw-list p rm-draw-data dl app device command-buffer
+		do (render-draw-list p rm-draw-data dl dpy device command-buffer
 				     scene
 				     3d-camera-view-matrix 3d-camera-projection-matrix
 				     width height))
 
 	  (loop for (p dl) on (3d-cmd-oriented-combinations pipeline-store im-draw-data) by #'cddr
-		do (render-draw-list-cmds p im-draw-data dl app device command-buffer
+		do (render-draw-list-cmds p im-draw-data dl dpy device command-buffer
 					  scene
 					  3d-camera-view-matrix 3d-camera-projection-matrix
 					  width height))
 	  
 	  (loop for (p dl) on (3d-draw-list-oriented-combinations pipeline-store im-draw-data) by #'cddr
-		do (render-draw-list p im-draw-data dl app device command-buffer
+		do (render-draw-list p im-draw-data dl dpy device command-buffer
 				     scene
 				     3d-camera-view-matrix 3d-camera-projection-matrix
 				     width height))
 
 	  (loop for (p dl) on (2d-cmd-oriented-combinations pipeline-store rm-draw-data) by #'cddr
-		do (render-draw-list-cmds p rm-draw-data dl app device command-buffer
+		do (render-draw-list-cmds p rm-draw-data dl dpy device command-buffer
 					  scene
 					  2d-camera-view-matrix 2d-camera-projection-matrix
 					  width height))
 
 	  (loop for (p dl) on (2d-draw-list-oriented-combinations pipeline-store rm-draw-data) by #'cddr
-		do (render-draw-list p rm-draw-data dl app device command-buffer
+		do (render-draw-list p rm-draw-data dl dpy device command-buffer
 				     scene
 				     2d-camera-view-matrix 2d-camera-projection-matrix
 				     width height))
 
 	  (loop for (p dl) on (2d-cmd-oriented-combinations pipeline-store im-draw-data) by #'cddr
-		do (render-draw-list-cmds p im-draw-data dl app device command-buffer
+		do (render-draw-list-cmds p im-draw-data dl dpy device command-buffer
 					  scene
 					  2d-camera-view-matrix 2d-camera-projection-matrix
 					  width height))
 	  
 	  (loop for (p dl) on (2d-draw-list-oriented-combinations pipeline-store im-draw-data) by #'cddr
-		do (render-draw-list p im-draw-data dl app device command-buffer
+		do (render-draw-list p im-draw-data dl dpy device command-buffer
 				     scene
 				     2d-camera-view-matrix 2d-camera-projection-matrix
 				     width height)))
@@ -1541,8 +1540,8 @@
             (ht1 (draw-data-handle-hash-table dd1))
             (wq0 (draw-data-work-queue dd0))
             (wq1 (draw-data-work-queue dd1)))
-        (sb-concurrency:enqueue #'(lambda () (%primitive-set-color-1 ht0 handle color)) wq0)
-        (sb-concurrency:enqueue #'(lambda () (%primitive-set-color-1 ht1 handle color)) wq1)
+        (#+sbcl sb-concurrency:enqueue #-sbcl lparallel.queue:push-queue #'(lambda () (%primitive-set-color-1 ht0 handle color)) wq0)
+        (#+sbcl sb-concurrency:enqueue #-sbcl lparallel.queue:push-queue #'(lambda () (%primitive-set-color-1 ht1 handle color)) wq1)
         (values)))))
 
 (declaim (inline %primitive-set-light-position-1))
@@ -1570,8 +1569,8 @@
             (ht1 (draw-data-handle-hash-table dd1))
             (wq0 (draw-data-work-queue dd0))
             (wq1 (draw-data-work-queue dd1)))
-        (sb-concurrency:enqueue #'(lambda () (%primitive-set-light-position-1 ht0 handle pos)) wq0)
-        (sb-concurrency:enqueue #'(lambda () (%primitive-set-light-position-1 ht1 handle pos)) wq1)
+        (#+sbcl sb-concurrency:enqueue #-sbcl lparallel.queue:push-queue #'(lambda () (%primitive-set-light-position-1 ht0 handle pos)) wq0)
+        (#+sbcl sb-concurrency:enqueue #-sbcl lparallel.queue:push-queue #'(lambda () (%primitive-set-light-position-1 ht1 handle pos)) wq1)
         (values)))))
 
 (declaim (inline %primitive-set-transform-1))
@@ -1601,8 +1600,8 @@
             (ht1 (draw-data-handle-hash-table dd1))
             (wq0 (draw-data-work-queue dd0))
             (wq1 (draw-data-work-queue dd1)))
-        (sb-concurrency:enqueue #'(lambda () (%primitive-set-transform-1 ht0 handle matrix)) wq0)
-        (sb-concurrency:enqueue #'(lambda () (%primitive-set-transform-1 ht1 handle matrix)) wq1)
+        (#+sbcl sb-concurrency:enqueue #-sbcl lparallel.queue:push-queue #'(lambda () (%primitive-set-transform-1 ht0 handle matrix)) wq0)
+        (#+sbcl sb-concurrency:enqueue #-sbcl lparallel.queue:push-queue #'(lambda () (%primitive-set-transform-1 ht1 handle matrix)) wq1)
         (values)))))
 
 (declaim (inline %primitive-apply-transform-1))
@@ -1636,8 +1635,8 @@
             (ht1 (draw-data-handle-hash-table dd1))
             (wq0 (draw-data-work-queue dd0))
             (wq1 (draw-data-work-queue dd1)))
-        (sb-concurrency:enqueue #'(lambda () (%primitive-apply-transform-1 ht0 handle matrix)) wq0)
-        (sb-concurrency:enqueue #'(lambda () (%primitive-apply-transform-1 ht1 handle matrix)) wq1)
+        (#+sbcl sb-concurrency:enqueue #-sbcl lparallel.queue:push-queue #'(lambda () (%primitive-apply-transform-1 ht0 handle matrix)) wq0)
+        (#+sbcl sb-concurrency:enqueue #-sbcl lparallel.queue:push-queue #'(lambda () (%primitive-apply-transform-1 ht1 handle matrix)) wq1)
         (values)))))
 
 (declaim (inline %primitive-set-line-thickness-1))
@@ -1667,8 +1666,8 @@
             (ht1 (draw-data-handle-hash-table dd1))
             (wq0 (draw-data-work-queue dd0))
             (wq1 (draw-data-work-queue dd1)))
-        (sb-concurrency:enqueue #'(lambda () (%primitive-set-line-thickness-1 ht0 handle thickness)) wq0)
-        (sb-concurrency:enqueue #'(lambda () (%primitive-set-line-thickness-1 ht1 handle thickness)) wq1)
+        #+sbcl(sb-concurrency:enqueue #'(lambda () (%primitive-set-line-thickness-1 ht0 handle thickness)) wq0)
+        #+sbcl(sb-concurrency:enqueue #'(lambda () (%primitive-set-line-thickness-1 ht1 handle thickness)) wq1)
         (values)))))
 
 
@@ -1709,20 +1708,24 @@
             (wq1 (draw-data-work-queue dd1))
             (ht0 (draw-data-handle-hash-table dd0))
             (ht1 (draw-data-handle-hash-table dd1)))
-        (sb-concurrency:enqueue #'(lambda ()
-                                    (loop for handle in list-of-handles
-                                          do (%delete-primitive-1 ht0 handle)))
-                                wq0)
-        (sb-concurrency:enqueue #'(lambda ()
-                                    (loop for handle in list-of-handles
-                                          do (%delete-primitive-1 ht1 handle)))
-                                wq1)))))
+        (#+sbcl sb-concurrency:enqueue
+	 #-sbcl lparallel.queue:push-queue
+	 #'(lambda ()
+             (loop for handle in list-of-handles
+                   do (%delete-primitive-1 ht0 handle)))
+         wq0)
+        (#+sbcl sb-concurrency:enqueue
+	 #-sbcl lparallel.queue:push-queue
+	 #'(lambda ()
+             (loop for handle in list-of-handles
+                   do (%delete-primitive-1 ht1 handle)))
+         wq1)))))
 
 (defun delete-primitive (scene handle)
   (declare (type krma-essential-scene-mixin scene))
   (delete-primitives scene (list handle)))
 
-(defun delete-groups-1 (draw-data list-of-groups)
+(defun delete-groups-1 (dpy draw-data list-of-groups)
   (declare (type retained-mode-draw-data draw-data))
   (handler-case
       (progn
@@ -1742,8 +1745,8 @@
                                     (declare (type foreign-adjustable-array ia va))
                                     (foreign-free (foreign-array-ptr ia))
                                     (foreign-free (foreign-array-ptr va))
-                                    (vk::release-index-memory *app* im)
-                                    (vk::release-vertex-memory *app* vm)
+                                    (vk::release-index-memory dpy im)
+                                    (vk::release-vertex-memory dpy vm)
                                     nil)))
                             ht)
                    (mapcar #'(lambda (key)
@@ -1816,7 +1819,7 @@
     (error (c)
       (warn (concatenate 'string "while in delete-groups-1 ..." (princ-to-string c))))))
 
-(defun %purge-im-groups-1 (draw-data)
+(defun %purge-im-groups-1 (dpy draw-data)
   ;; call this function when finalizing a scene
   (declare (type immediate-mode-draw-data draw-data))
   (handler-case
@@ -1834,9 +1837,9 @@
                                 (declare (type foreign-adjustable-array ia va))
                                 (foreign-free (foreign-array-ptr ia))
                                 (foreign-free (foreign-array-ptr va))
-				(when *app*
-				  (vk::release-index-memory *app* im)
-				  (vk::release-vertex-memory *app* vm))
+				(when dpy
+				  (vk::release-index-memory dpy im)
+				  (vk::release-vertex-memory dpy vm))
                                 nil))
                           ht)))
 

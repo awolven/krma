@@ -5,7 +5,6 @@
   (defvar *muffle-compilation-notes* t))
 
 (defvar *default-application-class* 'krma-test-application)
-(defvar *default-window-class* 'krma-window)
 
 (defconstant +buffer-alignment+ 256) ;; todo: query non-coherent-atom-size of physical device
 (defconstant +select-box-depth+ 128)

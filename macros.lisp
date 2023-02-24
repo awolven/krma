@@ -4,8 +4,12 @@
   (when krma::*debug*
     (declaim (optimize (safety 3) (debug 3)))))
 
+#+SBCL
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (require :sb-concurrency))
+
+(defmacro krma ()
+  `*krma*)
 
 (defmacro maybe-defer-debug ((app) &body body)
   "Sets up `ignore' restart, and records error message and backtrace in application object."
@@ -31,11 +35,13 @@
          (declare (type retained-mode-draw-data ,dd0-sym ,dd1-sym))
          (let ((,handle-var (gen-rm-handle)))
            (let ((,draw-data-var ,dd0-sym))
-             (sb-concurrency:enqueue
+             (#-sbcl lparallel.queue:push-queue
+	      #+SBCL sb-concurrency:enqueue
               #'(lambda () ,@body)
               (draw-data-work-queue ,dd0-sym)))
            (let ((,draw-data-var ,dd1-sym))
-             (sb-concurrency:enqueue
+             (#+SBCL sb-concurrency:enqueue
+	      #-sbcl lparallel.queue:push-queue
               #'(lambda () ,@body)
               (draw-data-work-queue ,dd1-sym)))
            ,handle-var)))))
@@ -50,11 +56,13 @@
              (,dd1-sym (svref ,ddvec-sym 1)))
          (declare (type retained-mode-draw-data ,dd0-sym ,dd1-sym))
          (let ((,draw-data-var ,dd0-sym))
-           (sb-concurrency:enqueue
+           (#+SBCL sb-concurrency:enqueue
+	    #-sbcl lparallel.queue:push-queue
             #'(lambda () ,@body)
             (draw-data-work-queue ,dd0-sym)))
          (let ((,draw-data-var ,dd1-sym))
-           (sb-concurrency:enqueue
+           (#+SBCL sb-concurrency:enqueue
+	    #-sbcl lparallel.queue:push-queue
             #'(lambda () ,@body)
             (draw-data-work-queue ,dd1-sym)))
 	 (values)))))

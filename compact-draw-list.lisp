@@ -4,8 +4,8 @@
   (when krma::*debug*
     (declaim (optimize (safety 3) (debug 3)))))
 
-(defun compact-draw-lists (app rm-draw-data)
-  (let ((pipeline-store (application-pipeline-store app)))
+(defun compact-draw-lists (dpy rm-draw-data)
+  (let ((pipeline-store (krma-pipeline-store dpy)))
     (loop for (p dl) on (3d-cmd-oriented-combinations pipeline-store rm-draw-data) by #'cddr
 	  do (compact-draw-list dl))
     (loop for (p dl) on (2d-cmd-oriented-combinations pipeline-store rm-draw-data) by #'cddr
@@ -69,7 +69,7 @@
 				       (let ((vertex-size-in-uints (ash vertex-type-size -2))
 					     (new-lisp-array (foreign-array-bytes new-vertex-array))
 					     (old-lisp-array (foreign-array-bytes old-vertex-array)))
-					 (sb-sys:with-pinned-objects (new-lisp-array old-lisp-array)
+					 #+sbcl(sb-sys:with-pinned-objects (new-lisp-array old-lisp-array)
 					     (let ((new-lisp-array-ptr (sb-sys:vector-sap new-lisp-array))
 						   (old-lisp-array-ptr (sb-sys:vector-sap old-lisp-array)))
 					       (vk::memcpy (inc-pointer new-lisp-array-ptr (* (incf new-vtx-offset) vertex-size-in-uints))

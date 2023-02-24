@@ -148,5 +148,5 @@
 	     
 (defun gen-rm-handle ()
   "Generate retained-mode primitive handle."
-  (sb-ext:atomic-incf (car (retained-mode-handle-count-cons *app*)))
-  (car (retained-mode-handle-count-cons *app*)))
+  #+SBCL(sb-ext:atomic-incf (car (retained-mode-handle-count-cons (krma))))
+  (car (retained-mode-handle-count-cons (krma))))

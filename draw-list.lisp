@@ -1926,7 +1926,7 @@ you can use prim-reserve when seq-vertices is an array."
 			(new-lisp-array (make-array (* (cl:the (integer 0 #.(ash most-positive-fixnum -9)) new-count)
 						       (ash (cl:the (integer 0 512) vertex-type-size-in-uints) -2))
 						    :element-type (array-element-type old-lisp-array))))
-		   (sb-sys:with-pinned-objects (new-lisp-array old-lisp-array)
+		   #+sbcl(sb-sys:with-pinned-objects (new-lisp-array old-lisp-array)
 		     (let ((new-lisp-array-ptr (sb-sys:vector-sap new-lisp-array))
 			   (old-lisp-array-ptr (sb-sys:vector-sap old-lisp-array)))
 		       (vk::memcpy new-lisp-array-ptr old-lisp-array-ptr
@@ -1954,7 +1954,7 @@ you can use prim-reserve when seq-vertices is an array."
 	       (let* ((old-lisp-array bytes)
 		      (new-lisp-array (make-array (cl:the fixnum new-count)
 						  :element-type (array-element-type old-lisp-array))))
-		 (sb-sys:with-pinned-objects (new-lisp-array old-lisp-array)
+		 #+sbcl(sb-sys:with-pinned-objects (new-lisp-array old-lisp-array)
 		   (let ((new-lisp-array-ptr (sb-sys:vector-sap new-lisp-array))
 			 (old-lisp-array-ptr (sb-sys:vector-sap old-lisp-array)))
 		     (vk::memcpy new-lisp-array-ptr old-lisp-array-ptr

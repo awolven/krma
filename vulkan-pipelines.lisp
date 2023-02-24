@@ -2,7 +2,7 @@
 
 (eval-when (:compile-toplevel :load-toplevel)
   (when *muffle-compilation-notes*
-    (declaim (sb-ext:muffle-conditions sb-ext:compiler-note))))
+    #+sbcl(declaim (sb-ext:muffle-conditions sb-ext:compiler-note))))
 
 (eval-when (:compile-toplevel :load-toplevel)
   (when krma::*debug*
@@ -16,7 +16,7 @@
 
 (defgeneric fragment-shader-pathname (pipeline))
 
-(defgeneric create-device-objects (pipeline &key app))
+;;(defgeneric create-device-objects (pipeline &key dpy))
 
 (defconstant +uber-vertex-shader-model-matrix-offset+ 0)
 (defconstant +uber-vertex-shader-point-size-offset+ 16)
@@ -37,7 +37,7 @@
 (defconstant +fragment-shader-pc-size+ (1+ +lighting-fragment-shader-shininess-offset+))
 
 (defclass pipeline-mixin ()
-  ((application :reader application :initarg :app)
+  ((display :reader pipeline-display :initarg :dpy)
    (name :initarg :name :reader pipeline-name :initform nil)
    (pipeline-layout :accessor pipeline-layout)
    (device-pipeline :accessor device-pipeline)
@@ -69,7 +69,7 @@
   (if (slot-value pipeline 'global-descriptor-set-layout)
       (slot-value pipeline 'global-descriptor-set-layout)
       (setf (slot-value pipeline 'global-descriptor-set-layout)
-	    (create-descriptor-set-layout (default-logical-device (application pipeline)) :bindings (make-global-descriptor-set-layout-bindings pipeline)))))
+	    (create-descriptor-set-layout (default-logical-device (pipeline-display pipeline)) :bindings (make-global-descriptor-set-layout-bindings pipeline)))))
 
 (defmethod make-scene-descriptor-set-layout-bindings ((pipeline pipeline-mixin))
   nil)
@@ -78,7 +78,7 @@
   (if (slot-value pipeline 'scene-descriptor-set-layout)
       (slot-value pipeline 'scene-descriptor-set-layout)
       (setf (slot-value pipeline 'scene-descriptor-set-layout)
-	    (create-descriptor-set-layout (default-logical-device (application pipeline)) :bindings (make-scene-descriptor-set-layout-bindings pipeline)))))
+	    (create-descriptor-set-layout (default-logical-device (pipeline-display pipeline)) :bindings (make-scene-descriptor-set-layout-bindings pipeline)))))
 
 (defmethod make-per-instance-descriptor-set-layout-bindings ((pipeline pipeline-mixin))
   nil)
@@ -87,7 +87,7 @@
   (if (slot-value pipeline 'per-instance-descriptor-set-layout)
       (slot-value pipeline 'per-instance-descriptor-set-layout)
       (setf (slot-value pipeline 'per-instance-descriptor-set-layout)
-	    (create-descriptor-set-layout (default-logical-device (application pipeline)) :bindings (make-per-instance-descriptor-set-layout-bindings pipeline)))))
+	    (create-descriptor-set-layout (default-logical-device (pipeline-display pipeline)) :bindings (make-per-instance-descriptor-set-layout-bindings pipeline)))))
 
 (defmethod print-object ((object pipeline-mixin) stream)
   (print-unreadable-object (object stream)
@@ -95,30 +95,21 @@
         (princ (pipeline-name object) stream)
         (princ (class-name (class-of object)) stream))))
 
-(defmethod main-window ((pipeline pipeline-mixin))
-  (with-slots (application) pipeline
-    (main-window application)))
-
 (defmethod allocator ((pipeline pipeline-mixin))
-  (with-slots (application) pipeline
-    (allocator application)))
+  (with-slots (display) pipeline
+    (allocator display)))
 
 (defmethod default-logical-device ((pipeline pipeline-mixin))
-  (with-slots (application) pipeline
-    (default-logical-device application)))
+  (with-slots (display) pipeline
+    (default-logical-device display)))
 
 (defmethod pipeline-cache ((pipeline pipeline-mixin))
-  (with-slots (application) pipeline
-    (pipeline-cache application)))
+  (with-slots (display) pipeline
+    (pipeline-cache display)))
 
 (defmethod descriptor-pool ((pipeline pipeline-mixin))
-  (with-slots (application) pipeline
-    (default-descriptor-pool application)))
-
-(defmethod render-pass ((pipeline pipeline-mixin))
-  ;; currently all pipelines share the same render-pass
-  ;; may change in the future.
-  (render-pass (swapchain (main-window pipeline))))
+  (with-slots (display) pipeline
+    (default-descriptor-pool display)))
 
 (defmethod pipeline-front-face-orientation ((pipeline pipeline-mixin))
   VK_FRONT_FACE_COUNTER_CLOCKWISE)
@@ -139,14 +130,31 @@
 (defmethod pipeline-default-font ((pipeline pipeline-mixin))
   nil)
 
-(defmethod create-device-objects ((pipeline pipeline-mixin) &key app)
-  (create-standard-pipeline-device-objects pipeline :app app))
+(defmethod create-device-objects ((pipeline pipeline-mixin) device render-pass)
+  (create-standard-pipeline-device-objects pipeline device render-pass))
 
 (defmethod initialize-instance :after ((pipeline pipeline-mixin) &rest initargs
-				&key app)
+				&key dpy)
   (declare (ignore initargs))
-  (create-device-objects pipeline :app app)
-  (values))
+  (let* ((window (clui::helper-window dpy))
+	 (surface (render-surface window))
+	 (device (default-logical-device dpy)))
+
+    (unless (vk::paired-gpu surface)
+      ;; helper window surface has not been initialized yet
+      ;; because we didn't have logical device when it was created.
+      ;; so initialize it so that we can get the surface-format to
+      ;; create the render pass properly
+      (let* ((gpu (physical-device device))
+	     (index (get-queue-family-index-with-wsi-support gpu surface)))
+	(initialize-window-surface surface gpu index)))
+    
+    (unless (display-stock-render-pass dpy)
+      (setf (display-stock-render-pass dpy)
+	    (create-render-pass device (vk::surface-format-format (find-supported-format surface)))))
+    
+    (create-device-objects pipeline device (display-stock-render-pass dpy))
+    (values)))
 
 (defmethod make-push-constant-ranges ((pipeline pipeline-mixin))
   nil)
@@ -228,16 +236,16 @@
 	 :bindings (make-ubershader-global-descriptor-set-layout-bindings pipeline))))
 
 (defmethod scene-descriptor-set-layout ((pipeline ubershader-pipeline-mixin))
-  (application-select-box-descriptor-set-layout (application pipeline)))
+  (krma-select-box-descriptor-set-layout (pipeline-display pipeline)))
 
 (defmethod make-scene-descriptor-set-layout-bindings ((pipeline ubershader-pipeline-mixin))
-  (make-select-box-descriptor-set-layout-bindings (application pipeline)))
+  (make-select-box-descriptor-set-layout-bindings (pipeline-display pipeline)))
 
 (defmethod make-per-instance-descriptor-set-layout-bindings ((pipeline ubershader-pipeline-mixin))
-  (make-per-instance-descriptor-set-layout-bindings (application pipeline)))
+  (make-per-instance-descriptor-set-layout-bindings (pipeline-display pipeline)))
 
 (defmethod per-instance-descriptor-set-layout ((pipeline ubershader-pipeline-mixin))
-  (application-ubershader-per-instance-descriptor-set-layout (application pipeline)))
+  (krma-ubershader-per-instance-descriptor-set-layout (pipeline-display pipeline)))
 
 (defmethod make-push-constant-ranges ((pipeline draw-indexed-pipeline-mixin))
   (list (make-instance 'push-constant-range
@@ -269,7 +277,7 @@
                        :type VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
                        :count 1
                        :flags VK_SHADER_STAGE_FRAGMENT_BIT
-                       :samplers (list (application-texture-sampler (application pipeline))))))
+                       :samplers (list (krma-texture-sampler (pipeline-display pipeline))))))
 
 
 (defclass 2d-pipeline-mixin ()
@@ -383,6 +391,7 @@
               (check-vk-result
                (vkMapMemory (h device) (h upload-buffer-memory) 0 upload-size-aligned 0 p-map))
 
+	      #+sbcl
               (if (typep bitmap 'vector)
                   (sb-sys:with-pinned-objects (bitmap)
                     (vk::memcpy (mem-aref p-map :pointer) (sb-sys:vector-sap bitmap) upload-size))
@@ -502,8 +511,7 @@
 ;;                    and amended in secondary render thread
 
 
-(defun initialize-buffers (device draw-list)
-  (declare (ignore device))
+(defun initialize-buffers (dpy draw-list)
   (let ((vertex-array (draw-list-vertex-array draw-list))
         (index-array (draw-list-index-array draw-list)))
 
@@ -521,6 +529,7 @@
                    (check-vk-result (vkMapMemory (h device) (h memory) offset aligned-size 0 pp-dst))
 
                    (let ((p-dst (mem-aref pp-dst :pointer)))
+		     #+sbcl
 		     (sb-sys:with-pinned-objects (lisp-array)
 		       (vk::memcpy p-dst (sb-sys:vector-sap lisp-array) size))
 
@@ -552,17 +561,17 @@
 		  (if (> new-size-aligned old-size-aligned)
 		      (prog1
 			  (if (draw-list-vertex-memory draw-list)
-			      (progn (vk::release-vertex-memory *app* (draw-list-vertex-memory draw-list))
+			      (progn (vk::release-vertex-memory dpy (draw-list-vertex-memory draw-list))
 				     (setf (draw-list-vertex-memory draw-list)
-					   (vk::acquire-vertex-memory-sized *app* new-size-aligned :host-visible)))
+					   (vk::acquire-vertex-memory-sized dpy new-size-aligned :host-visible)))
 			      (setf (draw-list-vertex-memory draw-list)
-				    (vk::acquire-vertex-memory-sized *app* new-size-aligned :host-visible)))
+				    (vk::acquire-vertex-memory-sized dpy new-size-aligned :host-visible)))
 			(setf (draw-list-vertex-size-aligned draw-list) new-size-aligned))
 		      (if (draw-list-vertex-memory draw-list)
 			  (draw-list-vertex-memory draw-list)
 			  (prog1
 			      (setf (draw-list-vertex-memory draw-list)
-				    (vk::acquire-vertex-memory-sized *app* new-size-aligned :host-visible))
+				    (vk::acquire-vertex-memory-sized dpy new-size-aligned :host-visible))
 			    (setf (draw-list-vertex-size-aligned draw-list) new-size-aligned)))))
             (mmap-buffer (vk::memory-pool-buffer (vk::memory-resource-memory-pool memory-resource))
                          (foreign-array-bytes vertex-array) vertex-size memory-resource
@@ -576,17 +585,17 @@
 		  (if (> new-size-aligned old-size-aligned)
 		      (prog1 
 			  (if (draw-list-index-memory draw-list)
-			      (progn (vk::release-index-memory *app* (draw-list-index-memory draw-list))
+			      (progn (vk::release-index-memory dpy (draw-list-index-memory draw-list))
 				     (setf (draw-list-index-memory draw-list)
-					   (vk::acquire-index-memory-sized *app* new-size-aligned :host-visible)))
+					   (vk::acquire-index-memory-sized dpy new-size-aligned :host-visible)))
 			      (setf (draw-list-index-memory draw-list)
-				    (vk::acquire-index-memory-sized *app* new-size-aligned :host-visible)))
+				    (vk::acquire-index-memory-sized dpy new-size-aligned :host-visible)))
 			(setf (draw-list-index-size-aligned draw-list) new-size-aligned))
 		      (if (draw-list-index-memory draw-list)
 			  (draw-list-index-memory draw-list)
 			  (prog1
 			      (setf (draw-list-index-memory draw-list)
-				    (vk::acquire-index-memory-sized *app* new-size-aligned :host-visible))
+				    (vk::acquire-index-memory-sized dpy new-size-aligned :host-visible))
 			    (setf (draw-list-index-size-aligned draw-list) new-size-aligned)))))
 	    (mmap-buffer (vk::memory-pool-buffer (vk::memory-resource-memory-pool memory-resource))
                          (foreign-array-bytes index-array) index-size memory-resource
@@ -595,9 +604,9 @@
   (values))
 
 (defun create-standard-pipeline-device-objects (pipeline
+						device
+						render-pass
 						&key
-                                                  app
-						  (render-pass (render-pass pipeline))
 						  (push-constant-ranges (make-push-constant-ranges pipeline))
 						  (line-width (pipeline-line-width pipeline))
 						  (vertex-type (pipeline-vertex-type pipeline))
@@ -616,7 +625,7 @@
 						  (additional-pipeline-creation-args nil)
 						  (cull-mode (pipeline-cull-mode pipeline))
 						  (front-face (pipeline-front-face-orientation pipeline)))
-  (let ((device (default-logical-device app)))
+  (let ()
     (let ((vtx-shader (create-shader-module-from-file device (vertex-shader-pathname pipeline)))
 	  (frg-shader (create-shader-module-from-file device (fragment-shader-pathname pipeline))))
 
@@ -785,7 +794,7 @@
   ())
 
 (defmethod pipeline-default-font ((pipeline msdf-text-pipeline))
-  (application-default-font *app*))
+  (display-system-font (pipeline-display pipeline)))
 
 (defmethod fragment-shader-pathname ((pipeline msdf-text-pipeline)) 
   (asdf/system:system-relative-pathname :krma "submodules/krma-shader-bin/msdf-texture.frag.spv"))
@@ -813,7 +822,7 @@
 
 ;;------
 
-(defun ubershader-render-draw-list-cmds (pipeline draw-data draw-list app device command-buffer scene view proj width height)
+(defun ubershader-render-draw-list-cmds (pipeline draw-data draw-list dpy device command-buffer scene view proj width height)
   
   (declare (type draw-indexed-pipeline-mixin pipeline))
   (declare (type draw-list-mixin draw-list))
@@ -856,7 +865,7 @@
                                        0 +nullptr+))
 	    
             (with-foreign-objects ((p-descriptor-sets :pointer 1))
-              (setf (mem-aref p-descriptor-sets :pointer 0) (h (application-select-box-descriptor-set app)))
+              (setf (mem-aref p-descriptor-sets :pointer 0) (h (krma-select-box-descriptor-set dpy)))
               (vkCmdBindDescriptorSets (h command-buffer)
                                        VK_PIPELINE_BIND_POINT_GRAPHICS
                                        (h pipeline-layout)
@@ -960,7 +969,7 @@
 				     (setf (mem-aref pvalues2 :float +text-fragment-shader-px-range-offset+) (clampf px-range))
 				     (setf (mem-aref pvalues2 :float +text-fragment-shader-px-range-offset+) 32.0f0))))))
 			 
-			 (let ((select-box-coords (application-select-box-coords app)))
+			 (let ((select-box-coords (krma-select-box-coords dpy)))
 			   (setf (mem-aref pvalues2 :float +fragment-shader-select-box-min-offset+) (clampf (vx select-box-coords))
 				 (mem-aref pvalues2 :float (1+ +fragment-shader-select-box-min-offset+)) (clampf (vy select-box-coords))
 				 (mem-aref pvalues2 :float +fragment-shader-select-box-max-offset+) (clampf (vz select-box-coords))
@@ -1005,11 +1014,11 @@
               t)))))))
 
 (defmethod render-draw-list-cmds ((pipeline draw-indexed-pipeline-mixin) draw-data draw-list
-				  app device command-buffer scene view proj width height)
+				  dpy device command-buffer scene view proj width height)
 
-  (ubershader-render-draw-list-cmds pipeline draw-data draw-list app device command-buffer scene view proj width height))
+  (ubershader-render-draw-list-cmds pipeline draw-data draw-list dpy device command-buffer scene view proj width height))
 
-(defun ubershader-render-draw-list (pipeline draw-data draw-list app device command-buffer scene view proj width height)
+(defun ubershader-render-draw-list (pipeline draw-data draw-list dpy device command-buffer scene view proj width height)
   
   (declare (type draw-indexed-pipeline-mixin))
   (declare (type draw-list-mixin draw-list))
@@ -1047,7 +1056,7 @@
                                    0 +nullptr+))
 
 	(with-foreign-objects ((p-descriptor-sets :pointer 1))
-          (setf (mem-aref p-descriptor-sets :pointer 0) (h (application-select-box-descriptor-set app)))
+          (setf (mem-aref p-descriptor-sets :pointer 0) (h (krma-select-box-descriptor-set dpy)))
           (vkCmdBindDescriptorSets (h command-buffer)
                                    VK_PIPELINE_BIND_POINT_GRAPHICS
                                    (h pipeline-layout)
@@ -1140,7 +1149,7 @@
 		      (setf (mem-aref pvalues2 :float +text-fragment-shader-px-range-offset+) (clampf px-range))
 		      (setf (mem-aref pvalues2 :float +text-fragment-shader-px-range-offset+) 32.0f0)))))
 	    
-	    (let ((select-box-coords (application-select-box-coords app)))
+	    (let ((select-box-coords (krma-select-box-coords dpy)))
 	      (setf (mem-aref pvalues2 :float +fragment-shader-select-box-min-offset+) (clampf (vx select-box-coords))
 		    (mem-aref pvalues2 :float (1+ +fragment-shader-select-box-min-offset+)) (clampf (vy select-box-coords))
 		    (mem-aref pvalues2 :float +fragment-shader-select-box-max-offset+) (clampf (vz select-box-coords))
@@ -1175,8 +1184,8 @@
 			    (foreign-array-fill-pointer index-array)
 			    1 0 0 0))))))
 
-(defmethod render-draw-list ((pipeline draw-indexed-pipeline-mixin) draw-data draw-list app device command-buffer scene view proj width height)
-  (ubershader-render-draw-list pipeline draw-data draw-list app device command-buffer scene view proj width height))
+(defmethod render-draw-list ((pipeline draw-indexed-pipeline-mixin) draw-data draw-list dpy device command-buffer scene view proj width height)
+  (ubershader-render-draw-list pipeline draw-data draw-list dpy device command-buffer scene view proj width height))
 
 (defun read-buffer (buffer lisp-array size memory-resource aligned-size)
   (let ((memory (allocated-memory buffer))
@@ -1187,6 +1196,7 @@
       (check-vk-result (vkMapMemory (h device) (h memory) offset aligned-size 0 pp-src))
 
       (let ((p-src (mem-aref pp-src :pointer)))
+	#+sbcl
 	(sb-sys:with-pinned-objects (lisp-array)
 	  (vk::memcpy (sb-sys:vector-sap lisp-array) p-src size))
 
@@ -1210,21 +1220,21 @@
 
 	  (values))))))
 
-(defun read-select-box (app)
-  (let* ((coords (application-select-box-coords app))
+(defun read-select-box (dpy)
+  (let* ((coords (krma-select-box-coords dpy))
 	 (cols (floor (- (vz coords) (vx coords))))
 	 (rows (floor (- (vw coords) (vy coords))))
 	 (array (make-array (* cols rows +select-box-depth+) :element-type '(unsigned-byte 32))))
-    (setf (application-select-box app) (make-array (list cols rows +select-box-depth+)
+    (setf (krma-select-box dpy) (make-array (list cols rows +select-box-depth+)
 						   :element-type '(unsigned-byte 32)
 						   :displaced-to array :displaced-index-offset 0))
     (read-buffer (vk::memory-pool-buffer
-		  (vk::storage-buffer-memory-pool app))
+		  (vk::storage-buffer-memory-pool dpy))
 		 array (load-time-value (* +select-box-depth+ (foreign-type-size :unsigned-int)))
-		 (application-select-box-memory-resource app)
+		 (krma-select-box-memory-resource dpy)
 		 (aligned-size +select-box-depth+))
 
     (let ((size (* cols rows +select-box-depth+ (load-time-value (foreign-type-size :unsigned-int)))))
 
-      (clear-buffer (vk::memory-pool-buffer (vk::storage-buffer-memory-pool app)) 0 (aligned-size size)
-		    (application-select-box-memory-resource app)))))
+      (clear-buffer (vk::memory-pool-buffer (vk::storage-buffer-memory-pool dpy)) 0 (aligned-size size)
+		    (krma-select-box-memory-resource dpy)))))

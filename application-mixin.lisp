@@ -24,7 +24,7 @@
   ()
   (:documentation "An concrete class based on pipeline-store-mixin used in krma-test-application."))
 
-(defmethod initialize-instance :after ((instance pipeline-store-mixin) &rest initargs &key app)
+(defmethod initialize-instance :after ((instance pipeline-store-mixin) &rest initargs &key dpy)
   "Define your own method for initialize-instance for pipeline store to instantiate your own custom pipelines."
   (declare (ignore initargs))
   (with-slots (3d-point-list-pipeline
@@ -44,67 +44,67 @@
 
     (setf 2d-point-list-pipeline
 	  (make-instance '2d-point-list-pipeline
-			 :app app
+			 :dpy dpy
 			 :name :2d-point-list-pipeline)
 
 	  2d-line-list-pipeline
 	  (make-instance '2d-line-list-pipeline
-			 :app app
+			 :dpy dpy
 			 :name :2d-line-list-pipeline)
 
 	  2d-line-strip-pipeline
 	  (make-instance '2d-line-strip-pipeline
-			 :app app
+			 :dpy dpy
 			 :name :2d-line-strip-pipeline)
 
 	  2d-triangle-list-pipeline
 	  (make-instance '2d-triangle-list-pipeline
-			 :app app
+			 :dpy dpy
 			 :name :2d-triangle-list-pipeline)
 
 	  msdf-text-pipeline
 	  (make-instance 'msdf-text-pipeline
-			 :app app
+			 :dpy dpy
 			 :name :msdf-text-pipeline)
 	  
           2d-triangle-strip-pipeline
 	  (make-instance '2d-triangle-strip-pipeline
-			 :app app
+			 :dpy dpy
 			 :name :2d-triangle-strip-pipeline)
 
 	  3d-point-list-pipeline
 	  (make-instance '3d-point-list-pipeline
-			 :app app
+			 :dpy dpy
 			 :name :3d-point-list-pipeline)
 	  
 	  3d-line-list-pipeline
 	  (make-instance '3d-line-list-pipeline
-			 :app app
+			 :dpy dpy
 			 :name :3d-line-list-pipeline)
 	  
           3d-line-strip-pipeline
 	  (make-instance '3d-line-strip-pipeline
-			 :app app
+			 :dpy dpy
 			 :name :3d-line-strip-pipeline)
 	  
           3d-triangle-list-pipeline
 	  (make-instance '3d-triangle-list-pipeline
-			 :app app
+			 :dpy dpy
 			 :name :3d-triangle-list-pipeline)
 	  
           3d-triangle-list-with-normals-pipeline
 	  (make-instance '3d-triangle-list-with-normals-pipeline
-			 :app app
+			 :dpy dpy
 			 :name :3d-triangle-list-with-normals-pipeline)
 
 	  3d-triangle-strip-pipeline
 	  (make-instance '3d-triangle-strip-pipeline
-			 :app app
+			 :dpy dpy
 			 :name :3d-triangle-strip-pipeline)
 	  
 	  3d-triangle-strip-with-normals-pipeline
 	  (make-instance '3d-triangle-strip-with-normals-pipeline
-			 :app app
+			 :dpy dpy
 			 :name :3d-triangle-strip-with-normals-pipeline)))
   (values))
 
@@ -145,77 +145,81 @@
 
 (defclass krma-application-mixin (vulkan-application-mixin)
   ((vk::application-name :initform "krma-application")
-   (frame-rate :initform 0 :accessor application-frame-rate)
+   (display :initform nil :reader application-display :initarg :display)
    (scene :initform nil :accessor application-scene)
-   (pipeline-store :accessor application-pipeline-store)
-   (texture-sampler :accessor application-texture-sampler)
-   (default-font :initform nil :accessor application-default-font)
-   (exit? :initform nil :accessor application-exit?)
+   (main-window :initform nil :initarg :main-window :accessor application-main-window))
+  (:documentation "Abstract superclass for top-level application objects.  Base your own top-level application class on this mixin.  Objects based on this type will be bound to krma:*app* after instantiation."))
+
+(defmethod application-default-font ((application krma-application-mixin))
+  (default-system-font (application-display application)))
+   
+(defclass krma-enabled-display-mixin (vk:vulkan-enabled-display-mixin)
+  ((pipeline-store :accessor krma-pipeline-store)
+   (texture-sampler :accessor krma-texture-sampler)
+   (exit? :initform nil :accessor run-loop-exit?)
    (current-frame-cons :initform (list 0) :accessor current-frame-cons)
    (current-draw-data-cons :initform (list 0) :accessor current-draw-data-cons)
    (retained-mode-handle-count-cons :initform (list -1) :accessor retained-mode-handle-count-cons)
    (immediate-mode-work-function-1 :initform nil :accessor immediate-mode-work-function-1)
-   (backtrace :initform nil :accessor application-backtrace)
-   (error-msg :initform nil :accessor application-error-msg)
-   (width :accessor main-window-width)
-   (height :accessor main-window-height)
-   (select-box-coords :initform (vec4 -1 -1 -1 -1) :accessor application-select-box-coords)
-   (select-box-size :initform -1 :accessor application-select-box-size)
-   (select-box-memory-resource :initform nil :accessor application-select-box-memory-resource)
-   (select-box-descriptor-set-layout :initform nil :accessor application-select-box-descriptor-set-layout)
-   (select-box-descriptor-set :initform nil :accessor application-select-box-descriptor-set)
-   (select-box :initform nil :accessor application-select-box)
-   (ubershader-per-instance-descriptor-set-layout :initform nil :accessor application-ubershader-per-instance-descriptor-set-layout)
-   (ubershader-per-instance-descriptor-set :initform nil :accessor application-ubershader-per-instance-descriptor-set)
+   (backtrace :initform nil :accessor run-loop-backtrace)
+   (error-msg :initform nil :accessor run-loop-error-msg)
+   (select-box-coords :initform (vec4 -1 -1 -1 -1) :accessor krma-select-box-coords)
+   (select-box-size :initform -1 :accessor krma-select-box-size)
+   (select-box-memory-resource :initform nil :accessor krma-select-box-memory-resource)
+   (select-box-descriptor-set-layout :initform nil :accessor krma-select-box-descriptor-set-layout)
+   (select-box-descriptor-set :initform nil :accessor krma-select-box-descriptor-set)
+   (select-box :initform nil :accessor krma-select-box)
+   (ubershader-per-instance-descriptor-set-layout :initform nil :accessor krma-ubershader-per-instance-descriptor-set-layout)
+   (ubershader-per-instance-descriptor-set :initform nil :accessor krma-ubershader-per-instance-descriptor-set)
    (cc-semaphore :initform (bt:make-semaphore :name "compacting-complete" :count 1)
 		 :accessor compacting-complete-semaphore)
    (fic-semaphore :initform (bt:make-semaphore :name "frame-iteration-complete")
-		  :accessor frame-iteration-complete-semaphore))
-  (:default-initargs :enable-fragment-stores-and-atomics t)
-  (:documentation "Abstract superclass for top-level application objects.  Base your own top-level application class on this mixin.  Objects based on this type will be bound to vk:*app* after instantiation."))
+		  :accessor frame-iteration-complete-semaphore)
+   (font :initform nil :accessor default-system-font)
+   (stock-render-pass :initform nil :accessor display-stock-render-pass))
+  (:default-initargs :enable-fragment-stores-and-atomics t))
 
-(defun make-select-box-descriptor-set-layout-bindings (app)
-  (declare (ignore app)) ;; set 1
+(defun make-select-box-descriptor-set-layout-bindings (dpy)
+  (declare (ignore dpy)) ;; set 1
   (list (make-instance 'storage-buffer-for-fragment-shader-dsl-binding)))
 
-(defun create-select-box-descriptor-set-layout (device app)
-  (setf (application-select-box-descriptor-set-layout app)
-	(create-descriptor-set-layout device :bindings (make-select-box-descriptor-set-layout-bindings app))))
+(defun create-select-box-descriptor-set-layout (device dpy)
+  (setf (krma-select-box-descriptor-set-layout dpy)
+	(create-descriptor-set-layout device :bindings (make-select-box-descriptor-set-layout-bindings dpy))))
 
-(defun make-ubershader-per-instance-descriptor-set-layout-bindings (app)
+(defun make-ubershader-per-instance-descriptor-set-layout-bindings (dpy)
   ;; set 2
   (list (make-instance 'descriptor-set-layout-binding
                        :type VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
                        :count 1
                        :flags VK_SHADER_STAGE_FRAGMENT_BIT
-                       :samplers (list (application-texture-sampler app)))))
+                       :samplers (list (krma-texture-sampler dpy)))))
 
-(defun create-ubershader-per-instance-descriptor-set-layout (device app)
-  (setf (application-ubershader-per-instance-descriptor-set-layout app)
-	(create-descriptor-set-layout device :bindings (make-ubershader-per-instance-descriptor-set-layout-bindings app))))
+(defun create-ubershader-per-instance-descriptor-set-layout (device dpy)
+  (setf (krma-ubershader-per-instance-descriptor-set-layout dpy)
+	(create-descriptor-set-layout device :bindings (make-ubershader-per-instance-descriptor-set-layout-bindings dpy))))
 
-(defmethod initialize-app ((app krma-application-mixin) &rest initargs)
+(defmethod setup-krma ((dpy krma-enabled-display-mixin) &rest initargs)
   (declare (ignorable initargs))
   #+windows
   (let ((throttle-frame-rate? (getf initargs :throttle-frame-rate?)))
     (when throttle-frame-rate?
       (load-foreign-library "ntdll.dll")))
   
-  (setf (application-texture-sampler app) (create-sampler (default-logical-device app) :allocator (allocator app)))
-  (create-select-box-descriptor-set-layout (default-logical-device app) app)
-  (create-ubershader-per-instance-descriptor-set-layout (default-logical-device app) app)
-  (setf (application-pipeline-store app) (make-instance 'standard-pipeline-store :app app))
-  (setf (application-scene app) (make-instance (scene-class app)))
+  (setf (krma-texture-sampler dpy) (create-sampler (default-logical-device dpy) :allocator (allocator dpy)))
+  (create-select-box-descriptor-set-layout (default-logical-device dpy) dpy)
+  (create-ubershader-per-instance-descriptor-set-layout (default-logical-device dpy) dpy)
+  (setf (krma-pipeline-store dpy) (make-instance 'standard-pipeline-store :dpy dpy))
+  ;;(setf (application-scene app) (make-instance (scene-class app)))
   
-  (let* ((main-window (main-window app))
-	 (device (default-logical-device app))
-	 (index (queue-family-index (render-surface main-window)))
+  (let* ((helper-window (clui::helper-window dpy))
+	 (device (default-logical-device dpy))
+	 (index (queue-family-index (render-surface helper-window)))
 	 (queue (find-queue device index))
-	 (command-pool (find-command-pool device index))(device (default-logical-device app))
-         (main-window (main-window app))
+	 (command-pool (find-command-pool device index))
          (command-buffer (elt (command-buffers command-pool) 0))
-         (descriptor-pool (default-descriptor-pool app))
-	 (sampler (application-texture-sampler app))
+         (descriptor-pool (default-descriptor-pool dpy))
+	 (sampler (krma-texture-sampler dpy))
          (texture-dsl (create-descriptor-set-layout
                        device
                        :bindings (list (make-instance 'descriptor-set-layout-binding
@@ -225,7 +229,7 @@
                                                       :samplers (list sampler))))))
 
     ;; these should be put in initialize-instance of krma-test-application
-    (multiple-value-bind (width height) (get-os-window-framebuffer-size main-window)
+    #+NOTNOW(multiple-value-bind (width height) (window-framebuffer-size main-window)
       (setf (main-window-width app) width
 	    (main-window-height app) height))
 
@@ -243,7 +247,7 @@
 
     (uiop/filesystem:with-current-directory
 	((asdf/system:system-relative-pathname :krma "submodules/krma-fonts/"))
-      (setf (application-default-font *app*)
+      (setf (default-system-font dpy)
 	    (vulkan-make-font
 	     device queue sampler texture-dsl descriptor-pool command-buffer
 	     :cache-file "rm16cache.json")))
@@ -254,6 +258,7 @@
       (setq *white-texture*
             (make-vulkan-texture device queue sampler texture-dsl descriptor-pool command-buffer bpp bitmap 1 1)))
 
+    #+NOTNOW
     (with-slots (queue command-pool) main-window
       (let ((index (queue-family-index (render-surface main-window))))
 	(setf queue (find-queue device index))
@@ -261,19 +266,14 @@
     
     (values)))
 
-(defmethod initialize-instance :after ((instance krma-application-mixin) &rest initargs)
-  (apply #'initialize-app instance initargs)
+(defmethod initialize-instance :after ((instance krma-enabled-display-mixin) &rest initargs)
+  (apply #'setup-krma instance initargs)
   (values))
 
 (defclass krma-test-application (krma-application-mixin)
   ((vk::application-name :initform "krma-test-application"))
   (:documentation "A demo application for krma."))
 
-(defmethod default-application-class-for-window ((window krma-window-mixin))
-  *default-application-class*)
-
-(defmethod default-window-class-for-application ((application krma-application-mixin))
-  *default-window-class*)
 
 (defgeneric scene-class (application)
   (:documentation "Define your own scene-class method for your custom application object to tell krma which type of scene to use in your application."))

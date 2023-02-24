@@ -117,8 +117,10 @@
   (3d-triangle-strip-with-normals-draw-list (make-instance '3d-vertex-with-normal-draw-list))
 
   (group-hash-table (make-hash-table :test #'eq))
-  (work-queue (sb-concurrency:make-queue :name "draw-data-work-queue"))
-  (deletion-queue (sb-concurrency:make-queue :name "draw-data-deletion-queue")))
+  (work-queue #-sbcl (lparallel.queue:make-queue :name "draw-data-work-queue")
+	      #+sbcl(sb-concurrency:make-queue :name "draw-data-work-queue"))
+  (deletion-queue #-sbcl (lparallel.queue:make-queue :name "draw-data-deletion-queue")
+		  #+sbcl(sb-concurrency:make-queue :name "draw-data-deletion-queue")))
 
 
 (defstruct (immediate-mode-draw-data

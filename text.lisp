@@ -20,7 +20,7 @@
                                           (bpp 4))
   (uiop/filesystem:with-current-directory
       ((asdf/system:system-relative-pathname :krma "submodules/krma-fonts/"))
-    (with-open-file (stream cache-file :external-format :utf8)
+    (with-open-file (stream cache-file :external-format #+ccl :utf-8 #-ccl :utf8)
       (let ((font (make-instance 'font :data (3b-bmfont-json:read-bmfont-json stream)
                                        :cache-file cache-file)))
 	(setf (font-px-range font) (float (getf (3b-bmfont:distance-field (font-data font))
