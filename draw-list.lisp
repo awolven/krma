@@ -1908,7 +1908,7 @@ you can use prim-reserve when seq-vertices is an array."
     (block nil
       (with-slots (bytes fill-pointer allocated-count) (draw-list-vertex-array draw-list)
 	(let ((reqd-size (+ vertex-count (cl:the fixnum fill-pointer))))
-	(declare (type fixnum reqd-size))
+	  (declare (type fixnum reqd-size))
 	  (when (<= reqd-size (cl:the fixnum allocated-count))
 	    (return))
 	  (let ((new-count allocated-count))
@@ -1927,12 +1927,17 @@ you can use prim-reserve when seq-vertices is an array."
 						       (ash (cl:the (integer 0 512) vertex-type-size-in-uints) -2))
 						    :element-type (array-element-type old-lisp-array))))
 		   #+sbcl(sb-sys:with-pinned-objects (new-lisp-array old-lisp-array)
-		     (let ((new-lisp-array-ptr (sb-sys:vector-sap new-lisp-array))
-			   (old-lisp-array-ptr (sb-sys:vector-sap old-lisp-array)))
-		       (vk::memcpy new-lisp-array-ptr old-lisp-array-ptr
-				   (cl:the fixnum (ash (* (cl:the (integer 0 #.(ash most-positive-fixnum -9)) fill-pointer)
-							  vertex-type-size-in-uints)
-						       2)))))
+			   (let ((new-lisp-array-ptr (sb-sys:vector-sap new-lisp-array))
+				 (old-lisp-array-ptr (sb-sys:vector-sap old-lisp-array)))
+			     (vk::memcpy new-lisp-array-ptr old-lisp-array-ptr
+					 (cl:the fixnum (ash (* (cl:the (integer 0 #.(ash most-positive-fixnum -9)) fill-pointer)
+								vertex-type-size-in-uints)
+							     2)))))
+		   #+CCL
+		   (ccl::%copy-ivector-to-ivector old-lisp-array 0 new-lisp-array 0
+						  (cl:the fixnum (ash (* (cl:the (integer 0 #.(ash most-positive-fixnum -9)) fill-pointer)
+									 vertex-type-size-in-uints)
+								      2)))
 		   (setf bytes new-lisp-array)
 		   (setf allocated-count new-count)
 		   (setq res t))))))))
@@ -1955,12 +1960,15 @@ you can use prim-reserve when seq-vertices is an array."
 		      (new-lisp-array (make-array (cl:the fixnum new-count)
 						  :element-type (array-element-type old-lisp-array))))
 		 #+sbcl(sb-sys:with-pinned-objects (new-lisp-array old-lisp-array)
-		   (let ((new-lisp-array-ptr (sb-sys:vector-sap new-lisp-array))
-			 (old-lisp-array-ptr (sb-sys:vector-sap old-lisp-array)))
-		     (vk::memcpy new-lisp-array-ptr old-lisp-array-ptr
-				 (cl:the fixnum (* (cl:the (integer 0 #.(ash most-positive-fixnum -2)) fill-pointer)
-						   index-type-size)))))
-		 
+			 (let ((new-lisp-array-ptr (sb-sys:vector-sap new-lisp-array))
+			       (old-lisp-array-ptr (sb-sys:vector-sap old-lisp-array)))
+			   (vk::memcpy new-lisp-array-ptr old-lisp-array-ptr
+				       (cl:the fixnum (* (cl:the (integer 0 #.(ash most-positive-fixnum -2)) fill-pointer)
+							 index-type-size)))))
+		 #+CCL
+		 (ccl::%copy-ivector-to-ivector old-lisp-array 0 new-lisp-array 0
+						(cl:the fixnum (* (cl:the (integer 0 #.(ash most-positive-fixnum -2)) fill-pointer)
+								  index-type-size)))
 		 (setf bytes new-lisp-array)
 		 (setf allocated-count new-count)
 		 (setq res t)))))))

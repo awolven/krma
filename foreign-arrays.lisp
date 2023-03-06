@@ -110,6 +110,10 @@
 			(memcpy new-ptr old-ptr
 				(* (cl:the (integer 0 #.(ash most-positive-fixnum -2)) fill-pointer)
 				   (cl:the (integer 0 4) foreign-type-size))))))
+		  #+CCL
+		  (ccl::%copy-ivector-to-ivector old-array 0 new-array 0
+						 (* (cl:the (integer 0 #.(ash most-positive-fixnum -2)) fill-pointer)
+						    (cl:the (integer 0 4) foreign-type-size)))
 		  (setf bytes new-array)
 		  (setf allocated-count new-count))))
 
@@ -119,7 +123,7 @@
 
 		      (setf (aref bytes fp) index)
 		    
-		    (type-error (c)
+		    (type-error (c)		      
 		      (format t "~&upgrading index array from unsigned-short to unsigned-int.")
 		      (finish-output)
 		      (upgrade-index-array! c)
@@ -232,6 +236,10 @@
 			(sb-sys:vector-sap old-array)
 			(* (cl:the (integer 0 #.(ash most-positive-fixnum -9)) fill-pointer)
 			   (cl:the (integer 0 512) vertex-type-size))))
+	      #+CCL
+	      (ccl::%copy-ivector-to-ivector old-array 0 new-array 0
+					     (* (cl:the (integer 0 #.(ash most-positive-fixnum -9)) fill-pointer)
+						(cl:the (integer 0 512) vertex-type-size)))
 	      (setf bytes new-array)
 	      (setf allocated-count new-count))))
 	;; setf foreign-slot-value has got to be slow
@@ -377,6 +385,10 @@
 			(sb-sys:vector-sap old-array)
 			(* (cl:the (integer 0 #.(ash most-positive-fixnum -9)) fill-pointer)
 			   (cl:the (integer 0 512) vertex-type-size))))
+	      #+CCL
+	      (ccl::%copy-ivector-to-ivector old-array 0 new-array 0
+					     (* (cl:the (integer 0 #.(ash most-positive-fixnum -9)) fill-pointer)
+						(cl:the (integer 0 512) vertex-type-size)))
 	      (setf bytes new-array)
 	      (setf allocated-count new-count))))
 	(setf (textured-3d-vertex-oid bytes fp) ub32-oid
@@ -520,10 +532,14 @@
 	    (let ((new-array (make-array (* new-count vertex-type-size-uint) :element-type '(unsigned-byte 32)))
 		  (old-array bytes))
 	      #+sbcl(sb-sys:with-pinned-objects (new-array old-array)
-		(memcpy (sb-sys:vector-sap new-array)
-			(sb-sys:vector-sap old-array)
-			(* (cl:the (integer 0 #.(ash most-positive-fixnum -9)) fill-pointer)
-			   (cl:the (integer 0 512) vertex-type-size))))
+		      (memcpy (sb-sys:vector-sap new-array)
+			      (sb-sys:vector-sap old-array)
+			      (* (cl:the (integer 0 #.(ash most-positive-fixnum -9)) fill-pointer)
+				 (cl:the (integer 0 512) vertex-type-size))))
+	      #+CCL
+	      (ccl::%copy-ivector-to-ivector old-array 0 new-array 0
+					     (* (cl:the (integer 0 #.(ash most-positive-fixnum -9)) fill-pointer)
+						(cl:the (integer 0 512) vertex-type-size)))
 	      (setf bytes new-array)
 	      (setf allocated-count new-count))))
 	(setf (textured-3d-vertex-with-normal-oid bytes fp) ub32-oid

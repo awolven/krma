@@ -116,15 +116,34 @@
    (time :initform (/ (get-internal-real-time) internal-time-units-per-second) :accessor %window-time)
    (base-time :initform 0 :accessor %window-base-time)))
 
+(defstruct viewport
+  (x) ;; in framebuffer coordinates
+  (y) ;; in framebuffer coordinates
+  (width) ;; in framebuffer scale
+  (height) ;; in framebuffer scale
+  (2d-camera)
+  (3d-camera)
+  (scene)) ;; only one scene per viewport
+
+(defstruct camera
+  (proj-matrix)
+  (view-matrix))
+
 (defclass krma-window-mixin (window-frame-rate-mixin vk:vulkan-window-mixin)
   ((queue :accessor window-queue)
-   (command-pool :accessor window-command-pool)))
+   (command-pool :accessor window-command-pool)
+   (viewports :initform (list (make-viewport :x 0 :y 0))
+	      :accessor window-viewports)))
+
+
 
 (defclass krma-window (krma-window-mixin)
   ())
 
+
+
 (defun update-frame-rate (window)
-  (let ((app (vk::application window)))
+  (let ((app (clui::window-display window)))
     (with-slots (frame-rate frames delta-time time base-time) window
       (maybe-defer-debug (app)
 	(incf frames)
@@ -135,40 +154,96 @@
 	  (setq base-time time)
 	  (setq frames 0))))))
 
-#+NIL
-(defmethod abstract-os::input-window-damaged ((window krma-window-mixin))
-  (with-slots (app queue command-pool show-frame-rate?) window
-    (update-frame-rate window)
-    (frame-iteration app queue command-pool show-frame-rate?)
-    (bt:wait-on-semaphore (compacting-complete-semaphore app))
-    (bt:signal-semaphore (frame-iteration-complete-semaphore app))))
+(defmethod clui:handle-event :after ((window krma-window-mixin) (event clui::window-resize-event-mixin))
+  (let ((main-viewport (first (window-viewports window)))
+	(new-width (clui::window-resize-event-new-width event))
+	(new-height (clui::window-resize-event-new-height event)))
+    
+    (setf (viewport-width main-viewport) new-width
+	  (viewport-height main-viewport) new-height)
+    (let ((3d-camera (or (viewport-3d-camera main-viewport)
+			 (setf (viewport-3d-camera main-viewport)
+			       (make-camera
+				:proj-matrix (mperspective-vulkan
+					      45 (/ new-width new-height)
+					      *default-znear* *default-zfar*)
+				:view-matrix (mlookat (vec3 0 0 1500) (vec3 0 0 0) (vec3 0 1 0)))))))
+      
+      (setf (camera-proj-matrix 3d-camera) (mperspective-vulkan 45 (/ new-width new-height)
+								0.1 3000
+								;;*default-znear* *default-zfar*
+								))
+      (setf (camera-view-matrix 3d-camera) (mlookat (vec3 0 0 1500) (vec3 0 0 0) (vec3 0 1 0))))
+    
+    (values)))
 
 (defclass krma-application-mixin (vulkan-application-mixin)
   ((vk::application-name :initform "krma-application")
-   (display :initform nil :reader application-display :initarg :display)
-   (scene :initform nil :accessor application-scene)
-   (main-window :initform nil :initarg :main-window :accessor application-main-window))
-  (:documentation "Abstract superclass for top-level application objects.  Base your own top-level application class on this mixin.  Objects based on this type will be bound to krma:*app* after instantiation."))
+   (active-scenes :initform nil :accessor active-scenes)
+   (main-window :initform nil :initarg :main-window :accessor main-window))
+  (:documentation "Abstract superclass for top-level application objects.  Base your own top-level application class on this mixin.  Objects based on this type will be bound to krma:*app* after instantiation.")
+  (:default-initargs :main-window (make-instance 'window)))
+
+(defmethod initialize-instance :after ((app krma-application-mixin) &rest initargs &key &allow-other-keys)
+  (declare (ignorable initargs))
+  (let* ((main-window (main-window app))
+	 (main-viewport (first (window-viewports main-window))))
+    
+    (multiple-value-bind (width height) (window-framebuffer-size main-window)
+      (setf (viewport-width main-viewport) width
+	    (viewport-height main-viewport) height)
+
+      (setf (viewport-2d-camera main-viewport) (make-camera
+						:proj-matrix (mortho-vulkan 0 width height 0 0 1)
+						:view-matrix (meye 4))
+	    (viewport-3d-camera main-viewport) (make-camera
+						:proj-matrix (mperspective-vulkan
+							      45 (/ width height)
+							      *default-znear* *default-zfar*)
+						:view-matrix (mlookat (vec3 0 0 1500) (vec3 0 0 0) (vec3 0 1 0))))
+
+      (let ((new-scene (make-instance (scene-class app) :app app)))
+
+	(setf (viewport-scene main-viewport) new-scene)
+
+	(push new-scene (active-scenes app))
+
+	(push app (display-applications (clui::window-display main-window)))
+
+	(let ((device (default-logical-device (clui::window-display main-window))))
+	  (with-slots (queue command-pool) main-window
+	    (let ((index (queue-family-index (render-surface main-window))))
+	      (setf queue (find-queue device index))
+	      (setf command-pool (find-command-pool device index)))))
+	
+	(setq *app* app)
+	(values)))))
 
 (defmethod application-default-font ((application krma-application-mixin))
-  (default-system-font (application-display application)))
+  (default-system-font (clui::window-display (main-window application))))
+
+(defmethod application-scene ((application krma-application-mixin))
+  (first (active-scenes application)))
    
 (defclass krma-enabled-display-mixin (vk:vulkan-enabled-display-mixin)
   ((pipeline-store :accessor krma-pipeline-store)
    (texture-sampler :accessor krma-texture-sampler)
+   (applications :accessor display-applications :initform nil)
    (exit? :initform nil :accessor run-loop-exit?)
    (current-frame-cons :initform (list 0) :accessor current-frame-cons)
    (current-draw-data-cons :initform (list 0) :accessor current-draw-data-cons)
    (retained-mode-handle-count-cons :initform (list -1) :accessor retained-mode-handle-count-cons)
    (immediate-mode-work-function-1 :initform nil :accessor immediate-mode-work-function-1)
-   (backtrace :initform nil :accessor run-loop-backtrace)
-   (error-msg :initform nil :accessor run-loop-error-msg)
+   (backtrace :initform nil :accessor system-backtrace)
+   (error-msg :initform nil :accessor system-error-msg)
    (select-box-coords :initform (vec4 -1 -1 -1 -1) :accessor krma-select-box-coords)
    (select-box-size :initform -1 :accessor krma-select-box-size)
-   (select-box-memory-resource :initform nil :accessor krma-select-box-memory-resource)
+   (select-box-memory-resources :initform nil :accessor krma-select-box-memory-resources)
    (select-box-descriptor-set-layout :initform nil :accessor krma-select-box-descriptor-set-layout)
-   (select-box-descriptor-set :initform nil :accessor krma-select-box-descriptor-set)
+   (select-box-descriptor-sets :initform nil :accessor krma-select-box-descriptor-sets)
    (select-box :initform nil :accessor krma-select-box)
+   (last-select-box-width :initform 0 :accessor last-select-box-width)
+   (last-select-box-height :initform 0 :accessor last-select-box-height)
    (ubershader-per-instance-descriptor-set-layout :initform nil :accessor krma-ubershader-per-instance-descriptor-set-layout)
    (ubershader-per-instance-descriptor-set :initform nil :accessor krma-ubershader-per-instance-descriptor-set)
    (cc-semaphore :initform (bt:make-semaphore :name "compacting-complete" :count 1)
@@ -176,8 +251,39 @@
    (fic-semaphore :initform (bt:make-semaphore :name "frame-iteration-complete")
 		  :accessor frame-iteration-complete-semaphore)
    (font :initform nil :accessor default-system-font)
-   (stock-render-pass :initform nil :accessor display-stock-render-pass))
+   (stock-render-pass :initform nil :accessor display-stock-render-pass)
+   (hovered :initform () :accessor krma-hovered))
   (:default-initargs :enable-fragment-stores-and-atomics t))
+
+(defun monitor-hovered (dpy)
+  (let ((hovered (aref (krma-select-box dpy) 0 0 0)))
+    (if (zerop hovered)
+	(when (krma-hovered dpy)
+	  (let ((object (object-from-id (first (krma-hovered dpy)))))
+	    (when object
+	      (if (window-parent object)
+		  (multiple-value-bind (x y) (window-cursor-position (window-parent object))
+		    (handle-event object (make-instance 'pointer-exit-event
+							:window object
+							:timestamp (get-internal-real-time)
+							:x x :y y)))
+		  (handle-event object (make-instance 'pointer-exit-event
+						      :window object
+						      :timestamp (get-internal-real-time)))))
+	    (setf (krma-hovered dpy) nil)))
+	(unless (find hovered (krma-hovered dpy))
+	  (push hovered (krma-hovered dpy))
+	  (let ((object (object-from-id hovered)))
+	    (when object
+	      (if (window-parent object)
+		  (multiple-value-bind (x y) (window-cursor-position (window-parent object))
+		    (handle-event object (make-instance 'pointer-enter-event
+							:window object
+							:timestamp (get-internal-real-time)
+							:x x :y y)))
+		  (handle-event object (make-instance 'pointer-enter-event
+						      :window object
+						      :timestamp (get-internal-real-time))))))))))
 
 (defun make-select-box-descriptor-set-layout-bindings (dpy)
   (declare (ignore dpy)) ;; set 1
@@ -199,18 +305,13 @@
   (setf (krma-ubershader-per-instance-descriptor-set-layout dpy)
 	(create-descriptor-set-layout device :bindings (make-ubershader-per-instance-descriptor-set-layout-bindings dpy))))
 
-(defmethod setup-krma ((dpy krma-enabled-display-mixin) &rest initargs)
+(defun setup-krma (dpy &rest initargs)
   (declare (ignorable initargs))
-  #+windows
-  (let ((throttle-frame-rate? (getf initargs :throttle-frame-rate?)))
-    (when throttle-frame-rate?
-      (load-foreign-library "ntdll.dll")))
   
   (setf (krma-texture-sampler dpy) (create-sampler (default-logical-device dpy) :allocator (allocator dpy)))
   (create-select-box-descriptor-set-layout (default-logical-device dpy) dpy)
   (create-ubershader-per-instance-descriptor-set-layout (default-logical-device dpy) dpy)
   (setf (krma-pipeline-store dpy) (make-instance 'standard-pipeline-store :dpy dpy))
-  ;;(setf (application-scene app) (make-instance (scene-class app)))
   
   (let* ((helper-window (clui::helper-window dpy))
 	 (device (default-logical-device dpy))
@@ -227,12 +328,6 @@
                                                       :count 1
                                                       :flags VK_SHADER_STAGE_FRAGMENT_BIT
                                                       :samplers (list sampler))))))
-
-    ;; these should be put in initialize-instance of krma-test-application
-    #+NOTNOW(multiple-value-bind (width height) (window-framebuffer-size main-window)
-      (setf (main-window-width app) width
-	    (main-window-height app) height))
-
     (device-wait-idle device)
     
     (reset-command-pool device command-pool)
@@ -244,7 +339,7 @@
 	:krma "submodules/krma-fonts/Roboto_Mono/static/RobotoMono-Medium.ttf")
        (asdf/system:system-relative-pathname :krma "submodules/krma-fonts/rm16cache.json")
        :size 16 :mode :msdf+a :type :json :spread 8))
-
+    
     (uiop/filesystem:with-current-directory
 	((asdf/system:system-relative-pathname :krma "submodules/krma-fonts/"))
       (setf (default-system-font dpy)
@@ -257,14 +352,11 @@
       
       (setq *white-texture*
             (make-vulkan-texture device queue sampler texture-dsl descriptor-pool command-buffer bpp bitmap 1 1)))
-
-    #+NOTNOW
-    (with-slots (queue command-pool) main-window
-      (let ((index (queue-family-index (render-surface main-window))))
-	(setf queue (find-queue device index))
-	(setf command-pool (find-command-pool device index))))
     
     (values)))
+
+
+  
 
 (defmethod initialize-instance :after ((instance krma-enabled-display-mixin) &rest initargs)
   (apply #'setup-krma instance initargs)

@@ -391,8 +391,10 @@
               (check-vk-result
                (vkMapMemory (h device) (h upload-buffer-memory) 0 upload-size-aligned 0 p-map))
 
-	      #+sbcl
               (if (typep bitmap 'vector)
+		  #+CCL
+		  (ccl::%copy-ivector-to-ptr bitmap 0 (mem-aref p-map :pointer) 0 upload-size)
+		  #+sbcl
                   (sb-sys:with-pinned-objects (bitmap)
                     (vk::memcpy (mem-aref p-map :pointer) (sb-sys:vector-sap bitmap) upload-size))
                   (vk::memcpy (mem-aref p-map :pointer) bitmap upload-size))
@@ -532,6 +534,8 @@
 		     #+sbcl
 		     (sb-sys:with-pinned-objects (lisp-array)
 		       (vk::memcpy p-dst (sb-sys:vector-sap lisp-array) size))
+		     #+ccl
+		     (ccl::%copy-ivector-to-ptr lisp-array 0 p-dst 0 size)
 
 	             (with-foreign-object (p-range '(:struct VkMappedMemoryRange))
 	               (zero-struct p-range '(:struct VkMappedMemoryRange))
@@ -822,7 +826,7 @@
 
 ;;------
 
-(defun ubershader-render-draw-list-cmds (pipeline draw-data draw-list dpy device command-buffer scene view proj width height)
+(defun ubershader-render-draw-list-cmds (pipeline draw-data draw-list dpy device command-buffer scene view proj x y width height)
   
   (declare (type draw-indexed-pipeline-mixin pipeline))
   (declare (type draw-list-mixin draw-list))
@@ -832,8 +836,8 @@
     (declare (type foreign-adjustable-array index-array))
     
     (unless (= 0 (foreign-array-fill-pointer index-array))
-      
-      (initialize-buffers device draw-list)
+
+      (initialize-buffers dpy draw-list)
       
       (let ((cmd-vector (draw-list-cmd-vector draw-list)))
 	(declare (type (vector t) cmd-vector))
@@ -851,9 +855,9 @@
 
 	    (update-fragment-uniform-buffer pipeline scene)
 
-	    (cmd-set-viewport command-buffer :width width :height height
+	    (cmd-set-viewport command-buffer :x x :y y :width width :height height
 					     :min-depth 0.0 :max-depth 1.0)
-	    (cmd-set-scissor command-buffer :width width :height height)
+	    (cmd-set-scissor command-buffer :x x :y y :width width :height height)
 
             (with-foreign-objects ((p-descriptor-sets :pointer 1))
               (setf (mem-aref p-descriptor-sets :pointer 0) (h (global-descriptor-set pipeline)))
@@ -865,7 +869,7 @@
                                        0 +nullptr+))
 	    
             (with-foreign-objects ((p-descriptor-sets :pointer 1))
-              (setf (mem-aref p-descriptor-sets :pointer 0) (h (krma-select-box-descriptor-set dpy)))
+	      (setf (mem-aref p-descriptor-sets :pointer 0) (h (aref (krma-select-box-descriptor-sets dpy) (car (current-frame-cons dpy)))))
               (vkCmdBindDescriptorSets (h command-buffer)
                                        VK_PIPELINE_BIND_POINT_GRAPHICS
                                        (h pipeline-layout)
@@ -1014,11 +1018,13 @@
               t)))))))
 
 (defmethod render-draw-list-cmds ((pipeline draw-indexed-pipeline-mixin) draw-data draw-list
-				  dpy device command-buffer scene view proj width height)
+				  dpy device command-buffer scene view proj viewport)
 
-  (ubershader-render-draw-list-cmds pipeline draw-data draw-list dpy device command-buffer scene view proj width height))
+  (ubershader-render-draw-list-cmds pipeline draw-data draw-list dpy device command-buffer scene view proj
+				    (viewport-x viewport) (viewport-y viewport)
+				    (viewport-width viewport) (viewport-height viewport)))
 
-(defun ubershader-render-draw-list (pipeline draw-data draw-list dpy device command-buffer scene view proj width height)
+(defun ubershader-render-draw-list (pipeline draw-data draw-list dpy device command-buffer scene view proj x y width height)
   
   (declare (type draw-indexed-pipeline-mixin))
   (declare (type draw-list-mixin draw-list))
@@ -1026,8 +1032,12 @@
 
   (let ((index-array (draw-list-index-array draw-list)))
     (declare (type foreign-adjustable-array index-array))
+
+    
+
     (unless (= 0 (foreign-array-fill-pointer index-array))
-      (initialize-buffers device draw-list)
+
+      (initialize-buffers dpy draw-list)
       (let* ((command-buffer-handle (h command-buffer))
              (pipeline-layout (pipeline-layout pipeline))
              (index-array (draw-list-index-array draw-list))
@@ -1042,9 +1052,10 @@
 
 	(update-fragment-uniform-buffer pipeline scene)
 
-	(cmd-set-viewport command-buffer :width width :height height)
+	(cmd-set-viewport command-buffer :x x :y y :width width :height height
+					 :min-depth 0.0 :max-depth 1.0)
 	
-	(cmd-set-scissor command-buffer :width width :height height)
+	(cmd-set-scissor command-buffer :x x :y y :width width :height height)
 
 	(with-foreign-objects ((p-descriptor-sets :pointer 1))
           (setf (mem-aref p-descriptor-sets :pointer 0) (h (global-descriptor-set pipeline)))
@@ -1056,7 +1067,7 @@
                                    0 +nullptr+))
 
 	(with-foreign-objects ((p-descriptor-sets :pointer 1))
-          (setf (mem-aref p-descriptor-sets :pointer 0) (h (krma-select-box-descriptor-set dpy)))
+          (setf (mem-aref p-descriptor-sets :pointer 0) (h (aref (krma-select-box-descriptor-sets dpy) (car (current-frame-cons dpy)))))
           (vkCmdBindDescriptorSets (h command-buffer)
                                    VK_PIPELINE_BIND_POINT_GRAPHICS
                                    (h pipeline-layout)
@@ -1179,13 +1190,17 @@
 						    (foreign-type-size :uint32)))
 				pvalues2))
 
+	  ;;(print (foreign-array-fill-pointer index-array))
+
           ;; draw the whole draw list in one command
 	  (vkCmdDrawIndexed command-buffer-handle
 			    (foreign-array-fill-pointer index-array)
 			    1 0 0 0))))))
 
-(defmethod render-draw-list ((pipeline draw-indexed-pipeline-mixin) draw-data draw-list dpy device command-buffer scene view proj width height)
-  (ubershader-render-draw-list pipeline draw-data draw-list dpy device command-buffer scene view proj width height))
+(defmethod render-draw-list ((pipeline draw-indexed-pipeline-mixin) draw-data draw-list dpy device command-buffer scene view proj viewport)
+  (ubershader-render-draw-list pipeline draw-data draw-list dpy device command-buffer scene view proj
+			       (viewport-x viewport) (viewport-y viewport)
+			       (viewport-width viewport) (viewport-height viewport)))
 
 (defun read-buffer (buffer lisp-array size memory-resource aligned-size)
   (let ((memory (allocated-memory buffer))
@@ -1200,6 +1215,9 @@
 	(sb-sys:with-pinned-objects (lisp-array)
 	  (vk::memcpy (sb-sys:vector-sap lisp-array) p-src size))
 
+	#+ccl
+	(ccl::%copy-ptr-to-ivector p-src 0 lisp-array 0 size)
+	
 	(with-foreign-object (p-range '(:struct VkMappedMemoryRange))
 	  (zero-struct p-range '(:struct VkMappedMemoryRange))
 
@@ -1220,21 +1238,25 @@
 
 	  (values))))))
 
-(defun read-select-box (dpy)
-  (let* ((coords (krma-select-box-coords dpy))
-	 (cols (floor (- (vz coords) (vx coords))))
-	 (rows (floor (- (vw coords) (vy coords))))
-	 (array (make-array (* cols rows +select-box-depth+) :element-type '(unsigned-byte 32))))
-    (setf (krma-select-box dpy) (make-array (list cols rows +select-box-depth+)
-						   :element-type '(unsigned-byte 32)
-						   :displaced-to array :displaced-index-offset 0))
-    (read-buffer (vk::memory-pool-buffer
-		  (vk::storage-buffer-memory-pool dpy))
-		 array (load-time-value (* +select-box-depth+ (foreign-type-size :unsigned-int)))
-		 (krma-select-box-memory-resource dpy)
-		 (aligned-size +select-box-depth+))
+(defun read-select-box (dpy frame-to-read)
+  (when (aref (krma-select-box-memory-resources dpy) frame-to-read)
+    (let* ((coords (krma-select-box-coords dpy))
+	   (cols (floor (- (vz coords) (vx coords))))
+	   (rows (floor (- (vw coords) (vy coords))))
+	   (size (* cols rows +select-box-depth+))
+	   (size-in-bytes (* size (foreign-type-size :unsigned-int)))
+	   (aligned-size (aligned-size size-in-bytes)))
 
-    (let ((size (* cols rows +select-box-depth+ (load-time-value (foreign-type-size :unsigned-int)))))
+      #+NIL
+      (setf (krma-select-box dpy) (make-array (list cols rows +select-box-depth+)
+					      :element-type '(unsigned-byte 32)
+					      :displaced-to array :displaced-index-offset 0))
 
-      (clear-buffer (vk::memory-pool-buffer (vk::storage-buffer-memory-pool dpy)) 0 (aligned-size size)
-		    (krma-select-box-memory-resource dpy)))))
+      (read-buffer (vk::memory-pool-buffer
+		    (vk::storage-buffer-memory-pool dpy))
+		   (array-displacement (krma-select-box dpy)) size-in-bytes
+		   (aref (krma-select-box-memory-resources dpy) frame-to-read)
+		   aligned-size)
+
+      (clear-buffer (vk::memory-pool-buffer (vk::storage-buffer-memory-pool dpy)) 0 aligned-size
+		    (aref (krma-select-box-memory-resources dpy) frame-to-read)))))

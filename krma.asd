@@ -32,6 +32,7 @@
    (:file "vulkan-pipelines")
    (:file "pipeline-combinations")
    (:file "text")
+   (:file "views")
    (:file "main")))
 
 (pushnew :krma *features*)

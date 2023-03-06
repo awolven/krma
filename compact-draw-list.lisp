@@ -74,7 +74,11 @@
 						   (old-lisp-array-ptr (sb-sys:vector-sap old-lisp-array)))
 					       (vk::memcpy (inc-pointer new-lisp-array-ptr (* (incf new-vtx-offset) vertex-size-in-uints))
 							   (inc-pointer old-lisp-array-ptr (* (+ cmd-vtx-offset orig-idx) vertex-size-in-uints))
-							   (* 1 vertex-type-size)))))
+							   (* 1 vertex-type-size))))
+				       #+CCL
+					 (ccl::%copy-ivector-to-ivector old-lisp-array (* (+ cmd-vtx-offset orig-idx) vertex-size-in-uints)
+									new-lisp-array (* (incf new-vtx-offset) vertex-size-in-uints)
+									(* 1 vertex-type-size)))
                                        ;; put new index into new index array at fill-pointer
                                        (index-array-push-extend new-index-array new-vtx-offset)
                                        ;; record the translation

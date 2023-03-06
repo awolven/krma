@@ -4,6 +4,8 @@
   (defvar *debug* vk::*debug*)
   (defvar *muffle-compilation-notes* t))
 
+(defvar *app*)
+
 (defvar *default-application-class* 'krma-test-application)
 
 (defconstant +buffer-alignment+ 256) ;; todo: query non-coherent-atom-size of physical device
@@ -24,7 +26,7 @@
 (defconstant +tex-white-pixel-u+ 0.0f0)
 (defconstant +tex-white-pixel-v+ 0.0f0)
 
-(defvar *default-znear* 0.001)
+(defvar *default-znear* 0.1)
 (defvar *default-zfar* 3000.0)
 
 (defvar *white-texture*)

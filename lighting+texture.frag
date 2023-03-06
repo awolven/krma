@@ -1,4 +1,4 @@
-#version 450
+#version 460
 #extension GL_ARB_separate_shader_objects : enable
 
 #define MAX_LIGHTS 10
@@ -137,16 +137,21 @@ void main () {
       selected_objects[0][11] = uint_color(color * vec4(totalLighting, 1.0));
       */
     }
-  
+
   outColor = color * vec4(totalLighting, 1.0);
+  
 
   if (pc.selectBox.x <= gl_FragCoord.x &&
       pc.selectBox.y <= gl_FragCoord.y &&
       gl_FragCoord.x <= pc.selectBox.z &&
       gl_FragCoord.y <= pc.selectBox.w) {
 
+    float near = 0.1;
+    float far = 3000.0;
+    float z = (2.0 * near) / (far + near - gl_FragCoord.z * (far - near));
+
     // does fragcoord.z go from [0, 1) ? if so, zIndex is correct
-    uint zIndex = uint(gl_FragCoord.z * SELECT_BOX_DEPTH);
+    uint zIndex = uint(z * SELECT_BOX_DEPTH);
     uint row_size = uint(pc.selectBox.z) - uint(pc.selectBox.x);
     uint offset = uint(gl_FragCoord.y - pc.selectBox.y) * row_size
       + uint(gl_FragCoord.x - pc.selectBox.x);
@@ -154,7 +159,9 @@ void main () {
     /*
     selected_objects[0][12] = ub.scene_ambient;
     selected_objects[0][13] = ub.num_lights;
-    selected_objects[0][14] = 67;
     */
-  } 
+  }
+  selected_objects[0][14] = 67;
+    
+  
 }

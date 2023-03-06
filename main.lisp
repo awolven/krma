@@ -58,7 +58,7 @@
 
 	(vkUnmapMemory (h device) (h memory))))))
 
-(defun compute-select-box-descriptor-set (dpy window)
+(defun compute-select-box-descriptor-set (dpy window frame-count current-frame)
   (multiple-value-bind (mouse-x mouse-y) (window-cursor-position window)
     (multiple-value-bind (xscale yscale) (window-content-scale window)
       (setq mouse-x (* xscale mouse-x))
@@ -68,15 +68,32 @@
 	   (width (round (- (vz new-coords) (vx new-coords)))) ;; should be 1.0 atm, in the future it might not be
 	   (height (round (- (vw new-coords) (vy new-coords)))) ;; should be 1.0 atm
 	   (new-size (* width height +select-box-depth+ (load-time-value (foreign-type-size :unsigned-int)))))
+
+      (when (or (/= width (last-select-box-width dpy))
+		(/= height (last-select-box-height dpy)))
+	
+	(let ((array (make-array (* width height +select-box-depth+) :element-type '(unsigned-byte 32))))
+	  
+	  (setf (krma-select-box dpy) (make-array (list width height +select-box-depth+)
+						  :element-type '(unsigned-byte 32)
+						  :displaced-to array :displaced-index-offset 0))
+	  (setf (last-select-box-width dpy) width
+		(last-select-box-height dpy) height)))
       
       (setf (krma-select-box-coords dpy) new-coords)
-      
+
+      (unless (krma-select-box-descriptor-sets dpy)
+	(setf (krma-select-box-descriptor-sets dpy) (make-array frame-count :initial-element nil)))
+
+      (unless (krma-select-box-memory-resources dpy)
+	(setf (krma-select-box-memory-resources dpy) (make-array frame-count :initial-element nil)))
+
       (let ((aligned-size (aligned-size new-size))
-	    (old-descriptor-set (krma-select-box-descriptor-set dpy))
-	    (old-memory-resource (krma-select-box-memory-resource dpy))
+	    (old-descriptor-set (aref (krma-select-box-descriptor-sets dpy) current-frame))
+	    (old-memory-resource (aref (krma-select-box-memory-resources dpy) current-frame))
 	    (new-memory-resource)
 	    (memory-resource-changed-p nil))
-        
+
 	(if old-memory-resource
 	      
 	    (if (<= aligned-size (vk::memory-resource-size old-memory-resource))
@@ -88,7 +105,7 @@
 		  (setq new-memory-resource (vk::acquire-storage-memory-sized dpy aligned-size :host-visible))
 		  (setq memory-resource-changed-p t)))
 	      
-	    (progn 
+	    (progn
 	      (setq new-memory-resource (vk::acquire-storage-memory-sized dpy aligned-size :host-visible))
 	      (setq memory-resource-changed-p t)))
 
@@ -102,11 +119,11 @@
 		(when old-descriptor-set
 		  (vk::free-descriptor-sets (list old-descriptor-set) (default-descriptor-pool dpy)))
 		  
-		(setf (krma-select-box-memory-resource dpy)
+		(setf (aref (krma-select-box-memory-resources dpy) current-frame)
 		      new-memory-resource)
 		  
 		;; create a new descriptor set for new memory resource, offset and range have changed
-		(setf (krma-select-box-descriptor-set dpy)
+		(setf (aref (krma-select-box-descriptor-sets dpy) current-frame)
 		      (create-descriptor-set
 		       (default-logical-device dpy)
 		       (list (krma-select-box-descriptor-set-layout dpy))
@@ -118,7 +135,7 @@
 
 	      ;; otherwise return existing descriptor set
 	      ;; if the mouse doesn't move the descriptor set doesn't change
-	      (krma-select-box-descriptor-set dpy)))))))
+	      (aref (krma-select-box-descriptor-sets dpy) current-frame)))))))
 
 (defun erase-draw-list (draw-list)
   (declare (type draw-list-mixin draw-list))
@@ -147,8 +164,8 @@
 
       (values))))
 
-(defun call-immediate-mode-work-functions (scene)
-  (let ((f (immediate-mode-work-function-1 scene)))
+(defun call-immediate-mode-work-functions (dpy)
+  (let ((f (immediate-mode-work-function-1 dpy)))
     (when f (funcall f))))
 
 (defun before-frame-begin (dpy scene current-draw-data-index)
@@ -159,45 +176,49 @@
 	     
     (setq work-queue
 	  (draw-data-work-queue (aref (rm-draw-data scene) current-draw-data-index)))
-    
+
     (maybe-defer-debug (dpy)
       (loop with work = nil
 	    while (setq work #+sbcl (sb-concurrency:dequeue work-queue)
-			     #-sbcl (lparallel.queue:pop-queue work-queue))
-	    do (funcall work)))
+			     #-sbcl (lparallel.queue:peek-queue work-queue))
+	    do (lparallel.queue:pop-queue work-queue)
+	       (funcall work)))
+
     
-    (maybe-defer-debug (dpy)
-      (call-immediate-mode-work-functions scene))
     
     (values)))
 
-(defun during-frame (dpy command-buffer scene current-draw-data-index show-frame-rate?)
+(defun during-frame (dpy window command-buffer current-draw-data-index show-frame-rate?)
 
   (let ()
-  
-    (maybe-defer-debug (dpy)
-      (update-2d-camera scene))
-  
-    (maybe-defer-debug (dpy)
-      (update-3d-camera scene))
 
-    #+NOTYET
+
     (when show-frame-rate?
       (maybe-defer-debug (dpy)
 	(multiple-value-bind (w h) (window-framebuffer-size window)
 	  (multiple-value-bind (xscale yscale) (window-content-scale window)
 	    (draw-text (format nil "fps: ~4,0f" (window-frame-rate window))
 		       (- (/ w xscale) 100) (- (/ h yscale) 25) :color #x000000ff)))))
-
+    
     ;; render here.
-    (maybe-defer-debug (dpy)
-      (render-scene scene dpy command-buffer
-		    (aref (rm-draw-data scene) current-draw-data-index)
-		    (im-draw-data scene)))
-  
-    (maybe-defer-debug (dpy)
-      (read-select-box dpy))
+    
+    (loop for viewport in (window-viewports window)
+	  do (let ((scene (viewport-scene viewport)))
 
+	       (maybe-defer-debug (dpy)
+		 (update-2d-camera scene))
+  
+	       (maybe-defer-debug (dpy)
+		 (update-3d-camera scene))
+
+	       (maybe-defer-debug (dpy)
+		 (render-scene scene
+			       viewport
+			       dpy command-buffer
+			       (aref (rm-draw-data scene) current-draw-data-index)
+			       (im-draw-data scene)))))
+ 
+    
     (values)))
 
 (defun update-counts (current-frame-cons current-draw-data-cons frame-count)
@@ -212,57 +233,82 @@
 (defun recreate-swapchain-when-necessary (window)
   (when (recreate-swapchain? window)
     (multiple-value-bind (width height) (window-framebuffer-size window)
-      (recreate-swapchain window (swapchain window) width height)
+      (recreate-swapchain window (render-pass window) (swapchain window) width height)
       (setf (clui::last-framebuffer-width window) width
 	    (clui::last-framebuffer-height window) height)
       (setf (recreate-swapchain? window) nil)))
   (values))
 
+
+
+
+
 (defun frame-iteration (dpy frame-count show-frame-rate?)
   
-  (let ((current-frame-cons (current-frame-cons dpy))
-	(current-draw-data-cons (current-draw-data-cons dpy))
-	(current-frame (car current-frame-cons))
-	(current-draw-data (car current-draw-data-cons))
-	(image-indices (make-array 100 :adjustable t :fill-pointer 0 :initial-element nil)))
+  (let* ((current-frame-cons (current-frame-cons dpy))
+	 (current-draw-data-cons (current-draw-data-cons dpy))
+	 (current-frame (car current-frame-cons))
+	 (current-draw-data (car current-draw-data-cons))
+	 (image-indices (make-array 100 :adjustable t :fill-pointer 0 :initial-element nil)))
     
     ;; maybe create new descriptor set if select box size has changed
     (maybe-defer-debug (dpy)
-      (compute-select-box-descriptor-set dpy))
-    
-    ;; this loop is a candidate for parallelization
-    ;; though, even though each scene will process it's work queue in order
-    ;; developer might not expect operations between scenes to be executed interleaved
-    ;; theres actually no gaurantee when the op is done except that it's before render
-    (loop for scene in (active-scenes dpy) 
-	  do (before-frame-begin dpy scene current-draw-data))
+      ;; probably going to need a select box per framebuffer
+      (compute-select-box-descriptor-set dpy (main-window (first (display-applications dpy)))
+					 frame-count (car current-frame-cons)))
 
-    ;; this loop is a candidate for parallelization
+    ;; This loop takes all the scenes in all the applications
+    ;; and updates the portion of the scene's draw-lists
+    ;; which are not currently in use, that is,
+    ;; not being copied to gpu memory, or not being compacted.
+    ;; It is a candidate for parallelization.
+    (loop for app in (display-applications dpy)
+	  do (loop for scene in (active-scenes app)
+		   do (before-frame-begin dpy scene current-draw-data)))
+
+    (maybe-defer-debug (dpy)
+      (call-immediate-mode-work-functions dpy))
+
+    ;; This loop is a candidate for parallelization
+    ;; It processes each scene on each application
+    ;; in the context of a window.
+    ;; Todo: if the scene does not appear in the window, by means of comparing clip coordinates,
+    ;; then it is not processed for that window
     (do ((window (clui::display-window-list-head dpy) (clui::window-next window)))
 	((null window))
       
-      (recreate-swapchain-if-necessary window)
+      (recreate-swapchain-when-necessary window)
       
       (with-slots (queue command-pool) window
 	
 	(let* ((swapchain (swapchain window))
 	       (frame-resource (elt (frame-resources swapchain) current-frame))
-	       (command-buffer (frame-command-buffer frame-resource))
-	       (image-index))
+	       (command-buffer (frame-command-buffer frame-resource)))
 	  
 	  (vector-push-extend
-	   (frame-begin swapchain (render-pass swapchain)
+	   (frame-begin swapchain (render-pass window)
 			current-frame (clear-value window)
 			command-pool)
 	   image-indices)
+
+	  #+NIL(with-slots (queue command-pool) (main-window (first (display-applications dpy)))
+	    (vkQueueWaitIdle (h queue)))
 	  
-	  (loop for scene in (active-scenes window) ;; this loop is a candidate for parallelization
-		do (during-frame dpy command-buffer scene current-draw-data show-frame-rate?)))))
+	  (maybe-defer-debug (dpy)
+	    (read-select-box dpy (car (current-frame-cons dpy))))
+	  
+	  ;;(print (krma-select-box dpy))
+	  
+	  (maybe-defer-debug (dpy)
+	    (monitor-hovered dpy))
+	  
+	  
+	  (during-frame dpy window command-buffer current-draw-data show-frame-rate?))))
 
     ;; frame-present must occur in this thread, so no parallelization here
-    (do ((window (clui::display-window-list-head dpy) (clui::window-next window))
-	 (i 0 (1+ i))
-	 (image-index (aref image-indices i)))
+    (do* ((window (clui::display-window-list-head dpy) (clui::window-next window))
+	  (i 0 (1+ i))
+	  (image-index (aref image-indices i)))
 	
 	((null window))
 
@@ -276,16 +322,13 @@
 	  
 	  (frame-present swapchain queue current-frame image-index window))))
 
-    ;; this needs to be the only thread that modifies current-frame
-    (update-counts current-frame-cons current-draw-data-cons frame-count)
-    
-    (values)))
+     (values)))
 
 (defun compactor-thread-iteration (dpy active-scenes)
   (bt:wait-on-semaphore (frame-iteration-complete-semaphore dpy))
   (let* ((current-draw-data-cons (current-draw-data-cons dpy))
 	 (alt-index (mod (1+ (car current-draw-data-cons)) 2)))
-    
+;;    (break)
     (loop for active-scene in active-scenes
 	  do (let ((rm-draw-data-pair (rm-draw-data active-scene)))
 	       (compact-draw-lists
@@ -298,7 +341,10 @@
   ;; doesn't start until after first render loop iteration
   (tagbody
    again
-     (compactor-thread-iteration dpy (active-scenes dpy))
+     (let ((active-scenes ()))
+       (loop for app in (display-applications dpy)
+	     do (setf active-scenes (nconc active-scenes (active-scenes app))))
+       (compactor-thread-iteration dpy active-scenes))
      ;; todo: make close button on window setf application-exit? to t.
      (when (run-loop-exit? dpy)
        (go exit))
@@ -341,91 +387,43 @@
     (maybe-defer-debug (app)
       (frame-iteration app queue command-pool t))))
 
-(defun krma-application-main (dpy main-window &rest args &key (show-frame-rate? t) &allow-other-keys)
+(defun krma-application-main (app &rest args &key (show-frame-rate? t) &allow-other-keys)
   (declare (ignorable args))
-  #+(and noglfw darwin)
-  (abstract-os::cocoa-finish-init app)
 
-  (setf (window-show-frame-rate? main-window) show-frame-rate?)
-
-  (unwind-protect
-       (loop until (run-loop-exit? dpy)
-	       initially (start-compactor-thread dpy)
-	     do (maybe-defer-debug (dpy)
-		  (poll-events dpy))
-		
-		(maybe-defer-debug (dpy)
-		  (update-frame-rate main-window))
-		
-		(do ((window (clui::display-window-list-head dpy) (clui::window-next window)))
-		    ((null window))
-		  (with-slots (queue command-pool) window
-		    (maybe-defer-debug (dpy)
-		      (frame-iteration dpy window queue command-pool show-frame-rate?))))
-       
-		;; first time use of compacting complete semaphore is :count 1
-		(bt:wait-on-semaphore (compacting-complete-semaphore dpy))
-		(bt:signal-semaphore (frame-iteration-complete-semaphore dpy)))
-
-    (shutdown-run-loop dpy)))
-    
-#+OLD
-(defun krma-application-main (app &rest args &key (show-frame-rate? t) (throttle-frame-rate? t) &allow-other-keys)
-  (declare (ignore args))
   (let* ((main-window (main-window app))
-	 (device (default-logical-device app))
-	 (index (queue-family-index (render-surface main-window)))
-	 (queue (find-queue device index))
-	 (command-pool (find-command-pool device index)))
+	 (dpy (clui::window-display main-window)))
     
-    (loop until (window-should-close? main-window)
-	  initially (start-compactor-thread app)
-	  with frames = 0
-	  with delta-time = 1
-	  with time = (/ (get-internal-real-time) internal-time-units-per-second)
-	  with base-time = 0
-	  with last-time = time
-	  with old-time = 0
-	  with dt-total = 0
-	  when (application-exit? app)	    
-	    do (return)
-	  do (maybe-defer-debug (app)
-	       (incf frames)
-	       (setq time (/ (get-internal-real-time) internal-time-units-per-second))
-	       (setq delta-time (- time base-time))
-	       (when (>= delta-time 1)
-		 (setf (application-frame-rate app) (float (/ frames delta-time)))
-		 (setq base-time time)
-		 (setq frames 0))
-	       (when throttle-frame-rate?
-		 #+ignore
-		 (
-		 (setq dt-total (- time old-time))
-		 (loop while (> dt-total 0) for i from 0 below 1
-		       do
-			  (let ((dt))
-			    (if (> dt-total *threshold*)
-				(setq dt *threshold*)
-				(progn
-				  (setq dt dt-total)))
-			    ;; because the time resolution sucks, frame rate throttling sucks.
-			    #+windows(nt-delay-execution (* dt *test*))
-			    #+unix(sb-unix:nanosleep 0 (floor (* dt 840000000)))
-			    (decf dt-total dt)))
-		 (setq old-time time))
-		 )
-	       (frame-iteration app queue command-pool show-frame-rate?)
-	       ;; first time use of compacting complete semaphore is :count 1
-	       (bt:wait-on-semaphore (compacting-complete-semaphore app))
-	       (bt:signal-semaphore (frame-iteration-complete-semaphore app))))
-    
-    (shutdown-application app)))
+    (setf (window-show-frame-rate? main-window) show-frame-rate?)
 
-#+NIL
+    (unwind-protect
+	 (loop until (run-loop-exit? dpy)
+		 initially (start-compactor-thread dpy)
+	       do (maybe-defer-debug (dpy)
+		    (poll-events dpy))
+		
+		  (maybe-defer-debug (dpy)
+		    (update-frame-rate main-window))
+		
+		  (do ((window (clui::display-window-list-head dpy) (clui::window-next window)))
+		      ((null window))
+		    (maybe-defer-debug (dpy)
+			(frame-iteration dpy (number-of-images (swapchain window)) show-frame-rate?)))
+       
+		  ;; first time use of compacting complete semaphore is :count 1
+		     ;; this needs to be the only thread that modifies current-frame
+		  (update-counts (current-frame-cons dpy) (current-draw-data-cons dpy) (number-of-images (swapchain main-window)))
+		  (bt:wait-on-semaphore (compacting-complete-semaphore dpy))
+		  (bt:signal-semaphore (frame-iteration-complete-semaphore dpy))
+
+		  )
+
+      (shutdown-run-loop dpy))))
+    
+
 (defgeneric main (application &rest args &key &allow-other-keys)
   (:documentation "Define your own main function for your custom application if necessary."))
 
-#+NIL
+
 (defmethod main ((app krma-test-application) &rest args &key &allow-other-keys)
   (apply #'krma-application-main app args))
 

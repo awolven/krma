@@ -1,6 +1,6 @@
 #!/bin/bash
-#GLSL_COMPILER=/cygdrive/c/VulkanSDK/1.2.189.2/Bin/glslangValidator.exe
-GLSL_COMPILER=~/vulkan/1.3.231.0/x86_64/bin/glslangValidator
+GLSL_COMPILER=/cygdrive/c/VulkanSDK/1.2.189.2/Bin/glslangValidator.exe
+#GLSL_COMPILER=~/vulkan/1.3.231.0/x86_64/bin/glslangValidator
 #GLSL_COMPILER=~/VulkanSDK/1.3.231.1/macOS/bin/glslangValidator
 set -x
 $GLSL_COMPILER -V standard-2d.vert -o submodules/krma-shader-bin/standard-2d.vert.spv
