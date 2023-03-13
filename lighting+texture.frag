@@ -1,8 +1,9 @@
 #version 460
 #extension GL_ARB_separate_shader_objects : enable
 
+#define SELECT_BOX_DEPTH_2D 1024
+#define SELECT_BOX_DEPTH_3D 1024
 #define MAX_LIGHTS 10
-#define SELECT_BOX_DEPTH 128
 
 struct light {
   vec4 position;
@@ -21,8 +22,9 @@ layout(set = 0, binding = 1) uniform uniformBuffer {
   uint padding2;
 } ub;
 
-layout(set = 1, binding = 0) buffer writeonly select_buffer {
-  uint selected_objects[][SELECT_BOX_DEPTH];
+layout(set = 1, binding = 0) buffer select_buffers {
+  uint selected_objects_2d[][SELECT_BOX_DEPTH_2D];
+  uint selected_objects_3d[][SELECT_BOX_DEPTH_3D];
 };
 
 layout(set = 2 , binding = 0) uniform sampler2D texSampler;
@@ -42,6 +44,7 @@ layout(location = 2) in vec2 fragTexCoord;
 layout(location = 3) in vec4 world_position;
 layout(location = 4) in vec3 normal;
 layout(location = 5) in mat4 view_inv;
+//layout(location = 6) flat in uint is2d;
 
 layout(location = 0) out vec4 outColor;
 
@@ -123,18 +126,18 @@ void main () {
       totalLighting = totalLighting + diffuseReflection + specularReflection;
 
       /* // for lighting debug:
-      selected_objects[0][0] = pc.uint_material_ambient;
-      selected_objects[0][1] = pc.uint_material_diffuse;
-      selected_objects[0][2] = pc.uint_material_specular;
-      selected_objects[0][3] = ub.lights[0].diffuse;
-      selected_objects[0][4] = ub.lights[0].specular;
-      selected_objects[0][5] = uint_color(color);
-      selected_objects[0][6] = uint_color(vec4(totalLighting, 0.0));
-      selected_objects[0][7] = uint_color(vec4(light_diffuse, 0.0));
-      selected_objects[0][8] = uint_color(vec4(light_specular, 0.0));
-      selected_objects[0][9] = uint_color(vec4(diffuseReflection, 0.0));
-      selected_objects[0][10] = uint_color(vec4(specularReflection, 0.0));
-      selected_objects[0][11] = uint_color(color * vec4(totalLighting, 1.0));
+      selected_objects_2d[0][0] = pc.uint_material_ambient;
+      selected_objects_2d[0][1] = pc.uint_material_diffuse;
+      selected_objects_2d[0][2] = pc.uint_material_specular;
+      selected_objects_2d[0][3] = ub.lights[0].diffuse;
+      selected_objects_2d[0][4] = ub.lights[0].specular;
+      selected_objects_2d[0][5] = uint_color(color);
+      selected_objects_2d[0][6] = uint_color(vec4(totalLighting, 0.0));
+      selected_objects_2d[0][7] = uint_color(vec4(light_diffuse, 0.0));
+      selected_objects_2d[0][8] = uint_color(vec4(light_specular, 0.0));
+      selected_objects_2d[0][9] = uint_color(vec4(diffuseReflection, 0.0));
+      selected_objects_2d[0][10] = uint_color(vec4(specularReflection, 0.0));
+      selected_objects_2d[0][11] = uint_color(color * vec4(totalLighting, 1.0));
       */
     }
 
@@ -146,22 +149,18 @@ void main () {
       gl_FragCoord.x <= pc.selectBox.z &&
       gl_FragCoord.y <= pc.selectBox.w) {
 
+    // this shader should never be assigned in a 2d pipeline
     float near = 0.1;
     float far = 3000.0;
     float z = (2.0 * near) / (far + near - gl_FragCoord.z * (far - near));
-
-    // does fragcoord.z go from [0, 1) ? if so, zIndex is correct
-    uint zIndex = uint(z * SELECT_BOX_DEPTH);
+    
+    uint zIndex = uint(z * SELECT_BOX_DEPTH_3D);
     uint row_size = uint(pc.selectBox.z) - uint(pc.selectBox.x);
     uint offset = uint(gl_FragCoord.y - pc.selectBox.y) * row_size
       + uint(gl_FragCoord.x - pc.selectBox.x);
-    selected_objects[offset][zIndex] = inObjectId;
-    /*
-    selected_objects[0][12] = ub.scene_ambient;
-    selected_objects[0][13] = ub.num_lights;
-    */
+    if (selected_objects_3d[offset][zIndex] == 0) {
+      selected_objects_3d[offset][zIndex] = inObjectId;
+    }
   }
-  selected_objects[0][14] = 67;
-    
-  
 }
+

@@ -365,7 +365,7 @@
 (defun textured-3d-vertex-array-push-extend (textured-3d-vertex-array ub32-oid sf-x sf-y sf-z sf-u sf-v ub32-color)
   "Function for adding textured-3d-vertex to a textured-3d-vertex-array."
   (declare (type textured-3d-vertex-array textured-3d-vertex-array))
-  (declare (type single-float sf-x sf-y sf-u sf-v))
+  (declare (type single-float sf-x sf-y sf-z sf-u sf-v))
   (declare (type (unsigned-byte 32) ub32-oid ub32-color))
   (let ((vertex-type-size-uint (load-time-value (ash (foreign-type-size '(:struct textured-3d-vertex)) -2)))
 	(vertex-type-size (load-time-value (foreign-type-size '(:struct textured-3d-vertex)))))

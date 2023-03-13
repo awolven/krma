@@ -25,6 +25,8 @@ layout(location = 1) out vec4 outColor;
 layout(location = 2) out vec2 outTexCoord;
 layout(location = 3) flat out uint outPrimType;
 
+layout(location = 6) flat out uint outIs2d;
+
 uint color;
 
 void main () {
@@ -43,4 +45,5 @@ void main () {
   outTexCoord = inTexCoord;
   outPrimType = pc.type;
   outObjectId = inObjectId;
+  outIs2d = 0;
 }

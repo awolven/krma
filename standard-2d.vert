@@ -16,7 +16,7 @@ layout(push_constant) uniform pushConstant {
 } pc;
 
 layout(location = 0) in uint inObjectId;
-layout(location = 1) in vec2 inPosition;
+layout(location = 1) in vec3 inPosition;
 layout(location = 2) in vec2 inTexCoord;
 layout(location = 3) in uint inColor;
 
@@ -25,11 +25,13 @@ layout(location = 1) out vec4 outColor;
 layout(location = 2) out vec2 outTexCoord;
 layout(location = 3) flat out uint outPrimType;
 
+layout(location = 6) flat out uint outIs2d;
+
 uint color;
 
 void main () {
   outObjectId = inObjectId;
-  gl_Position = ub.vproj * pc.model * vec4(inPosition.xy, 0.0, 1.0);
+  gl_Position = ub.vproj * pc.model * vec4(inPosition.xyz, 1.0);
   gl_PointSize = pc.pointSize;
   if (bool(pc.override_color_p)) {
     color = pc.override_color;
@@ -43,4 +45,5 @@ void main () {
   outTexCoord = inTexCoord;
   outPrimType  = pc.type;
   outObjectId = inObjectId;
+  outIs2d = 1;  
 }

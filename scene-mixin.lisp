@@ -101,14 +101,9 @@
 
 (defclass krma-essential-scene-mixin ()
   ((application :initarg :app :reader scene-application)
-   (im-draw-data :initform (make-immediate-mode-draw-data "IM Draw Data")
-                 :reader im-draw-data)
-   (rm-draw-data
-    :reader rm-draw-data
-    :initform (make-array 2 :initial-contents
-                          (list
-                           (make-retained-mode-draw-data "RM Draw Data 0")
-                           (make-retained-mode-draw-data "RM Draw Data 1"))))
+   (dpy :accessor scene-display)
+   (im-draw-data :accessor im-draw-data)
+   (rm-draw-data :accessor rm-draw-data)
    (lights :initform (list (make-instance 'directional-light)) :accessor scene-lights)
    
    (3d-camera-projection-matrix)
@@ -116,7 +111,9 @@
    (2d-camera-projection-matrix)
    (2d-camera-view-matrix)
 
-   (ambient :initform *default-scene-ambient* :accessor scene-ambient))
+   (ambient :initform *default-scene-ambient* :accessor scene-ambient)
+
+   (children :initform () :accessor node-children))
   (:documentation "Absract base class for application scenes in krma. Define your own scene classes with this mixin as a superclass."))
 
 #+sbcl
@@ -130,8 +127,15 @@
 #+ccl
 (defun finalize-scene (scene))
 
-(defmethod initialize-instance :after ((instance krma-essential-scene-mixin) &rest initargs)
+(defmethod initialize-instance :after ((instance krma-essential-scene-mixin) &rest initargs &key (display (default-display))
+				       &allow-other-keys)
   (declare (ignore initargs))
+  (setf (scene-display instance) display)
+  (setf (im-draw-data instance) (make-immediate-mode-draw-data "IM Draw Data" (scene-display instance)))
+  (setf (rm-draw-data instance) (make-array 2 :initial-contents
+					    (list
+					     (make-retained-mode-draw-data "RM Draw Data 0" (scene-display instance))
+					     (make-retained-mode-draw-data "RM Draw Data 1" (scene-display instance)))))
   (finalize-scene instance)
   (values))
 
@@ -141,8 +145,16 @@
 
 
 (defmethod update-2d-camera (scene &optional
-				     (proj (mortho-vulkan 0 640 480 0 0 1))
-				     (view (meye 4)))
+				     #+NIL(proj #+NIL(mperspective-vulkan
+					    45 (/ 640 480)
+					    *default-znear* *default-zfar*)
+					   (mortho-vulkan -1500 1500
+							       (* -1500 (/ 640 480))
+							       (* 1500 (/ 640 480))
+							       *default-znear* *default-zfar*))
+				     #+NIL(view (mlookat (vec3 0 0 1500) (vec3 0 0 0) (vec3 0 1 0)))
+				     (proj (mortho-vulkan 0 640 480 0 0 127))
+				     (view (mlookat (vec3 0 0 -127) (vec3 0 0 0) (vec3 0 1 0))))
   "Function which takes a projection matrix and a view matrix from a 2d-camera and stores it in the scene so that the scene need not know about the camera class directly. Called before render-scene."
   (declare (type krma-essential-scene-mixin scene))
   (with-slots (2d-camera-projection-matrix
@@ -188,14 +200,20 @@
 	    (3d-camera-projection-matrix (camera-proj-matrix 3d-camera))
 	    (3d-camera-view-matrix (camera-view-matrix 3d-camera)))
 
+	(loop for (p dl) on (3d-draw-list-oriented-combinations pipeline-store rm-draw-data) by #'cddr
+	      do (render-draw-list p rm-draw-data dl dpy device command-buffer
+				   scene
+				   3d-camera-view-matrix 3d-camera-projection-matrix
+				   viewport))
+	
 	(loop for (p dl) on (3d-cmd-oriented-combinations pipeline-store rm-draw-data) by #'cddr
 	      do (render-draw-list-cmds p rm-draw-data dl dpy device command-buffer
 					scene
 					3d-camera-view-matrix 3d-camera-projection-matrix
 					viewport))
 
-	(loop for (p dl) on (3d-draw-list-oriented-combinations pipeline-store rm-draw-data) by #'cddr
-	      do (render-draw-list p rm-draw-data dl dpy device command-buffer
+	(loop for (p dl) on (3d-draw-list-oriented-combinations pipeline-store im-draw-data) by #'cddr
+	      do (render-draw-list p im-draw-data dl dpy device command-buffer
 				   scene
 				   3d-camera-view-matrix 3d-camera-projection-matrix
 				   viewport))
@@ -204,12 +222,12 @@
 	      do (render-draw-list-cmds p im-draw-data dl dpy device command-buffer
 					scene
 					3d-camera-view-matrix 3d-camera-projection-matrix
-					viewport))
-	  
-	(loop for (p dl) on (3d-draw-list-oriented-combinations pipeline-store im-draw-data) by #'cddr
-	      do (render-draw-list p im-draw-data dl dpy device command-buffer
+					viewport))	
+
+	(loop for (p dl) on (2d-draw-list-oriented-combinations pipeline-store rm-draw-data) by #'cddr
+	      do (render-draw-list p rm-draw-data dl dpy device command-buffer
 				   scene
-				   3d-camera-view-matrix 3d-camera-projection-matrix
+				   2d-camera-view-matrix 2d-camera-projection-matrix
 				   viewport))
 
 	(loop for (p dl) on (2d-cmd-oriented-combinations pipeline-store rm-draw-data) by #'cddr
@@ -218,8 +236,8 @@
 					2d-camera-view-matrix 2d-camera-projection-matrix
 					viewport))
 
-	(loop for (p dl) on (2d-draw-list-oriented-combinations pipeline-store rm-draw-data) by #'cddr
-	      do (render-draw-list p rm-draw-data dl dpy device command-buffer
+	(loop for (p dl) on (2d-draw-list-oriented-combinations pipeline-store im-draw-data) by #'cddr
+	      do (render-draw-list p im-draw-data dl dpy device command-buffer
 				   scene
 				   2d-camera-view-matrix 2d-camera-projection-matrix
 				   viewport))
@@ -228,17 +246,12 @@
 	      do (render-draw-list-cmds p im-draw-data dl dpy device command-buffer
 					scene
 					2d-camera-view-matrix 2d-camera-projection-matrix
-					viewport))
-	  
-	(loop for (p dl) on (2d-draw-list-oriented-combinations pipeline-store im-draw-data) by #'cddr
-	      do (render-draw-list p im-draw-data dl dpy device command-buffer
-				   scene
-				   2d-camera-view-matrix 2d-camera-projection-matrix
-				   viewport)))
+					viewport)) 
+	)
       (values))))
 
 ;; 2d-point
-(defun scene-add-2d-point-primitive (scene group model-matrix point-size color x y &optional (object-id 0))
+(defun scene-add-2d-point-primitive (scene group model-matrix point-size color x y &optional (object-id 0) (layer 0))
   "Retained-mode function, returns a handle for a 2d point primitive.  Required arguments: scene must be of type krma-essential-scene-mixin, group must be an atom, possibly nil (meaning not associated with a group), model-matrix must either be a 3d-matrices:mat4 or nil (nil effectively means identity), point-size should be a positive real number, color can either be a 4 component vector who's elements are real numbers between zero and one, or a 32 bit unsigned integer.  and x and y must be real numbers.  Dispatches actual work to render thread.  To delete the point, you must delete the primitive using the handle or delete the entire group, if any."
   (declare (type krma-essential-scene-mixin scene))
   (declare (type real x y))
@@ -250,11 +263,12 @@
   (setq color (canonicalize-color color))
   (setq x (clampf x))
   (setq y (clampf y))
+  (setq layer (clampf layer))
   (setq point-size (clampf point-size))
   (rm-dispatch-to-render-thread-with-handle (scene draw-data handle)
-    (%draw-data-add-2d-point-primitive draw-data handle object-id group (when model-matrix (mcopy model-matrix)) point-size color x y)))
+    (%draw-data-add-2d-point-primitive draw-data handle object-id group (when model-matrix (mcopy model-matrix)) point-size color layer x y)))
 
-(defun scene-add-2d-point (scene group point-size color x y &optional (object-id 0))
+(defun scene-add-2d-point (scene group point-size color x y &optional (object-id 0) (layer 0))
   "Retained-mode function, returns no values.  Required arguments: scene must be of type krma-essential-scene-mixin, group must be a non-null atom, point-size should be a positive real number, color can either be a 4 component vector who's elements are real numbers between zero and one, or a 32 bit unsigned integer.  and x and y must be real numbers.  Dispatches actual work to render thread.  To delete the point, you must delete the entire group."
   (declare (type krma-essential-scene-mixin scene))
   (declare (type real x y))
@@ -263,11 +277,12 @@
   (setq color (canonicalize-color color))
   (setq x (clampf x))
   (setq y (clampf y))
+  (setq layer (clampf layer))
   (setq point-size (clampf point-size))
   (rm-dispatch-to-render-thread (scene draw-data)
-    (%draw-data-add-2d-point draw-data object-id group point-size color x y)))
+    (%draw-data-add-2d-point draw-data object-id group point-size color layer x y)))
 
-(defun scene-draw-2d-point (scene group point-size color x y &optional (object-id 0))
+(defun scene-draw-2d-point (scene group point-size color x y &optional (object-id 0) (layer 0))
   "Immediate-mode function, returns no values.  Required arguments: scene must be of type krma-essential-scene-mixin, group must be a non-null atom, point-size should be a positive real number, color can either be a 4 component vector who's elements are real numbers between zero and one, or a 32 bit unsigned integer.  and x and y must be real numbers.  Performs work in current thread, which should be the render thread.  Effects of this function only last for the current frame."
   (declare (type krma-essential-scene-mixin scene))
   (declare (type real x y point-size))
@@ -276,10 +291,10 @@
   (setq point-size (clampf point-size))
   (let ((draw-data (im-draw-data scene)))
     (declare (type standard-draw-data draw-data))
-    (%draw-data-draw-2d-point draw-data object-id group point-size (canonicalize-color color) (clampf x) (clampf y))))
+    (%draw-data-draw-2d-point draw-data object-id group point-size (canonicalize-color color) (clampf layer) (clampf x) (clampf y))))
 
 ;; 3d-point
-(defun scene-add-3d-point-primitive (scene group model-matrix point-size color x y z &optional (object-id 0))
+(defun scene-add-3d-point-primitive (scene group model-matrix point-size color x y z &optional (object-id 0) (layer 0))
   "Retained-mode function, returns a handle for a 3d point primitive.  Required arguments: scene must be of type krma-essential-scene-mixin, group must be an atom, possibly nil (meaning not associated with a group), model-matrix must either be a 3d-matrices:mat4 or nil (nil effectively means identity), point-size should be a positive real number, color can either be a 4 component vector who's elements are real numbers between zero and one, or a 32 bit unsigned integer, and x, y and z must be real numbers. Dispatches actual work to render thread.  To delete the point, you must delete the primitive using the handle or delete the entire group, if any."
   (declare (type krma-essential-scene-mixin scene))
   (declare (type real x y z point-size))
@@ -290,9 +305,11 @@
   (setq x (clampf x))
   (setq y (clampf y))
   (setq z (clampf z))
+  (setq layer (clampf layer))
   (setq point-size (clampf point-size))
   (rm-dispatch-to-render-thread-with-handle (scene draw-data handle)
-    (%draw-data-add-3d-point-primitive draw-data handle object-id group (when model-matrix (mcopy model-matrix)) point-size color x y z)))
+    (%draw-data-add-3d-point-primitive
+     draw-data handle object-id group (when model-matrix (mcopy model-matrix)) point-size color layer x y z)))
 
 (defun scene-add-3d-point (scene group point-size color x y z &optional (object-id 0))
   "Retained-mode function, adds a point to retained-mode draw-lists, returns no values.  Required arguments: scene must be of type krma-essential-scene-mixin, group must be a non-null atom, point-size should be a positive real number, color can either be a 4 component vector who's elements are real numbers between zero and one, or a 32 bit unsigned integer,  and x and y must be real numbers.  Dispatches actual work to render thread.  To delete the point, you must delete the entire group."
@@ -319,7 +336,7 @@
 			      (canonicalize-color color) (clampf x) (clampf y) (clampf z))))
 
 ;; 2d-line
-(defun scene-add-2d-line-primitive (scene group model-matrix line-thickness color x0 y0 x1 y1 &optional (object-id 0))
+(defun scene-add-2d-line-primitive (scene group model-matrix line-thickness color x0 y0 x1 y1 &optional (object-id 0) (layer 0))
   "Retained-mode function, returns a handle for a 2d line primitive.  Required arguments: scene must be of type krma-essential-scene-mixin, group must be an atom, possibly nil (meaning not associated with a group), model-matrix must either be a 3d-matrices:mat4 or nil (nil effectively means identity), line-thickness should be a positive real number, color can either be a 4 component vector who's elements are real numbers between zero and one, or a 32 bit unsigned integer.  x0, y0 and x1, y1  must be real numbers which represent the endpoints of the line.  Dispatches actual work to render thread.  To delete the line segment, you must delete the primitive using the handle."
   (declare (type krma-essential-scene-mixin scene))
   (declare (type real x0 y0 x1 y1 line-thickness))
@@ -331,11 +348,13 @@
   (setq y0 (clampf y0))
   (setq x1 (clampf x1))
   (setq y1 (clampf y1))
+  (setq layer (clampf layer))
   (setq line-thickness (clampf line-thickness))
   (rm-dispatch-to-render-thread-with-handle (scene draw-data handle)
-    (%draw-data-add-2d-line-primitive draw-data handle object-id group (when model-matrix (mcopy model-matrix)) line-thickness color x0 y0 x1 y1)))
+    (%draw-data-add-2d-line-primitive
+     draw-data handle object-id group (when model-matrix (mcopy model-matrix)) line-thickness color layer x0 y0 x1 y1)))
 
-(defun scene-add-2d-line (scene group line-thickness color x0 y0 x1 y1 &optional (object-id 0))
+(defun scene-add-2d-line (scene group line-thickness color x0 y0 x1 y1 &optional (object-id 0) (layer 0))
   "Retained-mode function, adds a 2d line segment to draw lists.  Required arguments: scene must be of type krma-essential-scene-mixin, group must be a non-null atom,  line-thickness should be a positive real number, color can either be a 4 component vector who's elements are real numbers between zero and one, or a 32 bit unsigned integer.  x0, y0 and x1, y1  must be real numbers which represent the endpoints of the line.  Dispatches actual work to render thread.  To delete the line segment, you must delete the entire group."
   (declare (type krma-essential-scene-mixin scene))
   (declare (type real x0 y0 x1 y1 line-thickness))
@@ -347,10 +366,11 @@
   (setq x1 (clampf x1))
   (setq y1 (clampf y1))
   (setq line-thickness (clampf line-thickness))
+  (setq layer (clampf layer))
   (rm-dispatch-to-render-thread (scene draw-data)
-    (%draw-data-add-2d-line draw-data object-id group line-thickness color x0 y0 x1 y1)))
+    (%draw-data-add-2d-line draw-data object-id group line-thickness color layer x0 y0 x1 y1)))
 
-(defun scene-draw-2d-line (scene group line-thickness color x0 y0 x1 y1 &optional (object-id 0))
+(defun scene-draw-2d-line (scene group line-thickness color x0 y0 x1 y1 &optional (object-id 0) (layer 0))
   "Immediate-mode function, draws a 2d line segment.  Required arguments: scene must be of type krma-essential-scene-mixin, group must be a non-null atom, line-thickness should be a positive real number, color can either be a 4 component vector who's elements are real numbers between zero and one, or a 32 bit unsigned integer.  x0, y0 and x1, y1  must be real numbers which represent the endpoints of the line.  Performs work in current thread, which should be the render thread.  Effects of this function only last for the current frame."
   (declare (type krma-essential-scene-mixin scene))
   (declare (type real x0 y0 x1 y1 line-thickness))
@@ -358,7 +378,7 @@
   (declare (type (and atom t) group))
   (let ((draw-data (im-draw-data scene)))
     (%draw-data-draw-2d-line draw-data object-id group (clampf line-thickness)
-			     (canonicalize-color color) (clampf x0) (clampf y0) (clampf x1) (clampf y1))))
+			     (canonicalize-color color) (clampf layer) (clampf x0) (clampf y0) (clampf x1) (clampf y1))))
 
 ;; 3d-line
 (defun scene-add-3d-line-primitive (scene group model-matrix line-thickness color x0 y0 z0 x1 y1 z1 &optional (object-id 0))
@@ -408,7 +428,7 @@
 			     (clampf x1) (clampf y1) (clampf z1))))
 
 ;; 2d-polyline
-(defun scene-add-2d-polyline-primitive (scene group model-matrix closed? line-thickness color vertices &optional (object-id 0))
+(defun scene-add-2d-polyline-primitive (scene group model-matrix closed? line-thickness color vertices &optional (object-id 0) (layer 0))
   "Retained-mode function, returns a handle for a 2d polyline primitive.  Required arguments: scene must be of type krma-essential-scene-mixin, group must be an atom, possibly nil (meaning not associated with a group), model-matrix must either be a 3d-matrices:mat4 or nil (nil effectively means identity), closed? should be a boolean, which specifies whether to draw a segment between the last vertex and the first vertex, line-thickness should be a positive real number, color can either be a 4 component vector who's elements are real numbers between zero and one, or a 32 bit unsigned integer.  vertices should be of the form (list x0 y0 x1 y1 ... xn yn) where the x's and the y's are vertex points of the polyline and must be real numbers.   Dispatches actual work to render thread.  To delete the polyline, you must delete the primitive using the handle or delete the entire group, if any."
   (declare (type krma-essential-scene-mixin scene))
   (declare (type real line-thickness))
@@ -419,10 +439,12 @@
   (declare (type atom group))
   (setq color (canonicalize-color color))
   (setq line-thickness (clampf line-thickness))
+  (setq layer (clampf layer))
   (rm-dispatch-to-render-thread-with-handle (scene draw-data handle)
-    (%draw-data-add-2d-polyline-primitive draw-data handle object-id group (when model-matrix (mcopy model-matrix)) closed? line-thickness color vertices)))
+    (%draw-data-add-2d-polyline-primitive
+     draw-data handle object-id group (when model-matrix (mcopy model-matrix)) closed? line-thickness color layer vertices)))
 
-(defun scene-add-2d-polyline (scene group closed? line-thickness color vertices &optional (object-id 0))
+(defun scene-add-2d-polyline (scene group closed? line-thickness color vertices &optional (object-id 0) (layer 0))
   "Retained-mode function, adds a 2d polyline to the draw lists.  Required arguments: scene must be of type krma-essential-scene-mixin, group must be a non-null atom,  closed? should be a boolean, which specifies whether to draw a segment between the last vertex and the first vertex, line-thickness should be a positive real number, color can either be a 4 component vector who's elements are real numbers between zero and one, or a 32 bit unsigned integer.  vertices should be of the form (list x0 y0 x1 y1 ... xn yn) where the x's and the y's are vertex points of the polyline and must be real numbers.   Dispatches actual work to render thread.  To delete the polyline, you must delete the entire group."
   (declare (type krma-essential-scene-mixin scene))
   (declare (type real line-thickness))
@@ -432,10 +454,11 @@
   (declare (type (and atom t) group))
   (setq color (canonicalize-color color))
   (setq line-thickness (clampf line-thickness))
+  (setq layer (clampf layer))
   (rm-dispatch-to-render-thread (scene draw-data)
-    (%draw-data-add-2d-polyline draw-data object-id group closed? line-thickness color vertices)))
+    (%draw-data-add-2d-polyline draw-data object-id group closed? line-thickness color layer vertices)))
 
-(defun scene-draw-2d-polyline (scene group closed? line-thickness color vertices &optional (object-id 0))
+(defun scene-draw-2d-polyline (scene group closed? line-thickness color vertices &optional (object-id 0) (layer 0))
   "Immediate-mode function, draws a 2d polyline.  Required arguments: scene must be of type krma-essential-scene-mixin, group must be a non-null atom,  closed? should be a boolean, which specifies whether to draw a segment between the last vertex and the first vertex, line-thickness should be a positive real number, color can either be a 4 component vector who's elements are real numbers between zero and one, or a 32 bit unsigned integer.  vertices should be of the form (list x0 y0 x1 y1 ... xn yn) where the x's and the y's are vertex points of the polyline and must be real numbers.   Performs work in current thread, which should be the render thread.  Effects of this function only last for the current frame."
   (declare (type krma-essential-scene-mixin scene))
   (declare (type real line-thickness))
@@ -444,10 +467,11 @@
   (declare (type (unsigned-byte 32) object-id))
   (declare (type (and atom t) group))
   (let ((draw-data (im-draw-data scene)))
-    (%draw-data-draw-2d-polyline draw-data object-id group closed? (clampf line-thickness) (canonicalize-color color) vertices)))
+    (%draw-data-draw-2d-polyline
+     draw-data object-id group closed? (clampf line-thickness) (canonicalize-color color) (clampf layer) vertices)))
 
 ;; 2d-triangle
-(defun scene-add-2d-triangle-primitive (scene group model-matrix line-thickness color x0 y0 x1 y1 x2 y2 &optional (object-id 0))
+(defun scene-add-2d-triangle-primitive (scene group model-matrix line-thickness color x0 y0 x1 y1 x2 y2 &optional (object-id 0) (layer 0))
   "Retained-mode function, returns a handle for a 2d triangle outline primitive.  Required arguments: scene must be of type krma-essential-scene-mixin, group must be an atom, possibly nil (meaning not associated with a group), model-matrix must either be a 3d-matrices:mat4 or nil (nil effectively means identity),  line-thickness should be a positive real number, color can either be a 4 component vector who's elements are real numbers between zero and one, or a 32 bit unsigned integer.  x0, y0, x1, y1, x2 and y2 are the three vertex coordinates of the triangle and must be real numbers.   Dispatches actual work to render thread.  To delete the triangle, you must delete the primitive using the handle or delete the entire group, if any."
   (declare (type krma-essential-scene-mixin scene))
   (declare (type real x0 y0 x1 y1 x2 y2 line-thickness))
@@ -462,12 +486,13 @@
   (setq x2 (clampf x2))
   (setq y2 (clampf y2))
   (setq line-thickness (clampf line-thickness))
+  (setq layer (clampf layer))
   (rm-dispatch-to-render-thread-with-handle (scene draw-data handle)
     (%draw-data-add-2d-polyline-primitive draw-data handle object-id group
-					  (when model-matrix (mcopy model-matrix)) t line-thickness color
+					  (when model-matrix (mcopy model-matrix)) t line-thickness color layer
 					  (list x0 y0 x1 y1 x2 y2))))
 
-(defun scene-add-2d-triangle (scene group line-thickness color x0 y0 x1 y1 x2 y2 &optional (object-id 0))
+(defun scene-add-2d-triangle (scene group line-thickness color x0 y0 x1 y1 x2 y2 &optional (object-id 0) (layer 0))
   "Retained-mode function, adds a 2d triangle outline to the draw lists, returns no values.  Required arguments: scene must be of type krma-essential-scene-mixin, group must be an a non-null atom,  line-thickness should be a positive real number, color can either be a 4 component vector who's elements are real numbers between zero and one, or a 32 bit unsigned integer.  x0, y0, x1, y1, x2 and y2 are the three vertex coordinates of the triangle and must be real numbers.   Dispatches actual work to render thread.  To delete the triangle, you must delete the entire group."
   (declare (type krma-essential-scene-mixin scene))
   (declare (type real x0 y0 x1 y1 x2 y2 line-thickness))
@@ -481,22 +506,23 @@
   (setq x2 (clampf x2))
   (setq y2 (clampf y2))
   (setq line-thickness (clampf line-thickness))
+  (setq layer (clampf layer))
   (rm-dispatch-to-render-thread (scene draw-data)
-    (%draw-data-add-2d-polyline draw-data object-id group t line-thickness color
+    (%draw-data-add-2d-polyline draw-data object-id group t line-thickness color layer
 				(list x0 y0 x1 y1 x2 y2))))
 
-(defun scene-draw-2d-triangle (scene group line-thickness color x0 y0 x1 y1 x2 y2 &optional (object-id 0))
+(defun scene-draw-2d-triangle (scene group line-thickness color x0 y0 x1 y1 x2 y2 &optional (object-id 0) (layer 0))
   "Immediate-mode function, draws a 2d triangle outline, returns no values.  Required arguments: scene must be of type krma-essential-scene-mixin, group must be an a non-null atom,  line-thickness should be a positive real number, color can either be a 4 component vector who's elements are real numbers between zero and one, or a 32 bit unsigned integer.  x0, y0, x1, y1, x2 and y2 are the three vertex coordinates of the triangle and must be real numbers.   Performs work in current thread, which should be the render thread.  Effects of this function only last for the current frame."
   (declare (type krma-essential-scene-mixin scene))
   (declare (type real x0 y0 x1 y1 x2 y2 line-thickness))
   (declare (type (unsigned-byte 32) object-id))
   (declare (type (and atom t) group))
   (let ((draw-data (im-draw-data scene)))
-    (%draw-data-draw-2d-polyline draw-data object-id group t (clampf line-thickness) (canonicalize-color color)
+    (%draw-data-draw-2d-polyline draw-data object-id group t (clampf line-thickness) (canonicalize-color color) (clampf layer)
 				 (list x0 y0 x1 y1 x2 y2))))
 
 ;; 2d-rectangle
-(defun scene-add-2d-rectangle-primitive (scene group model-matrix line-thickness color x0 y0 x1 y1 &optional (object-id 0))
+(defun scene-add-2d-rectangle-primitive (scene group model-matrix line-thickness color x0 y0 x1 y1 &optional (object-id 0) (layer 0))
   "Retained-mode function, returns a handle for a 2d rectangle outline primitive.  Required arguments: scene must be of type krma-essential-scene-mixin, group must be an atom, possibly nil (meaning not associated with a group), model-matrix must either be a 3d-matrices:mat4 or nil (nil effectively means identity),  line-thickness should be a positive real number, color can either be a 4 component vector who's elements are real numbers between zero and one, or a 32 bit unsigned integer.  x0, y0, x1, and y1 are the top-left and bottom-right corners of the rectangle and must be real numbers.   Dispatches actual work to render thread.  To delete the rectangle, you must delete the primitive using the handle or delete the entire group, if any."
   (declare (type krma-essential-scene-mixin scene))
   (declare (type real x0 y0 x1 y1 line-thickness))
@@ -509,12 +535,14 @@
   (setq x1 (clampf x1))
   (setq y1 (clampf y1))
   (setq line-thickness (clampf line-thickness))
+  (setq layer (clampf layer))
   (rm-dispatch-to-render-thread-with-handle (scene draw-data handle)
-    (%draw-data-add-2d-polyline-primitive draw-data handle object-id group (when model-matrix (mcopy model-matrix)) t line-thickness color
-					  (list x0 y0 x0 y1 x1 y1 x1 y0))))
+    (%draw-data-add-2d-polyline-primitive
+     draw-data handle object-id group (when model-matrix (mcopy model-matrix)) t line-thickness color layer
+     (list x0 y0 x0 y1 x1 y1 x1 y0))))
 
 
-(defun scene-add-2d-rectangle (scene group line-thickness color x0 y0 x1 y1 &optional (object-id 0))
+(defun scene-add-2d-rectangle (scene group line-thickness color x0 y0 x1 y1 &optional (object-id 0) (layer 0))
   "Retained-mode function, adds a 2d rectangle outline to the draw lists, returns no values.  Required arguments: scene must be of type krma-essential-scene-mixin, group must be an a non-null atom,  line-thickness should be a positive real number, color can either be a 4 component vector who's elements are real numbers between zero and one, or a 32 bit unsigned integer.  x0, y0, x1, and y1 are the top-left and bottom-right corners of the rectangle and must be real numbers.   Dispatches actual work to render thread.  To delete the rectangle, you must delete the entire group."
   (declare (type krma-essential-scene-mixin scene))
   (declare (type real x0 y0 x1 y1 line-thickness))
@@ -526,11 +554,12 @@
   (setq x1 (clampf x1))
   (setq y1 (clampf y1))
   (setq line-thickness (clampf line-thickness))
+  (setq layer (clampf layer))
   (rm-dispatch-to-render-thread (scene draw-data)
-    (%draw-data-add-2d-polyline draw-data object-id group t line-thickness color
+    (%draw-data-add-2d-polyline draw-data object-id group t line-thickness color layer
 				(list x0 y0 x0 y1 x1 y1 x1 y0))))
 
-(defun scene-draw-2d-rectangle (scene group line-thickness color x0 y0 x1 y1 &optional (object-id 0))
+(defun scene-draw-2d-rectangle (scene group line-thickness color x0 y0 x1 y1 &optional (object-id 0) (layer 0))
   "Immediate-mode function, draws a 2d rectangle outline, returns no values.  Required arguments: scene must be of type krma-essential-scene-mixin, group must be an a non-null atom,  line-thickness should be a positive real number, color can either be a 4 component vector who's elements are real numbers between zero and one, or a 32 bit unsigned integer.  x0, y0, x1, and y1 are the top-left and bottom-right corners of the rectangle and must be real numbers.  Performs work in current thread, which should be the render thread.  Effects of this function only last for the current frame."
   (declare (type krma-essential-scene-mixin scene))
   (declare (type real x0 y0 x1 y1 line-thickness))
@@ -541,11 +570,11 @@
     (setq y0 (clampf y0))
     (setq x1 (clampf x1))
     (setq y1 (clampf y1))
-    (%draw-data-draw-2d-polyline draw-data object-id group t (clampf line-thickness) (canonicalize-color color)
+    (%draw-data-draw-2d-polyline draw-data object-id group t (clampf line-thickness) (canonicalize-color color) (clampf layer)
 				 (list x0 y0 x0 y1 x1 y1 x1 y0))))
 
 ;; multicolor-2d-polyline
-(defun scene-add-multicolor-2d-polyline-primitive (scene group model-matrix closed? line-thickness vertices &optional (object-id 0))
+(defun scene-add-multicolor-2d-polyline-primitive (scene group model-matrix closed? line-thickness vertices &optional (object-id 0) (layer 0))
   "Retained-mode function, returns a handle for a multicolored 2d polyline primitive.  Required arguments: scene must be of type krma-essential-scene-mixin, group must be an atom, possibly nil (meaning not associated with a group), model-matrix must either be a 3d-matrices:mat4 or nil (nil effectively means identity), closed? should be a boolean, which specifies whether to draw a segment between the last vertex and the first vertex, line-thickness should be a positive real number.  vertices should be of the form (list x0 y0 color0 x1 y1 color1 ... xn yn colorn) where the x's and the y's are vertex points of the polyline and must be real numbers, color values can either be a 4 component vector who's elements are real numbers between zero and one, or a 32 bit unsigned integer.   Dispatches actual work to render thread.  To delete the polyline, you must delete the primitive using the handle or delete the entire group, if any."
   (declare (type krma-essential-scene-mixin scene))
   (declare (type real line-thickness))
@@ -555,10 +584,12 @@
   (declare (type (unsigned-byte 32) object-id))
   (declare (type atom group))
   (setq line-thickness (clampf line-thickness))
+  (setq layer (clampf layer))
   (rm-dispatch-to-render-thread-with-handle (scene draw-data handle)
-    (%draw-data-add-multicolor-2d-polyline-primitive draw-data handle object-id group (when model-matrix (mcopy model-matrix)) closed? line-thickness vertices)))
+    (%draw-data-add-multicolor-2d-polyline-primitive
+     draw-data handle object-id group (when model-matrix (mcopy model-matrix)) closed? line-thickness layer vertices)))
 
-(defun scene-add-multicolor-2d-polyline (scene group closed? line-thickness vertices &optional (object-id 0))
+(defun scene-add-multicolor-2d-polyline (scene group closed? line-thickness vertices &optional (object-id 0) (layer 0))
   "Retained-mode function, adds a multicolored 2d polyline to the draw lists, returns no values.  Required arguments: scene must be of type krma-essential-scene-mixin, group must be a non-null atom,  closed? should be a boolean, which specifies whether to draw a segment between the last vertex and the first vertex, line-thickness should be a positive real number.  vertices should be of the form (list x0 y0 color0 x1 y1 color1 ... xn yn colorn) where the x's and the y's are vertex points of the polyline and must be real numbers, color values can either be a 4 component vector who's elements are real numbers between zero and one, or a 32 bit unsigned integer.   Dispatches actual work to render thread.  To delete the polyline, you must delete the entire group."
   (declare (type krma-essential-scene-mixin scene))
   (declare (type real line-thickness))
@@ -566,10 +597,11 @@
   (declare (type sequence vertices))
   (declare (type (and atom t) group))
   (setq line-thickness (clampf line-thickness))
+  (setq layer (clampf layer))
   (rm-dispatch-to-render-thread (scene draw-data)
-    (%draw-data-add-multicolor-2d-polyline draw-data object-id group closed? line-thickness vertices)))
+    (%draw-data-add-multicolor-2d-polyline draw-data object-id group closed? line-thickness layer vertices)))
 
-(defun scene-draw-multicolor-2d-polyline (scene group closed? line-thickness vertices &optional (object-id 0))
+(defun scene-draw-multicolor-2d-polyline (scene group closed? line-thickness vertices &optional (object-id 0) (layer 0))
   "Immediate-mode function, draws a multicolored 2d polyline, returns no values.  Required arguments: scene must be of type krma-essential-scene-mixin, group must be a non-null atom,  closed? should be a boolean, which specifies whether to draw a segment between the last vertex and the first vertex, line-thickness should be a positive real number.  vertices should be of the form (list x0 y0 color0 x1 y1 color1 ... xn yn colorn) where the x's and the y's are vertex points of the polyline and must be real numbers, color values can either be a 4 component vector who's elements are real numbers between zero and one, or a 32 bit unsigned integer.  Performs work in current thread, which should be the render thread.  Effects of this function only last for the current frame."
   (declare (type krma-essential-scene-mixin scene))
   (declare (type real line-thickness))
@@ -578,12 +610,12 @@
   (declare (type (unsigned-byte 32) object-id))
   (declare (type (and atom t) group))
   (let ((draw-data (im-draw-data scene)))
-    (%draw-data-draw-multicolor-2d-polyline draw-data object-id group closed? (clampf line-thickness) vertices)))
+    (%draw-data-draw-multicolor-2d-polyline draw-data object-id group closed? (clampf line-thickness) (clampf layer) vertices)))
 
 ;; 2d-circular-arc
 (defun scene-add-2d-circular-arc-primitive (scene group model-matrix closed? line-thickness color
                                             center-x center-y radius start-angle end-angle
-                                            number-of-segments &optional (object-id 0))
+                                            number-of-segments &optional (object-id 0) (layer 0))
   "Retained-mode function, returns a handle for a 2d circular arc outline primitive.  Required arguments: scene must be of type krma-essential-scene-mixin, group must be an atom, possibly nil (meaning not associated with a group), model-matrix must either be a 3d-matrices:mat4 or nil (nil effectively means identity),  closed? should be a boolean, which specifies whether to draw a segment between the last vertex and the first vertex, line-thickness should be a positive real number.  color can either be a 4 component vector who's elements are real numbers between zero and one, or a 32 bit unsigned integer. center-x, and center-y must be real numbers, radius must be a positive real number, start-angle and end-angle are real numbers, measured in radians.  number-of-segments must be a positive integer, and defaults to 64.  Dispatches actual work to render thread.  To delete the arc, you must delete the primitive using the handle or delete the entire group, if any."
   (declare (type krma-essential-scene-mixin scene))
   (declare (type boolean closed?))
@@ -599,15 +631,16 @@
   (setq end-angle (coerce end-angle 'double-float))
   (setq color (canonicalize-color color))
   (setq line-thickness (clampf line-thickness))
+  (setq layer (clampf layer))
   (rm-dispatch-to-render-thread-with-handle (scene draw-data handle)
     (%draw-data-add-2d-circular-arc-primitive draw-data handle object-id group
-					      (when model-matrix (mcopy model-matrix)) closed? line-thickness color
+					      (when model-matrix (mcopy model-matrix)) closed? line-thickness color layer
 					      center-x center-y radius start-angle end-angle
 					      number-of-segments)))
 
 (defun scene-add-2d-circular-arc (scene group closed? line-thickness color
 				  center-x center-y radius start-angle end-angle
-				  number-of-segments &optional (object-id 0))
+				  number-of-segments &optional (object-id 0) (layer 0))
   "Retained-mode function, adds a 2d circular arc outline to the draw lists, returns no values.  Required arguments: scene must be of type krma-essential-scene-mixin, group must be a non-null atom, closed? should be a boolean, which specifies whether to draw a segment between the last vertex and the first vertex, line-thickness should be a positive real number.  color can either be a 4 component vector who's elements are real numbers between zero and one, or a 32 bit unsigned integer. center-x, and center-y must be real numbers, radius must be a positive real number, start-angle and end-angle are real numbers, measured in radians.  number-of-segments must be a positive integer, and defaults to 64.  Dispatches actual work to render thread.  To delete the arc, you must delete the entire group."
   (declare (type krma-essential-scene-mixin scene))
   (declare (type boolean closed?))
@@ -622,14 +655,15 @@
   (setq end-angle (coerce end-angle 'double-float))
   (setq color (canonicalize-color color))
   (setq line-thickness (clampf line-thickness))
+  (setq layer (clampf layer))
   (rm-dispatch-to-render-thread (scene draw-data)
-    (%draw-data-add-2d-circular-arc draw-data object-id group closed? line-thickness color
+    (%draw-data-add-2d-circular-arc draw-data object-id group closed? line-thickness color layer
 				    center-x center-y radius start-angle end-angle
 				    number-of-segments)))
 
 (defun scene-draw-2d-circular-arc (scene group closed? line-thickness color
 				   center-x center-y radius start-angle end-angle
-                                   number-of-segments &optional (object-id 0))
+                                   number-of-segments &optional (object-id 0) (layer 0))
   "Immediate-mode function, draws 2d circular arc outline, returns no values.  Required arguments: scene must be of type krma-essential-scene-mixin, group must be a non-null atom, closed? should be a boolean, which specifies whether to draw a segment between the last vertex and the first vertex, line-thickness should be a positive real number.  color can either be a 4 component vector who's elements are real numbers between zero and one, or a 32 bit unsigned integer. center-x, and center-y must be real numbers, radius must be a positive real number, start-angle and end-angle are real numbers, measured in radians.  Performs work in current thread, which should be the render thread.  Effects of this function only last for the current frame."
   (declare (type krma-essential-scene-mixin scene))
   (declare (type boolean closed?))
@@ -638,7 +672,7 @@
   (declare (type (unsigned-byte 32) object-id))
   (declare (type (and atom t) group))
   (let ((draw-data (im-draw-data scene)))
-    (%draw-data-draw-2d-circular-arc draw-data object-id group closed? (clampf line-thickness) (canonicalize-color color)
+    (%draw-data-draw-2d-circular-arc draw-data object-id group closed? (clampf line-thickness) (canonicalize-color color) (clampf layer)
 				     (coerce center-x 'double-float) (coerce center-y 'double-float)
 				     (coerce radius 'double-float)
 				     (coerce start-angle 'double-float) (coerce end-angle 'double-float)
@@ -647,7 +681,7 @@
 ;; 2d-circle
 (defun scene-add-2d-circle-primitive (scene group model-matrix line-thickness color
                                       center-x center-y radius
-                                      number-of-segments &optional (object-id 0))
+                                      number-of-segments &optional (object-id 0) (layer 0))
   "Retained-mode function, returns a handle for a 2d circle outline primitive.  Required arguments: scene must be of type krma-essential-scene-mixin, group must be an atom, possibly nil (meaning not associated with a group), model-matrix must either be a 3d-matrices:mat4 or nil (nil effectively means identity),  line-thickness should be a positive real number.  color can either be a 4 component vector who's elements are real numbers between zero and one, or a 32 bit unsigned integer. center-x, and center-y must be real numbers, radius must be a positive real number.  number-of-segments must be a positive integer, and defaults to 64. Dispatches actual work to render thread.  To delete the arc, you must delete the primitive using the handle or delete the entire group, if any."
   (declare (type krma-essential-scene-mixin scene))
   (declare (type real center-x center-y radius line-thickness))
@@ -660,15 +694,16 @@
   (setq center-y (coerce center-y 'double-float))
   (setq radius (coerce radius 'double-float))
   (setq line-thickness (clampf line-thickness))
+  (setq layer (clampf layer))
   (rm-dispatch-to-render-thread-with-handle (scene draw-data handle)
     (%draw-data-add-2d-circle-primitive draw-data handle object-id group
-					(when model-matrix (mcopy model-matrix)) line-thickness color
+					(when model-matrix (mcopy model-matrix)) line-thickness color layer
 					center-x center-y radius
 					number-of-segments)))
 
 (defun scene-add-2d-circle (scene group line-thickness color
 			    center-x center-y radius
-			    number-of-segments &optional (object-id 0))
+			    number-of-segments &optional (object-id 0) (layer 0))
   "Retained-mode function, adds a 2d circle outline to the draw lists, returns no values.  Required arguments: scene must be of type krma-essential-scene-mixin, group must be a non-null atom, line-thickness should be a positive real number.  color can either be a 4 component vector who's elements are real numbers between zero and one, or a 32 bit unsigned integer. center-x, and center-y must be real numbers, radius must be a positive real number.  number-of-segments must be a positive integer, and defaults to 64.  Dispatches actual work to render thread.  To delete the arc, you must delete the entire group."
   (declare (type krma-essential-scene-mixin scene))
   (declare (type real center-x center-y radius line-thickness))
@@ -680,15 +715,16 @@
   (setq center-y (coerce center-y 'double-float))
   (setq radius (coerce radius 'double-float))
   (setq line-thickness (clampf line-thickness))
+  (setq layer (clampf layer))
   (rm-dispatch-to-render-thread (scene draw-data)
     (%draw-data-add-2d-circle draw-data object-id
-			      group line-thickness color
+			      group line-thickness color layer
 			      center-x center-y radius
 			      number-of-segments)))
 
 (defun scene-draw-2d-circle (scene group line-thickness color
 			     center-x center-y radius
-                             number-of-segments &optional (object-id 0))
+                             number-of-segments &optional (object-id 0) (layer 0))
   "Immediate-mode function, draws a 2d circle outline, returns no values.  Required arguments: scene must be of type krma-essential-scene-mixin, group must be a non-null atom, line-thickness should be a positive real number.  color can either be a 4 component vector who's elements are real numbers between zero and one, or a 32 bit unsigned integer. center-x, and center-y must be real numbers, radius must be a positive real number.  number-of-segments must be a positive integer, and defaults to 64.  Performs work in current thread, which should be the render thread.  Effects of this function only last for the current frame."
   (declare (type krma-essential-scene-mixin scene))
   (declare (type real center-x center-y radius))
@@ -696,7 +732,7 @@
   (declare (type (unsigned-byte 32) object-id))
   (declare (type (and atom t) group))
   (let ((draw-data (im-draw-data scene)))
-    (%draw-data-draw-2d-circle draw-data object-id group (clampf line-thickness) (canonicalize-color color)
+    (%draw-data-draw-2d-circle draw-data object-id group (clampf line-thickness) (canonicalize-color color) (clampf layer)
 			       (coerce center-x 'double-float) (coerce center-y 'double-float)
 			       (coerce radius 'double-float)
 			       number-of-segments)))
@@ -776,7 +812,7 @@
     (%draw-data-draw-multicolor-3d-polyline draw-data object-id group closed? (clampf line-thickness) vertices)))
 
 ;; filled-2d-triangle-list
-(defun scene-add-filled-2d-triangle-list-primitive (scene group model-matrix color vertices &optional (object-id 0))
+(defun scene-add-filled-2d-triangle-list-primitive (scene group model-matrix color vertices &optional (object-id 0) (layer 0))
   "Retained-mode function, returns a handle for a filled 2d triangle list primitive.  Required arguments: scene must be of type krma-essential-scene-mixin, group must be an atom, possibly nil (meaning not associated with a group), model-matrix must either be a 3d-matrices:mat4 or nil (nil effectively means identity),   color can either be a 4 component vector who's elements are real numbers between zero and one, or a 32 bit unsigned integer, vertices must be of the form (list x00 y00  x10 y10 x20 y20 x01 y01 x11 y11 x21 y21 ... x0n y0n x1n y1n x2n y2n) where the x and y values represent vertices of a triangle in a series of triangles and must be real numbers,    Dispatches actual work to render thread.  To delete the triangle list, you must delete the primitive using the handle or delete the entire group, if any."
   (declare (type krma-essential-scene-mixin scene))
   (declare (type sequence vertices))
@@ -784,30 +820,33 @@
   (declare (type (unsigned-byte 32) object-id))
   (declare (type atom group))
   (setq color (canonicalize-color color))
+  (setq layer (clampf layer))
   (rm-dispatch-to-render-thread-with-handle (scene draw-data handle)
-    (%draw-data-add-filled-2d-triangle-list-primitive draw-data handle object-id group (when model-matrix (mcopy model-matrix)) color vertices)))
+    (%draw-data-add-filled-2d-triangle-list-primitive
+     draw-data handle object-id group (when model-matrix (mcopy model-matrix)) color layer vertices)))
 
-(defun scene-add-filled-2d-triangle-list (scene group color vertices &optional (object-id 0))
+(defun scene-add-filled-2d-triangle-list (scene group color vertices &optional (object-id 0) (layer 0))
   "Retained-mode function, adds a filled 2d triangle list to the draw-lists.  Required arguments: scene must be of type krma-essential-scene-mixin, group must be a non-null atom, color can either be a 4 component vector who's elements are real numbers between zero and one, or a 32 bit unsigned integer, vertices must be of the form (list x00 y00  x10 y10 x20 y20 x01 y01 x11 y11 x21 y21 ... x0n y0n x1n y1n x2n y2n) where the x and y values represent vertices of a triangle in a series of triangles and must be real numbers,    Dispatches actual work to render thread.  To delete the triangle list, you must delete the entire group."
   (declare (type krma-essential-scene-mixin scene))
   (declare (type sequence vertices))
   (declare (type (unsigned-byte 32) object-id))
   (declare (type (and atom t) group))
   (setq color (canonicalize-color color))
+  (setq layer (clampf layer))
   (rm-dispatch-to-render-thread (scene draw-data)
-    (%draw-data-add-filled-2d-triangle-list draw-data object-id group color vertices)))
+    (%draw-data-add-filled-2d-triangle-list draw-data object-id group color layer vertices)))
 
-(defun scene-draw-filled-2d-triangle-list (scene group color vertices &optional (object-id 0))
+(defun scene-draw-filled-2d-triangle-list (scene group color vertices &optional (object-id 0) (layer 0))
   "Immediate-mode function, draws a filled 2d triangle list.  Required arguments: scene must be of type krma-essential-scene-mixin, group must be a non-null atom, color can either be a 4 component vector who's elements are real numbers between zero and one, or a 32 bit unsigned integer, vertices must be of the form (list x00 y00  x10 y10 x20 y20 x01 y01 x11 y11 x21 y21 ... x0n y0n x1n y1n x2n y2n) where the x and y values represent vertices of a triangle in a series of triangles and must be real numbers,   Performs work in current thread, which should be the render thread.  Effects of this function only last for the current frame."
   (declare (type krma-essential-scene-mixin scene))
   (declare (type sequence vertices))
   (declare (type (unsigned-byte 32) object-id))
   (declare (type (and atom t) group))
   (let ((draw-data (im-draw-data scene)))
-    (%draw-data-draw-filled-2d-triangle-list draw-data object-id group color vertices)))
+    (%draw-data-draw-filled-2d-triangle-list draw-data object-id group (canonicalize-color color) (clampf layer) vertices)))
 
 ;; filled-2d-triangle-strip
-(defun scene-add-filled-2d-triangle-strip-primitive (scene group model-matrix color vertices &optional (object-id 0))
+(defun scene-add-filled-2d-triangle-strip-primitive (scene group model-matrix color vertices &optional (object-id 0) (layer 0))
   "Retained-mode function, returns a handle for a filled 2d triangle strip primitive.  Required arguments: scene must be of type krma-essential-scene-mixin, group must be an atom, possibly nil (meaning not associated with a group), model-matrix must either be a 3d-matrices:mat4 or nil (nil effectively means identity),   color can either be a 4 component vector who's elements are real numbers between zero and one, or a 32 bit unsigned integer, vertices must be of the form (list x0 y0  x1 y1 ... xn yn) where the x and y values represent successive vertices of a triangle strip and must be real numbers,    Dispatches actual work to render thread.  To delete the triangle strip, you must delete the primitive using the handle or delete the entire group, if any."
   (declare (type krma-essential-scene-mixin scene))
   (declare (type sequence vertices))
@@ -815,10 +854,12 @@
   (declare (type (unsigned-byte 32) object-id))
   (declare (type atom group))
   (setq color (canonicalize-color color))
+  (setq layer (clampf layer))
   (rm-dispatch-to-render-thread-with-handle (scene draw-data handle)
-    (%draw-data-add-filled-2d-triangle-strip-primitive draw-data handle object-id group (when model-matrix (mcopy model-matrix)) color vertices)))
+    (%draw-data-add-filled-2d-triangle-strip-primitive
+     draw-data handle object-id group (when model-matrix (mcopy model-matrix)) color layer vertices)))
 
-(defun scene-draw-filled-2d-triangle-strip (scene group color vertices &optional (object-id 0))
+(defun scene-draw-filled-2d-triangle-strip (scene group color vertices &optional (object-id 0) (layer 0))
   "Immediate-mode function, draws a filled 2d triangle strip.  Required arguments: scene must be of type krma-essential-scene-mixin, group must be a non-null atom,    color can either be a 4 component vector who's elements are real numbers between zero and one, or a 32 bit unsigned integer, vertices must be of the form (list x0 y0  x1 y1 ... xn yn) where the x and y values represent successive vertices of a triangle strip and must be real numbers.  Performs work in current thread, which should be the render thread.  Effects of this function only last for the current frame."
   (declare (type krma-essential-scene-mixin scene))
   (declare (type sequence vertices))
@@ -828,10 +869,10 @@
     (declare (type immediate-mode-draw-data draw-data))
     (let ((draw-list (draw-data-2d-triangle-strip-draw-list draw-data)))
       ;; we add the primitive/cmd without a handle:
-      (%draw-list-add-filled-2d-triangle-strip/list draw-list object-id group nil (canonicalize-color color) vertices))))
+      (%draw-list-add-filled-2d-triangle-strip/list draw-list object-id group nil (canonicalize-color color) (clampf layer) vertices))))
 
 ;; filled-2d-rectangle-list
-(defun scene-add-filled-2d-rectangle-list-primitive (scene group model-matrix color vertices &optional (object-id 0))
+(defun scene-add-filled-2d-rectangle-list-primitive (scene group model-matrix color vertices &optional (object-id 0) (layer 0))
   "Retained-mode function, returns a handle for a filled 2d rectangle list primitive.  Required arguments: scene must be of type krma-essential-scene-mixin, group must be an atom, possibly nil (meaning not associated with a group), model-matrix must either be a 3d-matrices:mat4 or nil (nil effectively means identity), color can either be a 4 component vector who's elements are real numbers between zero and one, or a 32 bit unsigned integer, vertices must be of the form (list x00 y00 x10 y10 x10 y10 x11 y11 ... x0n y0n x1n y1n) where  each pair of successive x and y's represent the top-left corner followed by the bottom-right corner of each rectangle and must be real numbers.  Dispatches actual work to render thread.  To delete the rectangle list, you must delete the primitive using the handle or delete the entire group, if any."
   (declare (type krma-essential-scene-mixin scene))
   (declare (type sequence vertices))
@@ -839,29 +880,32 @@
   (declare (type (unsigned-byte 32) object-id))
   (declare (type atom group))
   (setq color (canonicalize-color color))
+  (setq layer (clampf layer))
   (rm-dispatch-to-render-thread-with-handle (scene draw-data handle)
-    (%draw-data-add-filled-2d-rectangle-list-primitive draw-data handle object-id group (when model-matrix (mcopy model-matrix)) color vertices)))
+    (%draw-data-add-filled-2d-rectangle-list-primitive
+     draw-data handle object-id group (when model-matrix (mcopy model-matrix)) color layer vertices)))
 
-(defun scene-add-filled-2d-rectangle-list (scene group color vertices &optional (object-id 0))
+(defun scene-add-filled-2d-rectangle-list (scene group color vertices &optional (object-id 0) (layer 0))
   "Retained-mode function, adds a  filled 2d rectangle list to the draw-lists.  Required arguments: scene must be of type krma-essential-scene-mixin, group must be a non-null atom, color can either be a 4 component vector who's elements are real numbers between zero and one, or a 32 bit unsigned integer, vertices must be of the form (list x00 y00 x10 y10 x10 y10 x11 y11 ... x0n y0n x1n y1n) where  each pair of successive x and y's represent the top-left corner followed by the bottom-right corner of each rectangle and must be real numbers.  Dispatches actual work to render thread.  To delete the rectangle list, you must delete the entire group."
   (declare (type krma-essential-scene-mixin scene))
   (declare (type sequence vertices))
   (declare (type (unsigned-byte 32) object-id))
   (declare (type (and atom t) group))
   (setq color (canonicalize-color color))
+  (setq layer (clampf layer))
   (rm-dispatch-to-render-thread (scene draw-data)
-    (%draw-data-add-filled-2d-rectangle-list draw-data object-id group color vertices)))
+    (%draw-data-add-filled-2d-rectangle-list draw-data object-id group color layer vertices)))
 
-(defun scene-draw-filled-2d-rectangle-list (scene group color vertices &optional (object-id 0))
+(defun scene-draw-filled-2d-rectangle-list (scene group color vertices &optional (object-id 0) (layer 0))
   "Immediate-mode function, draws a  filled 2d rectangle list.  Required arguments: scene must be of type krma-essential-scene-mixin, group must be a non-null atom, color can either be a 4 component vector who's elements are real numbers between zero and one, or a 32 bit unsigned integer, vertices must be of the form (list x00 y00 x10 y10 x10 y10 x11 y11 ... x0n y0n x1n y1n) where  each pair of successive x and y's represent the top-left corner followed by the bottom-right corner of each rectangle and must be real numbers.  Performs work in current thread, which should be the render thread.  Effects of this function only last for the current frame."
   (declare (type krma-essential-scene-mixin scene))
   (declare (type sequence vertices))
   (declare (type (and atom t) group))
   (let ((draw-data (im-draw-data scene)))
-    (%draw-data-draw-filled-2d-rectangle-list draw-data object-id group (canonicalize-color color) vertices)))
+    (%draw-data-draw-filled-2d-rectangle-list draw-data object-id group (canonicalize-color color) (clampf layer) vertices)))
 
 ;; textured-2d-rectangle-list
-(defun scene-add-textured-2d-rectangle-list-primitive (scene group model-matrix texture color vertices &optional (object-id 0))
+(defun scene-add-textured-2d-rectangle-list-primitive (scene group model-matrix texture color vertices &optional (object-id 0) (layer 0))
   "Retained-mode function, returns a handle for a textured 2d rectangle list primitive.  Required arguments: scene must be of type krma-essential-scene-mixin, group must be an atom, possibly nil (meaning not associated with a group), model-matrix must either be a 3d-matrices:mat4 or nil (nil effectively means identity), texture should be a texture such as return from make-vulkan-texture, color can either be a 4 component vector who's elements are real numbers between zero and one, or a 32 bit unsigned integer, vertices must be of the form (list x00 y00 u00 v00 x10 y10 u10 v10 x01 y01 u01 v01 x11 y11 u11 v11 ... x0n y0n u0n v0n x1n y1n u1n v1n) where  each pair of successive x, y, u and v represent the top-left corner followed by the bottom-right corner of each rectangle with their normalized texture coordinates, and must be real numbers.  There must be at least one pair of the sequence x, y, u, v.  Dispatches actual work to render thread.  To delete the rectangle list, you must delete the primitive using the handle or delete the entire group, if any."
   (declare (type krma-essential-scene-mixin scene))
   (declare (type sequence vertices))
@@ -869,29 +913,33 @@
   (declare (type (unsigned-byte 32) object-id))
   (declare (type atom group))
   (setq color (canonicalize-color color))
+  (setq layer (clampf layer))
   (rm-dispatch-to-render-thread-with-handle (scene draw-data handle)
-    (%draw-data-add-textured-2d-rectangle-list-primitive draw-data handle object-id group (when model-matrix (mcopy model-matrix)) texture color vertices)))
+    (%draw-data-add-textured-2d-rectangle-list-primitive
+     draw-data handle object-id group (when model-matrix (mcopy model-matrix)) texture color layer vertices)))
 
-(defun scene-add-textured-2d-rectangle-list (scene group texture color vertices &optional (object-id 0))
+(defun scene-add-textured-2d-rectangle-list (scene group texture color vertices &optional (object-id 0) (layer 0))
   "Retained-mode function, adds a textured 2d rectangle list to the draw-lists.  Required arguments: scene must be of type krma-essential-scene-mixin, group must be a non-null atom, texture should be a texture such as return from make-vulkan-texture, color can either be a 4 component vector who's elements are real numbers between zero and one, or a 32 bit unsigned integer, vertices must be of the form (list x00 y00 u00 v00 x10 y10 u10 v10 x01 y01 u01 v01 x11 y11 u11 v11 ... x0n y0n u0n v0n x1n y1n u1n v1n) where  each pair of successive x, y, u and v represent the top-left corner followed by the bottom-right corner of each rectangle with their normalized texture coordinates, and must be real numbers.  There must be at least one pair of the sequence x, y, u, v.  Dispatches actual work to render thread.  To delete the rectangle list, you must delete the entire group."
   (declare (type krma-essential-scene-mixin scene))
   (declare (type sequence vertices))
   (declare (type (unsigned-byte 32) object-id))
   (declare (type (and atom t) group))
   (setq color (canonicalize-color color))
+  (setq layer (clampf layer))
   (rm-dispatch-to-render-thread (scene draw-data)
-    (%draw-data-add-textured-2d-rectangle-list draw-data object-id group texture color vertices)))
+    (%draw-data-add-textured-2d-rectangle-list draw-data object-id group texture color layer vertices)))
 
-(defun scene-draw-textured-2d-rectangle-list (scene group texture color vertices &optional (object-id 0))
+(defun scene-draw-textured-2d-rectangle-list (scene group texture color vertices &optional (object-id 0) (layer 0))
   "Immediate-mode function, draws a textured 2d rectangle list.  Required arguments: scene must be of type krma-essential-scene-mixin, group must be a non-null atom, texture should be a texture such as return from make-vulkan-texture, color can either be a 4 component vector who's elements are real numbers between zero and one, or a 32 bit unsigned integer, vertices must be of the form (list x00 y00 u00 v00 x10 y10 u10 v10 x01 y01 u01 v01 x11 y11 u11 v11 ... x0n y0n u0n v0n x1n y1n u1n v1n) where  each pair of successive x, y, u and v represent the top-left corner followed by the bottom-right corner of each rectangle with their normalized texture coordinates, and must be real numbers.  There must be at least one pair of the sequence x, y, u, v.  Performs work in current thread, which should be the render thread.  Effects of this function only last for the current frame."
   (declare (type krma-essential-scene-mixin scene))
   (declare (type sequence vertices))
   (declare (type (unsigned-byte 32) object-id))
   (declare (type (and atom t) group))
-  (%draw-data-draw-textured-2d-rectangle-list (im-draw-data scene) object-id group texture (canonicalize-color color) vertices))
+  (%draw-data-draw-textured-2d-rectangle-list
+   (im-draw-data scene) object-id group texture (canonicalize-color color) (clampf layer) vertices))
 
 ;; filled-2d-convex-polygon
-(defun scene-add-filled-2d-convex-polygon-primitive (scene group model-matrix color vertices &optional (object-id 0))
+(defun scene-add-filled-2d-convex-polygon-primitive (scene group model-matrix color vertices &optional (object-id 0) (layer 0))
   "Retained-mode function, returns a handle for a filled 2d convex polygon primitive.  Required arguments: scene must be of type krma-essential-scene-mixin, group must be an atom, possibly nil (meaning not associated with a group), model-matrix must either be a 3d-matrices:mat4 or nil (nil effectively means identity), color can either be a 4 component vector who's elements are real numbers between zero and one, or a 32 bit unsigned integer, vertices must be of the form (list x0 y0 x1 y1 ... xn yn)  where each successive x and y are the vertices of the polygon, and must be real numbers.  There must be at least three x, y pairs in vertices.  Dispatches actual work to render thread.  To delete the polygon, you must delete the primitive using the handle or delete the entire group, if any."
   (declare (type krma-essential-scene-mixin scene))
   (declare (type sequence vertices))
@@ -899,26 +947,29 @@
   (declare (type (unsigned-byte 32) object-id))
   (declare (type atom group))
   (setq color (canonicalize-color color))
+  (setq layer (clampf layer))
   (rm-dispatch-to-render-thread-with-handle (scene draw-data handle)
-    (%draw-data-add-filled-2d-convex-polygon-primitive draw-data handle object-id group (when model-matrix (mcopy model-matrix)) color vertices)))
+    (%draw-data-add-filled-2d-convex-polygon-primitive
+     draw-data handle object-id group (when model-matrix (mcopy model-matrix)) color layer vertices)))
 
-(defun scene-add-filled-2d-convex-polygon (scene group color vertices &optional (object-id 0))
+(defun scene-add-filled-2d-convex-polygon (scene group color vertices &optional (object-id 0) (layer 0))
   "Retained-mode function, adds a filled 2d convex polygon to the draw-lists, returns no values.  Required arguments: scene must be of type krma-essential-scene-mixin, group must be a non-null atom, color can either be a 4 component vector who's elements are real numbers between zero and one, or a 32 bit unsigned integer, vertices must be of the form (list x0 y0 x1 y1 ... xn yn)  where each successive x and y are the vertices of the polygon, and must be real numbers.  There must be at least three x, y pairs in vertices.  Dispatches actual work to render thread.  To delete the polygon, you must delete the entire group."
   (declare (type krma-essential-scene-mixin scene))
   (declare (type sequence vertices))
   (declare (type (unsigned-byte 32) object-id))
   (declare (type (and atom t) group))
   (setq color (canonicalize-color color))
+  (setq layer (clampf layer))
   (rm-dispatch-to-render-thread (scene draw-data)
-    (%draw-data-add-filled-2d-convex-polygon draw-data object-id group color vertices)))
+    (%draw-data-add-filled-2d-convex-polygon draw-data object-id group color layer vertices)))
 
-(defun scene-draw-filled-2d-convex-polygon (scene group color vertices &optional (object-id 0))
+(defun scene-draw-filled-2d-convex-polygon (scene group color vertices &optional (object-id 0) (layer 0))
   "Immediate-mode function, draws a filled 2d convex polygon, returns no values.  Required arguments: scene must be of type krma-essential-scene-mixin, group must be a non-null atom, color can either be a 4 component vector who's elements are real numbers between zero and one, or a 32 bit unsigned integer, vertices must be of the form (list x0 y0 x1 y1 ... xn yn)  where each successive x and y are the vertices of the polygon, and must be real numbers.  There must be at least three x, y pairs in vertices.  Performs work in current thread, which should be the render thread.  Effects of this function only last for the current frame."
   (declare (type krma-essential-scene-mixin scene))
   (declare (type sequence vertices))
   (declare (type (unsigned-byte 32) object-id))
   (declare (type (and atom t) group))
-  (%draw-data-draw-filled-2d-convex-polygon (im-draw-data scene) object-id group (canonicalize-color color) vertices))
+  (%draw-data-draw-filled-2d-convex-polygon (im-draw-data scene) object-id group (canonicalize-color color) (clampf layer) vertices))
 
 ;; filled-2d-circle
 (declaim (inline compute-circle-vertices))
@@ -941,7 +992,7 @@
 
 (defun scene-add-filled-2d-circle-primitive (scene group model-matrix color
                                              center-x center-y radius
-					     number-of-sectors &optional (object-id 0))
+					     number-of-sectors &optional (object-id 0) (layer 0))
   "Retained-mode function, returns a handle for a filled 2d circle primitive.  Required arguments: scene must be of type krma-essential-scene-mixin, group must be an atom, possibly nil (meaning not associated with a group), model-matrix must either be a 3d-matrices:mat4 or nil (nil effectively means identity), color can either be a 4 component vector who's elements are real numbers between zero and one, or a 32 bit unsigned integer, center-x and center-y should be real numbers, radius should be a positive real number, number-of-sectors defaults to 64.  Dispatches actual work to render thread.  To delete the circle, you must delete the primitive using the handle or delete the entire group, if any."
   (declare (type krma-essential-scene-mixin scene))
   (declare (type real center-x center-y radius))
@@ -952,13 +1003,16 @@
   (setq center-x (coerce center-x 'double-float))
   (setq center-y (coerce center-y 'double-float))
   (setq radius (coerce radius 'double-float))
+  (setq color (canonicalize-color color))
+  (setq layer (clampf layer))
   (let ((vertices (compute-circle-vertices number-of-sectors center-x center-y radius)))
     (rm-dispatch-to-render-thread-with-handle (scene draw-data handle)
-      (%draw-data-add-filled-2d-convex-polygon-primitive draw-data handle object-id group (when model-matrix (mcopy model-matrix)) color vertices))))
+      (%draw-data-add-filled-2d-convex-polygon-primitive
+       draw-data handle object-id group (when model-matrix (mcopy model-matrix)) color layer vertices))))
 
 (defun scene-add-filled-2d-circle (scene group color
 				   center-x center-y radius
-				   number-of-sectors &optional (object-id 0))
+				   number-of-sectors &optional (object-id 0) (layer 0))
   "Retained-mode function, adds a filled 2d circle to the draw lists, returns no values.  Required arguments: scene must be of type krma-essential-scene-mixin, group must be a non-null atom, color can either be a 4 component vector who's elements are real numbers between zero and one, or a 32 bit unsigned integer, center-x and center-y should be real numbers, radius should be a positive real number, number-of-sectors defaults to 64.  Dispatches actual work to render thread.  To delete the circle, you must delete the primitive using the handle or delete the entire group, if any."
   (declare (type krma-essential-scene-mixin scene))
   (declare (type real center-x center-y radius))
@@ -968,13 +1022,14 @@
   (setq center-x (coerce center-x 'double-float))
   (setq center-y (coerce center-y 'double-float))
   (setq radius (coerce radius 'double-float))
+  (setq layer (clampf layer))
   (let ((vertices (compute-circle-vertices number-of-sectors center-x center-y radius)))
     (rm-dispatch-to-render-thread (scene draw-data)
-      (%draw-data-add-filled-2d-convex-polygon draw-data object-id group color vertices))))
+      (%draw-data-add-filled-2d-convex-polygon draw-data object-id group color layer vertices))))
 
 (defun scene-draw-filled-2d-circle (scene color group
 				    center-x center-y radius
-				    number-of-segments &optional (object-id 0))
+				    number-of-segments &optional (object-id 0) (layer 0))
   "Immediate-mode function, draws a filled 2d circle.  Required arguments: scene must be of type krma-essential-scene-mixin, group must be a non-null atom, color can either be a 4 component vector who's elements are real numbers between zero and one, or a 32 bit unsigned integer, center-x and center-y should be real numbers, radius should be a positive real number, number-of-sectors defaults to 64.  Performs work in current thread, which should be the render thread.  Effects of this function only last for the current frame."
   (declare (type krma-essential-scene-mixin scene))
   (declare (type real center-x center-y radius))
@@ -985,10 +1040,10 @@
   (setq center-y (coerce center-y 'double-float))
   (setq radius (coerce radius 'double-float))
   (let ((vertices (compute-circle-vertices number-of-segments center-x center-y radius)))
-    (%draw-data-draw-filled-2d-convex-polygon (im-draw-data scene) object-id group (canonicalize-color color) vertices)))
+    (%draw-data-draw-filled-2d-convex-polygon (im-draw-data scene) object-id group (canonicalize-color color) (clampf layer) vertices)))
 
 ;; filled-3d-triangle-list-flat
-(defun scene-add-filled-3d-triangle-list-primitive-flat (scene group model-matrix color vertices &optional (object-id 0))
+(defun scene-add-filled-3d-triangle-list-primitive-flat (scene group model-matrix color vertices &optional (object-id 0) (layer 0))
   "Retained-mode function, returns a handle for a filled 3d triangle list primitive.  Displays with flat shading.  Required arguments: scene must be of type krma-essential-scene-mixin, group must be an atom, possibly nil (meaning not associated with a group), model-matrix must either be a 3d-matrices:mat4 or nil (nil effectively means identity), color can either be a 4 component vector who's elements are real numbers between zero and one, or a 32 bit unsigned integer, vertices must be of the form (list x00 y00 z00 x10 y10 z10 x20 y20 z20 x01 y01 z01 x11 y11 z11 x21 y21 z21... x0n y0n z0n x1n y1n z1n x2n y2n z2n) where the x, y and z values represent vertices of a triangle in a series of triangles and must be real numbers.  There must be at least three sets of x, y and z, and additional vertices come as 3 sets each.  Vertices should be oriented counter clockwise, according to the right-hand-rule, so that the front face is out/up.  Dispatches actual work to render thread.  To delete the triangle list, you must delete the primitive using the handle or delete the entire group, if any."
   (declare (type krma-essential-scene-mixin scene))
   (declare (type sequence vertices))
@@ -996,8 +1051,10 @@
   (declare (type (unsigned-byte 32) object-id))
   (declare (type atom group))
   (setq color (canonicalize-color color))
+  (setq layer (clampf layer))
   (rm-dispatch-to-render-thread-with-handle (scene draw-data handle)
-    (%draw-data-add-filled-3d-triangle-list-primitive draw-data handle object-id group (when model-matrix (mcopy model-matrix)) color vertices)))
+    (%draw-data-add-filled-3d-triangle-list-primitive
+     draw-data handle object-id group (when model-matrix (mcopy model-matrix)) color layer vertices)))
 
 (defun scene-add-filled-3d-triangle-list-flat (scene group color vertices &optional (object-id 0))
   "Retained-mode function, adds a filled 3d triangle list to the draw-lists, returns no values.  Displays with flat shading.  Required arguments: scene must be of type krma-essential-scene-mixin, group must be a non-null atom,    color can either be a 4 component vector who's elements are real numbers between zero and one, or a 32 bit unsigned integer, vertices must be of the form (list x00 y00  z00 x10 y10 z10 x20 y20 z20 x01 y01 z01 x11 y11 z11 x21 y21 z21... x0n y0n z0n x1n y1n z1n x2n y2n z2n) where the x, y and z values represent vertices of a triangle in a series of triangles and must be real numbers.  Vertices should be oriented counter clockwise, according to the right-hand-rule, so that the front face is out/up.  Dispatches actual work to render thread.  To delete the triangle list, you must delete the entire group."
@@ -1042,7 +1099,7 @@
     (%draw-data-add-filled-3d-triangle-list-with-normals draw-data object-id group color vertices)))
 
 (defun scene-draw-filled-3d-triangle-list-diffuse (scene group color vertices &optional (object-id 0))
-  "Immediate-mode function, draws a filled 2d triangle list, returns no values.  Displays with diffuse shading.  Required arguments: scene must be of type krma-essential-scene-mixin, group must be a non-null atom, color can either be a 4 component vector who's elements are real numbers between zero and one, or a 32 bit unsigned integer, vertices must be of the form (list x00 y00  z00 x10 y10 z10 x20 y20 z20 x01 y01 z01 x11 y11 z11 x21 y21 z21... x0n y0n z0n x1n y1n z1n x2n y2n z2n) where the x, y and z values represent vertices of a triangle in a series of triangles and must be real numbers.  Vertices should be oriented counter clockwise, according to the right-hand-rule, so that the front face is out/up.  Performs work in current thread, which should be the render thread.  Effects of this function only last for the current frame."
+  "Immediate-mode function, draws a filled 3d triangle list, returns no values.  Displays with diffuse shading.  Required arguments: scene must be of type krma-essential-scene-mixin, group must be a non-null atom, color can either be a 4 component vector who's elements are real numbers between zero and one, or a 32 bit unsigned integer, vertices must be of the form (list x00 y00  z00 x10 y10 z10 x20 y20 z20 x01 y01 z01 x11 y11 z11 x21 y21 z21... x0n y0n z0n x1n y1n z1n x2n y2n z2n) where the x, y and z values represent vertices of a triangle in a series of triangles and must be real numbers.  Vertices should be oriented counter clockwise, according to the right-hand-rule, so that the front face is out/up.  Performs work in current thread, which should be the render thread.  Effects of this function only last for the current frame."
   (declare (type krma-essential-scene-mixin scene))
   (declare (type sequence vertices))
   (declare (type (unsigned-byte 32) object-id))
@@ -1382,7 +1439,7 @@
 	  do (incf (cl:the single-float dx) (float (3b-bmfont:glyph-xadvance glyph) 1.0f0))
 	finally (return (nreverse coords))))
 
-(defun scene-add-text-primitive (scene group model-matrix font color pos-x pos-y string &optional (object-id 0))
+(defun scene-add-text-primitive (scene group model-matrix font color pos-x pos-y string &optional (object-id 0) (layer 0))
   "Retained-mode function, renders and returns a handle for a text primitive.  scene must be of the type krma-essential-scene-mixin, group must be an atom, possibly nil (meaning not associated with a group), model-matrix must either be a 3d-matrices:mat4 or nil (nil effectively means identity), font is a font object as returned by vulkan-make-font, color can either be a 4 component vector who's elements are real numbers between zero and one, or a 32 bit unsigned integer, pos-x and pos-y represent the top left corner of the text and must be real numbers, string is the string you wish to render.  Dispatches actual work to render thread.  To delete the text, you must delete the primitive using the handle or delete the entire group, if any."
   (declare (type real pos-x pos-y))
   (declare (type string string))
@@ -1397,14 +1454,15 @@
 	   (pos-x (clampf pos-x))
 	   (pos-y (clampf pos-y))
 	   (color (canonicalize-color color))
-           (vertices (compute-text-coordinates pos-x pos-y string glyph-table scale-w scale-h)))
+           (vertices (compute-text-coordinates pos-x pos-y string glyph-table scale-w scale-h))
+	   (layer (clampf layer)))
       (rm-dispatch-to-render-thread-with-handle (scene draw-data handle)
 	(%draw-data-add-text-quad-list-primitive draw-data handle object-id group
 						 (when model-matrix (mcopy model-matrix))
-						 font color
+						 font color layer
 						 vertices)))))
 
-(defun scene-add-text (scene group font color pos-x pos-y string &optional (object-id 0))
+(defun scene-add-text (scene group font color pos-x pos-y string &optional (object-id 0) (layer 0))
   "Retained-mode function, adds text to the draw lists, returns no values.  scene must be of the type krma-essential-scene-mixin, group must be a non-null atom, font is a font object as returned by vulkan-make-font, color can either be a 4 component vector who's elements are real numbers between zero and one, or a 32 bit unsigned integer, pos-x and pos-y represent the top left corner of the text and must be real numbers, string is the string you wish to render.  Dispatches actual work to render thread.  To delete the text, you must delete the entire group."
   (declare (type real pos-x pos-y))
   (declare (type string string))
@@ -1418,12 +1476,12 @@
 	   (pos-x (clampf pos-x))
 	   (pos-y (clampf pos-y))
 	   (color (canonicalize-color color))
-           (vertices (compute-text-coordinates pos-x pos-y string glyph-table scale-w scale-h)))
+           (vertices (compute-text-coordinates pos-x pos-y string glyph-table scale-w scale-h))
+	   (layer (clampf layer)))
       (rm-dispatch-to-render-thread (scene draw-data)
-	(%draw-data-add-text-quad-list draw-data object-id group
-				       font color vertices)))))
+	(%draw-data-add-text-quad-list draw-data object-id group font color layer vertices)))))
 
-(defun scene-draw-text (scene group font color pos-x pos-y string &optional (object-id 0))
+(defun scene-draw-text (scene group font color pos-x pos-y string &optional (object-id 0) (layer 0))
   "Retained-mode function, draws text, returns no values.  scene must be of the type krma-essential-scene-mixin, group must be a non-null atom, font is a font object as returned by vulkan-make-font, color can either be a 4 component vector who's elements are real numbers between zero and one, or a 32 bit unsigned integer, pos-x and pos-y represent the top left corner of the text and must be real numbers, string is the string you wish to render.  Performs work in current thread, which should be the render thread.  Effects of this function only last for the current frame."
   (declare (type real pos-x pos-y))
   (declare (type string string))
@@ -1437,7 +1495,8 @@
 	   (pos-x (clampf pos-x))
 	   (pos-y (clampf pos-y))
            (vertices (compute-text-coordinates pos-x pos-y string glyph-table scale-w scale-h)))
-      (%draw-data-draw-text-quad-list (im-draw-data scene) object-id group font (canonicalize-color color) vertices))))
+      (setq layer (clampf layer))
+      (%draw-data-draw-text-quad-list (im-draw-data scene) object-id group font (canonicalize-color color) layer vertices))))
 
 
 
@@ -1724,30 +1783,54 @@
   (declare (type krma-essential-scene-mixin scene))
   (delete-primitives scene (list handle)))
 
-(defun delete-groups-1 (dpy draw-data list-of-groups)
+(defun delete-groups-1 (draw-data list-of-groups &optional (totally-expunge? t))
   (declare (type retained-mode-draw-data draw-data))
   (handler-case
       (progn
-        (flet ((free-group-draw-lists (ht)
+        (flet ((free-group-draw-lists (dpy ht)
                  (unless ht
                    (warn "ht is null"))
                  (let ((key-list ()))
-                   ;; this ought to be fast since we maphash these tables at render time also
+
+		   #+NO ;; key is a list!
+		   (loop for group in list-of-groups
+			 do (let ((draw-list (gethash group ht)))
+			      (unless draw-list
+				(warn "could not find entry for ~S" group))
+			      (when draw-list
+				(let ((im (draw-list-index-memory draw-list))
+				      (vm (draw-list-vertex-memory draw-list)))
+				  (vk::release-index-memory dpy im)
+				  (vk::release-vertex-memory dpy vm)))
+			      (remhash group ht)))
+
+		   (let ((new-ht (make-hash-table :test #'equal)))
+
+		     (maphash #'(lambda (key draw-list)
+				  (unless (find (car key) list-of-groups)
+				    (setf (gethash key new-ht) draw-list))
+				  (when (find (car key) list-of-groups)
+				    (let ((im (draw-list-index-memory draw-list))
+					  (vm (draw-list-vertex-memory draw-list)))
+				      (vk::release-index-memory dpy im)
+				      (vk::release-vertex-memory dpy vm))))
+			      ht)
+
+		     new-ht)
+
+		   ;; this ought to be fast since we maphash these tables at render time also
                    ;; and haven't a performance problem yet (knock on wood)
+
+		   #+NIL		   
                    (maphash #'(lambda (key draw-list)
                                 (when (find (car key) list-of-groups)
                                   (push key key-list)
-                                  (let ((ia (draw-list-index-array draw-list))
-                                        (va (draw-list-vertex-array draw-list))
-                                        (im (draw-list-index-memory draw-list))
+                                  (let ((im (draw-list-index-memory draw-list))
                                         (vm (draw-list-vertex-memory draw-list)))
-                                    (declare (type foreign-adjustable-array ia va))
-                                    (foreign-free (foreign-array-ptr ia))
-                                    (foreign-free (foreign-array-ptr va))
                                     (vk::release-index-memory dpy im)
-                                    (vk::release-vertex-memory dpy vm)
-                                    nil)))
+                                    (vk::release-vertex-memory dpy vm))))
                             ht)
+		   #+NIL
                    (mapcar #'(lambda (key)
                                (remhash key ht))
                            key-list)))
@@ -1781,19 +1864,27 @@
                        3d-line-list-draw-list
                        3d-triangle-list-draw-list
                        3d-triangle-list-with-normals-draw-list
-                       )
+
+		       dpy)
               draw-data
 
             ;; I don't like these brute force searches, but it can't be any slower than a render!
 
-            (free-group-draw-lists 2d-point-list-draw-list-table)
-            (free-group-draw-lists 2d-line-list-draw-list-table)
-            (free-group-draw-lists 2d-triangle-list-draw-list-table)
-            (free-group-draw-lists 2d-triangle-list-draw-list-for-text-table)
-            (free-group-draw-lists 3d-point-list-draw-list-table)
-            (free-group-draw-lists 3d-line-list-draw-list-table)
-            (free-group-draw-lists 3d-triangle-list-draw-list-table)
-            (free-group-draw-lists 3d-triangle-list-with-normals-draw-list-table)
+	    ;; having a problem, perhaps specific to ccl, where remhashing keys from hash tables
+	    ;; is producing inconsistent graphical results, workaround: copy the hash tables
+	    ;; instead minus the groups
+
+            (setf 2d-point-list-draw-list-table (free-group-draw-lists dpy 2d-point-list-draw-list-table))
+            (setf 2d-line-list-draw-list-table (free-group-draw-lists dpy 2d-line-list-draw-list-table))
+            (setf 2d-triangle-list-draw-list-table (free-group-draw-lists dpy 2d-triangle-list-draw-list-table))
+            (setf 2d-triangle-list-draw-list-for-text-table (free-group-draw-lists dpy 2d-triangle-list-draw-list-for-text-table))
+            (setf 3d-point-list-draw-list-table (free-group-draw-lists dpy 3d-point-list-draw-list-table))
+            (setf 3d-line-list-draw-list-table (free-group-draw-lists dpy 3d-line-list-draw-list-table))
+            (setf 3d-triangle-list-draw-list-table (free-group-draw-lists dpy 3d-triangle-list-draw-list-table))
+            (setf 3d-triangle-list-with-normals-draw-list-table
+		  (free-group-draw-lists dpy 3d-triangle-list-with-normals-draw-list-table))
+
+	    ;;(setf 2d-triangle-list-draw-list-table (make-hash-table :test #'equalp))
 
             (delete-primitives-with-groups 2d-triangle-strip-draw-list)
             (delete-primitives-with-groups 3d-line-strip-draw-list)
@@ -1808,13 +1899,13 @@
             (delete-primitives-with-groups 3d-triangle-list-draw-list)
             (delete-primitives-with-groups 3d-triangle-list-with-normals-draw-list))
 
-
-          (let ((groups (draw-data-group-hash-table draw-data)))
-            (unless groups
-              (warn "groups is null"))
-            (mapcar #'(lambda (group)
-                        (remhash group groups))
-                    list-of-groups))))
+	  (when totally-expunge?
+	    (let ((groups (draw-data-group-hash-table draw-data)))
+	      (unless groups
+		(warn "groups is null"))
+	      (mapcar #'(lambda (group)
+			  (remhash group groups))
+		      list-of-groups)))))
     (error (c)
       (warn (concatenate 'string "while in delete-groups-1 ..." (princ-to-string c))))))
 
@@ -1870,14 +1961,14 @@
     (error (c)
       (warn (concatenate 'string "while in %purge-im-groups-1 ..." (princ-to-string c))))))
 
-(defun delete-groups (scene list-of-groups)
+(defun delete-groups (scene list-of-groups &optional (totally-expunge? t))
   (declare (type krma-essential-scene-mixin scene))
   (rm-dispatch-to-render-thread (scene draw-data)
-    (delete-groups-1 draw-data list-of-groups)))
+    (delete-groups-1 draw-data list-of-groups totally-expunge?)))
 
-(defun delete-group (scene group)
+(defun delete-group (scene group &optional (totally-expunge? t))
   (declare (type (and atom t) group))
-  (delete-groups scene (list group)))
+  (delete-groups scene (list group) totally-expunge?))
 
 (declaim (inline %group-set-color-override-1))
 (defun %group-set-color-override-1 (draw-data atom-group ub32-color)
@@ -1913,6 +2004,7 @@
   (declare (type krma-essential-scene-mixin scene))
   (declare (type (or mat4 null) matrix))
   (declare (type (and atom t) group))
+  (print matrix)
   (rm-dispatch-to-render-thread (scene draw-data)
     (%group-set-model-matrix-1 draw-data group (mcopy matrix))))
 
@@ -1967,3 +2059,31 @@
     (or (gethash group group-hash-table)
         (setf (gethash group group-hash-table)
               (make-group group)))))
+
+(defun scene-ensure-group (scene group)
+  (rm-dispatch-to-render-thread (scene draw-data)
+    (ensure-group-1 draw-data group)))
+  
+
+(defun sort-2d-draw-lists (draw-data)
+  (with-slots (2d-point-list-draw-list
+	       2d-line-list-draw-list
+	       2d-triangle-list-draw-list
+	       2d-triangle-list-draw-list-for-text)
+      draw-data
+    (flet ((do-sort (draw-list)
+	     (let ((cmds (draw-list-cmd-vector draw-list)))
+	       (sort cmds #'(lambda (one two)
+			      (if (null one)
+				  nil
+				  (if (null two)
+				      t
+				      (let ((layer1 (cmd-layer one))
+					    (layer2 (cmd-layer two)))
+					(< layer1 layer2)))))))))
+      
+      (do-sort 2d-point-list-draw-list)
+      (do-sort 2d-line-list-draw-list)
+      (do-sort 2d-triangle-list-draw-list)
+      (do-sort 2d-triangle-list-draw-list-for-text))))
+	       

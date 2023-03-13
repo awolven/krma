@@ -5,11 +5,14 @@
   (defvar *muffle-compilation-notes* t))
 
 (defvar *app*)
+(defvar *style*)
 
 (defvar *default-application-class* 'krma-test-application)
 
 (defconstant +buffer-alignment+ 256) ;; todo: query non-coherent-atom-size of physical device
-(defconstant +select-box-depth+ 128)
+(defconstant +select-box-2d-depth+ 1024)
+(defconstant +view-depth+ 16)
+(defconstant +select-box-3d-depth+ 1024)
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (if (eq 8 (cffi:foreign-type-size :pointer))

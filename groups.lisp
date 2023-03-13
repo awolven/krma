@@ -5,7 +5,7 @@
 	    (:constructor make-group
 		(name
 		 &optional (model-matrix nil)
-		   (color-override nil) (material (make-material "default")))))
+		   (color-override nil) (material *default-material*))))
   "Internal structure for storing properties of a group in krma."
   (name)
   (color-override nil)

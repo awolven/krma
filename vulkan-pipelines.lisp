@@ -166,7 +166,7 @@
   t)
 
 (defmethod pipeline-depth-compare-op ((pipeline pipeline-mixin))
-  VK_COMPARE_OP_LESS_OR_EQUAL)
+  VK_COMPARE_OP_LESS)
 
 (defmethod pipeline-logic-op ((pipeline pipeline-mixin))
   VK_LOGIC_OP_COPY)
@@ -229,17 +229,11 @@
 	(make-instance 'vk::uniform-buffer-for-fragment-shader-dsl-binding
 		       :binding 1)))
 
-#+NIL(defun create-ubershader-global-descriptor-set-layout (pipeline)
-  (setf (global-descriptor-set-layout pipeline)
-	(create-descriptor-set-layout
-	 (default-logical-device pipeline)
-	 :bindings (make-ubershader-global-descriptor-set-layout-bindings pipeline))))
-
 (defmethod scene-descriptor-set-layout ((pipeline ubershader-pipeline-mixin))
-  (krma-select-box-descriptor-set-layout (pipeline-display pipeline)))
+  (krma-select-boxes-descriptor-set-layout (pipeline-display pipeline)))
 
 (defmethod make-scene-descriptor-set-layout-bindings ((pipeline ubershader-pipeline-mixin))
-  (make-select-box-descriptor-set-layout-bindings (pipeline-display pipeline)))
+  (make-select-boxes-descriptor-set-layout-bindings (pipeline-display pipeline)))
 
 (defmethod make-per-instance-descriptor-set-layout-bindings ((pipeline ubershader-pipeline-mixin))
   (make-per-instance-descriptor-set-layout-bindings (pipeline-display pipeline)))
@@ -290,19 +284,19 @@
   ())
 
 (defmethod pipeline-vertex-type ((pipeline 2d-texture-pipeline-mixin))
-  '(:struct textured-2d-vertex))
+  '(:struct textured-3d-vertex))
 
 (defmethod pipeline-depth-test-enable? ((pipeline 2d-pipeline-mixin))
-  nil)
+  t)
 
 (defmethod pipeline-depth-write-enable? ((pipeline 2d-pipeline-mixin))
-  nil)
+  t)
 
 (defmethod pipeline-depth-compare-op ((pipeline 2d-pipeline-mixin))
-  VK_COMPARE_OP_NEVER)
+  VK_COMPARE_OP_LESS_OR_EQUAL)
 
 (defmethod pipeline-logic-op ((pipeline 2d-pipeline-mixin))
-  VK_LOGIC_OP_CLEAR)
+  VK_LOGIC_OP_COPY)
 
 (defmethod pipeline-cull-mode ((pipeline 2d-pipeline-mixin))
   VK_CULL_MODE_NONE)
@@ -678,7 +672,7 @@
 		       :offset (foreign-slot-offset (pipeline-vertex-type pipeline) 'oid))
 	(make-instance 'vertex-input-attribute-description
 		       :location 1
-		       :format VK_FORMAT_R32G32_SFLOAT
+		       :format VK_FORMAT_R32G32B32_SFLOAT ;; <--updated for layer feature
 		       :offset (foreign-slot-offset (pipeline-vertex-type pipeline) 'x))
 	(make-instance 'vertex-input-attribute-description
 		       :location 2
@@ -869,7 +863,7 @@
                                        0 +nullptr+))
 	    
             (with-foreign-objects ((p-descriptor-sets :pointer 1))
-	      (setf (mem-aref p-descriptor-sets :pointer 0) (h (aref (krma-select-box-descriptor-sets dpy) (car (current-frame-cons dpy)))))
+	      (setf (mem-aref p-descriptor-sets :pointer 0) (h (aref (krma-select-boxes-descriptor-sets dpy) (car (current-frame-cons dpy)))))
               (vkCmdBindDescriptorSets (h command-buffer)
                                        VK_PIPELINE_BIND_POINT_GRAPHICS
                                        (h pipeline-layout)
@@ -884,7 +878,7 @@
 
             (flet ((render-standard-draw-indexed-cmd (cmd &aux (pipeline-default-font nil))
 		     (declare (type standard-draw-indexed-cmd cmd))
-		     
+
 		     (let* ((descriptor-set (texture-image-descriptor-set
 					     (or (cmd-texture cmd)
 						 (draw-list-texture draw-list)
@@ -917,6 +911,8 @@
 			       (if group-model-matrix
 				   (setq mm (m* group-model-matrix))
 				   (setq mm *identity-matrix*)))
+
+			   ;;(print mm)
 
 			   (copy-matrix-to-foreign mm pvalues)
 			   
@@ -952,7 +948,9 @@
 					  (if pipeline-line-width
 					      (vkCmdSetLineWidth command-buffer-handle pipeline-line-width)
 					      (vkCmdSetLineWidth command-buffer-handle *default-line-thickness*))))))
-
+				 ((typep cmd 'text-draw-indexed-cmd)
+				  (setf (mem-aref pvalues :uint32 +uber-vertex-shader-primitive-type-offset+) 3))
+				  
 				 (t (setf (mem-aref pvalues :uint32 +uber-vertex-shader-primitive-type-offset+) 2)))
 
 			   (vkCmdPushConstants command-buffer-handle
@@ -1033,14 +1031,12 @@
   (let ((index-array (draw-list-index-array draw-list)))
     (declare (type foreign-adjustable-array index-array))
 
-    
-
     (unless (= 0 (foreign-array-fill-pointer index-array))
 
       (initialize-buffers dpy draw-list)
+      
       (let* ((command-buffer-handle (h command-buffer))
              (pipeline-layout (pipeline-layout pipeline))
-             (index-array (draw-list-index-array draw-list))
 	     (group (draw-list-group draw-list))
              (mm))
 
@@ -1067,7 +1063,7 @@
                                    0 +nullptr+))
 
 	(with-foreign-objects ((p-descriptor-sets :pointer 1))
-          (setf (mem-aref p-descriptor-sets :pointer 0) (h (aref (krma-select-box-descriptor-sets dpy) (car (current-frame-cons dpy)))))
+          (setf (mem-aref p-descriptor-sets :pointer 0) (h (aref (krma-select-boxes-descriptor-sets dpy) (car (current-frame-cons dpy)))))
           (vkCmdBindDescriptorSets (h command-buffer)
                                    VK_PIPELINE_BIND_POINT_GRAPHICS
                                    (h pipeline-layout)
@@ -1104,7 +1100,7 @@
 		      (setq mm *identity-matrix*))
 		  
 		  (copy-matrix-to-foreign mm pvalues))
-		
+
 		(let ((group-color-override (group-color-override group)))
 		  (if group-color-override
 		      (let ((pcol (mem-aptr pvalues :uint32 +uber-vertex-shader-color-override-offset+)))
@@ -1238,25 +1234,38 @@
 
 	  (values))))))
 
-(defun read-select-box (dpy frame-to-read)
-  (when (aref (krma-select-box-memory-resources dpy) frame-to-read)
-    (let* ((coords (krma-select-box-coords dpy))
-	   (cols (floor (- (vz coords) (vx coords))))
-	   (rows (floor (- (vw coords) (vy coords))))
-	   (size (* cols rows +select-box-depth+))
-	   (size-in-bytes (* size (foreign-type-size :unsigned-int)))
-	   (aligned-size (aligned-size size-in-bytes)))
+(defun read-select-boxes (dpy frame-to-read)
+  (let* ((coords (krma-select-box-coords dpy))
+	 (cols (floor (- (vz coords) (vx coords))))
+	 (rows (floor (- (vw coords) (vy coords)))))
+    
+    (when (aref (krma-select-box-2d-memory-resources dpy) frame-to-read)
+    
+      (let* ((size (* cols rows +select-box-2d-depth+))
+	     (size-in-bytes (* size (foreign-type-size :unsigned-int)))
+	     (aligned-size (aligned-size size-in-bytes)))
 
-      #+NIL
-      (setf (krma-select-box dpy) (make-array (list cols rows +select-box-depth+)
-					      :element-type '(unsigned-byte 32)
-					      :displaced-to array :displaced-index-offset 0))
+	(read-buffer (vk::memory-pool-buffer
+		      (vk::storage-buffer-memory-pool dpy))
+		     (array-displacement (krma-select-box-2d dpy)) size-in-bytes
+		     (aref (krma-select-box-2d-memory-resources dpy) frame-to-read)
+		     aligned-size)
+      
+	(clear-buffer (vk::memory-pool-buffer (vk::storage-buffer-memory-pool dpy)) 0 aligned-size
+		      (aref (krma-select-box-2d-memory-resources dpy) frame-to-read))))
 
-      (read-buffer (vk::memory-pool-buffer
-		    (vk::storage-buffer-memory-pool dpy))
-		   (array-displacement (krma-select-box dpy)) size-in-bytes
-		   (aref (krma-select-box-memory-resources dpy) frame-to-read)
-		   aligned-size)
+    (when (aref (krma-select-box-3d-memory-resources dpy) frame-to-read)
 
-      (clear-buffer (vk::memory-pool-buffer (vk::storage-buffer-memory-pool dpy)) 0 aligned-size
-		    (aref (krma-select-box-memory-resources dpy) frame-to-read)))))
+      (let* ((size (* cols rows +select-box-3d-depth+))
+	     (size-in-bytes (* size (foreign-type-size :unsigned-int)))
+	     (aligned-size (aligned-size size-in-bytes)))
+	
+	(read-buffer (vk::memory-pool-buffer
+		      (vk::storage-buffer-memory-pool dpy))
+		     (array-displacement (krma-select-box-3d dpy)) size-in-bytes
+		     (aref (krma-select-box-3d-memory-resources dpy) frame-to-read)
+		     aligned-size)
+
+	(clear-buffer (vk::memory-pool-buffer (vk::storage-buffer-memory-pool dpy)) 0 aligned-size
+		      (aref (krma-select-box-3d-memory-resources dpy) frame-to-read))))))
+      
