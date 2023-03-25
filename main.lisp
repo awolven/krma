@@ -61,8 +61,9 @@
 (defun compute-select-boxes-descriptor-set (dpy window frame-count current-frame)
   (multiple-value-bind (mouse-x mouse-y) (window-cursor-position window)
     (multiple-value-bind (xscale yscale) (window-content-scale window)
-      (setq mouse-x (* xscale mouse-x))
-      (setq mouse-y (* yscale mouse-y)))
+      ;;(setq mouse-x (* xscale mouse-x))
+      ;;(setq mouse-y (* yscale mouse-y))
+      )
     (let* ((new-coords (vec4 (- mouse-x 1/2) (- mouse-y 1/2)
 			     (+ mouse-x 1/2) (+ mouse-y 1/2)))
 	   (width (round (- (vz new-coords) (vx new-coords)))) ;; should be 1.0 atm, in the future it might not be
@@ -256,6 +257,13 @@
     
     (values)))
 
+(defun vk::after-fences-callback ()
+  #+NIL
+  (let ((dpy (default-display)))
+    (maybe-defer-debug (dpy)
+      (read-select-boxes dpy (car (current-frame-cons dpy))))))
+  
+
 (defun update-counts (current-frame-cons current-draw-data-cons frame-count)
   #+sbcl(sb-ext:atomic-update (car current-frame-cons)
 			      #'(lambda (cf) (mod (1+ cf) frame-count)))
@@ -274,10 +282,6 @@
       (setf (recreate-swapchain? window) nil)))
   (values))
 
-
-
-
-
 (defun frame-iteration (dpy frame-count show-frame-rate?)
   
   (let* ((current-frame-cons (current-frame-cons dpy))
@@ -291,6 +295,15 @@
       ;; probably going to need a select box per framebuffer
       (compute-select-boxes-descriptor-set dpy (main-window (first (display-applications dpy)))
 					   frame-count (car current-frame-cons)))
+
+    #-nvidia(maybe-defer-debug (dpy)
+	      (read-select-boxes dpy (car (current-frame-cons dpy))))
+
+    #-nvidia(maybe-defer-debug (dpy)
+	      (monitor-select-boxes dpy)
+      )
+
+    ;;(print (krma-select-box-2d dpy))
 
     ;; This loop takes all the scenes in all the applications
     ;; and updates the portion of the scene's draw-lists
@@ -326,9 +339,9 @@
 			command-pool)
 	   image-indices)
 
-	  (maybe-defer-debug (dpy)
-	    (read-select-boxes dpy (car (current-frame-cons dpy))))
-	  ;;(print (krma-select-box-2d dpy))
+	  
+	  #+nvidia(maybe-defer-debug (dpy)
+		    (read-select-boxes dpy (car (current-frame-cons dpy))))
 
 	  (during-frame dpy window command-buffer current-draw-data show-frame-rate?))))
 
@@ -349,8 +362,8 @@
 	  
 	  (frame-present swapchain queue current-frame image-index window))))
 
-    (maybe-defer-debug (dpy)
-      (monitor-select-boxes dpy)
+    #+nvidia(maybe-defer-debug (dpy)
+	      (monitor-select-boxes dpy)
       )
 
      (values)))

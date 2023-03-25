@@ -84,7 +84,7 @@ void main(){
       uint offset = uint(gl_FragCoord.y - pc.selectBox.y) * row_size
 	+ uint(gl_FragCoord.x - pc.selectBox.x);
       if (selected_objects_2d[offset][zIndex] == 0) {
-	selected_objects_2d[offset][zIndex] = inObjectId;
+	selected_objects_2d[offset][0] = zIndex;
       }
     } else {
       float near = 0.1;

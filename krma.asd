@@ -32,6 +32,7 @@
    (:file "vulkan-pipelines")
    (:file "pipeline-combinations")
    (:file "text")
+   (:file "scene-graph")
    (:file "views")
    (:file "main")))
 

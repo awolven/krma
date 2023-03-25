@@ -1,5 +1,24 @@
 (in-package :krma)
 
+(defmethod global-model-matrix ((window clui::window-mixin))
+  (meye 4))
+
+(defmethod transform-coordinate ((vec vec2) (window clui::window-mixin))
+  (multiple-value-bind (x y) (clui:window-position window)
+    (vec3 (+ x (vx vec)) (+ y (vy vec)) 0)))
+
+(defmethod transform-coordinate ((vec vec3) (window clui::window-mixin))
+  (multiple-value-bind (x y) (clui:window-position window)
+    (vec3 (+ x (vx vec)) (+ y (vy vec)) (vz vec))))
+
+(defmethod untransform-coordinate ((vec vec2) (window clui::window-mixin))
+  (multiple-value-bind (x y) (clui:window-position window)
+    (vec3 (- (vx vec) x) (- (vy vec) y) 0)))
+
+(defmethod untransform-coordinate ((vec vec3) (window clui::window-mixin))
+  (multiple-value-bind (x y) (clui:window-position window)
+    (vec3 (- (vx vec) x) (- (vy vec) y) (vz vec))))
+
 (defun font-size (font)
   (3b-bmfont-common:size (slot-value font 'krma::data)))
 
@@ -36,11 +55,9 @@
 	     (incf dx (float (3b-bmfont:glyph-xadvance glyph) 1.0f0))
 	  finally (return (values min-x min-y max-x max-y)))))
 
-(defmethod global-model-matrix ((window clui::window-mixin))
-  (meye 4))
 
-(defmethod destroy-object (object)
-  (remhash (object-id object) *object-id->object-table*))
+
+
 
 (defparameter *style-classic-plist*
   (list :text                     #(0.90f0 0.90f0 0.90f0 1.00f0)
@@ -243,83 +260,47 @@
    (width :initarg :width :initform 10 :accessor rect-width)
    (height :initarg :height :initform 10 :accessor rect-height)))
 
-(defclass client-rect (rect-mixin)
-  ())
-
 (defmethod rect-x1 ((rect rect-mixin))
   (+ (rect-x0 rect) (rect-width rect)))
+
+(defmethod (setf rect-x1) ((value real) (rect rect-mixin))
+  (setf (rect-width rect) (- value (rect-x0 rect)))
+  value)
 
 (defmethod rect-y1 ((rect rect-mixin))
   (+ (rect-y0 rect) (rect-height rect)))
 
-(defclass node-mixin ()
-  ((matrix :initarg :matrix :initform nil :accessor model-matrix)
-   (parent :initarg :parent :initform nil :accessor node-parent)
-   (children :initarg :children :initform nil :accessor node-children)
-   (scene :initarg :scene :initform nil :accessor node-scene)))
+(defmethod (setf rect-y1) ((value real) (rect rect-mixin))
+  (setf (rect-height rect) (- value (rect-y0 rect)))
+  value)
+
+(defclass client-rect (rect-mixin)
+  ())
 
 (defclass view-mixin (rect-mixin node-mixin)
   ((layer :initform 0 :initarg :layer :accessor view-layer)))
 
 (defmethod view-p (object)
+  (declare (ignore object))
   nil)
 
 (defmethod view-p ((object view-mixin))
   t)
 
-(defvar *object-id-counter* 0)
-
-(defun new-object-id ()
-  (incf *object-id-counter*))
-
-(defvar *object-id->object-table*
-  (make-hash-table :test #'eq :weak t))
-
-(defun (setf object-from-id) (object id)
-  (setf (gethash id *object-id->object-table*) object))
-
-(defun object-from-id (id)
-  (gethash id *object-id->object-table*))
-
-(defclass selectable-mixin ()
-  ((obj-id :initform (new-object-id) :reader object-id)))
-
-(defmethod initialize-instance :after ((object selectable-mixin) &rest initargs)
-  (declare (ignorable initargs))
-  (setf (object-from-id (object-id object)) object)
-  (values))  
-
-(defclass group-mixin ()
-  ((group :initform :default :initarg :group :accessor object-group)))
-
-(defvar *group-counter* 0)
-
-(defun new-group ()
-  (incf *group-counter*))
-
-(defclass deletable-mixin ()
-  ((prim-handles :initform () :accessor object-primitive-handles)))
-
-(defmethod delete-object-from-scene ((object deletable-mixin))
-  (let ((scene (node-scene object)))
-    (delete-primitives scene (object-primitive-handles object))
-    (setf (object-primitive-handles object) nil)
-    (values)))
-   
-
-
-
-(defclass collapse-button (group-mixin deletable-mixin selectable-mixin view-mixin)
+(defclass group-owner-view-mixin (group-owner-mixin view-mixin)
   ())
 
-(defclass close-button (group-mixin deletable-mixin selectable-mixin view-mixin)
+(defclass collapse-button (selectable-mixin primitive-owner-mixin group-mixin view-mixin)
+  ())
+
+(defclass close-button (selectable-mixin primitive-owner-mixin group-mixin view-mixin)
   ())
 
 (defclass title-bar (group-mixin selectable-mixin view-mixin)
   ((collapse-button :initform nil :accessor collapse-button)
    (close-button :initform nil :accessor close-button)))
 
-(defmethod rect-width :around ((title-bar title-bar))
+(defmethod rect-width ((title-bar title-bar))
   (rect-width (node-parent title-bar)))
 
 (defmethod initialize-instance :after ((title-bar title-bar) &rest initargs
@@ -470,7 +451,7 @@
      (object-id title-bar)
      (1+ (view-layer title-bar)))))
 
-(defmethod clui:handle-event :around ((window krma-window-mixin) (event clui::pointer-motion-event-mixin))
+(defmethod clui:handle-event :around ((window krma-window-mixin) (event clui::pointer-event-mixin))
   (let ((x (clui::pointer-event-x event))
 	(y (clui::pointer-event-y event)))
     
@@ -485,6 +466,16 @@
 	    (clui:handle-event 2d-object event))
 
 	  (call-next-method)))))
+
+(defmethod clui:handle-event :around ((window krma-window-mixin) (event clui::input-event-mixin))
+  (let ((2d-object (most-specifically-hovered-2d-object
+		    (krma-select-box-2d (clui::window-display window)) 0 0)))
+
+    (if (view-p 2d-object)
+
+	(clui:handle-event 2d-object event)
+	
+	(call-next-method))))
 
 (defmethod clui:handle-event ((title-bar title-bar) (event clui::pointer-motion-event-mixin))
   (let ((last-event (clui::display-last-event
@@ -505,9 +496,6 @@
 (defmethod clui:handle-event ((title-bar title-bar) (event clui::pointer-button-hold-and-drag-event-mixin))
   (let* ((dx (clui::pointer-drag-delta-x event))
 	 (dy (clui::pointer-drag-delta-y event)))
-    (print "--")
-    (print dx)
-    (print dy)
     (multiple-value-bind (x y) (window-position (node-parent title-bar))
       (set-window-position (node-parent title-bar)
 			   (+ x dx) (+ y dy)))))
@@ -605,7 +593,7 @@
   (call-next-method)
   (values))
 
-(defclass homemade-window-mixin (group-mixin deletable-mixin selectable-mixin view-mixin)
+(defclass homemade-window-mixin (primitive-owner-mixin selectable-mixin group-owner-view-mixin)
   ((title :initarg :title :initform "krma" :accessor window-title)
    (style :initform nil :writer (setf %window-style) :reader window-style)
    (width :initform 300)
@@ -683,88 +671,48 @@
   (refresh-view window)
   z-index)
 
-(defun safe-euclid (vec4)
-  (if (<= (abs (vw vec4)) single-float-epsilon)
-      (vec3 (/ (vx vec4) (vw vec4))
-	    (/ (vy vec4) (vw vec4))
-	    (/ (vz vec4) (vw vec4)))
-      (vec3 (vx vec4) (vy vec4) (vz vec4))))
-
 (defmethod clui:window-position ((view view-mixin))
-  (if (model-matrix view)
-      (let* ((vec4 (vec4 (rect-x view) (rect-y view) (view-layer view) 1))
-	     (actual-pos (safe-euclid (m* vec4 (model-matrix view)))))
-	(values (vx actual-pos) (vy actual-pos) (vz actual-pos)))
-      (values (rect-x view) (rect-y view) (view-layer view))))
+  (values (rect-x view) (rect-y view) (view-layer view)))
 
-(defmethod clui:set-window-position ((view view-mixin) x y)
-  (if (model-matrix view)
-      (multiple-value-bind (cur-x cur-y) (clui:window-position view)
-	(let* ((dx (- x cur-x))
-	       (dy (- y cur-y))
-	       (vec3 (vec3 dx dy 0)))
-	  (nmtranslate (model-matrix view) vec3)))
-      (progn
-	(setf (rect-x view) x
-	      (rect-y view) y)))
+(defmethod clui:window-position ((view group-owner-view-mixin))
+  (let* ((vec4 (vec4 (rect-x view) (rect-y view) (view-layer view) 1))
+	 (actual-pos (safe-euclid (m* vec4 (model-matrix view)))))
+    (values (vx actual-pos) (vy actual-pos) (vz actual-pos))))
+
+(defmethod translate-node ((node rect-mixin) (vec vec3))
+  (setf (rect-x node) (vx vec)
+	(rect-y node) (vy vec))
   (values))
 
-(defmethod clui:set-window-position ((view title-bar) x y)
-  (declare (ignorable x y))
+(defmethod translate-node ((node view-mixin) (vec vec3))
   (call-next-method)
-  (refresh-view (node-parent view)))
+  (setf (view-layer node) (vz vec))
+  (values))
 
-(defmethod clui:set-window-position ((view close-button) x y)
-  (declare (ignorable x y))
-  (call-next-method)
-  (refresh-view (node-parent (node-parent view))))
+(defmethod clui:set-window-position ((view view-mixin) x y)
+  (translate-node view (vec3 x y (view-layer view)))
+  (refresh-view (group-owner view))
+  (values))
 
-(defmethod clui:set-window-position ((view collapse-button) x y)
-  (declare (ignorable x y))
-  (call-next-method)
-  (refresh-view (node-parent (node-parent view))))
-
-(defmethod clui:set-window-position ((window homemade-window-mixin) x y)
-  (declare (ignorable x y))
-  (call-next-method)
-  (group-set-model-matrix (node-scene window) (object-group window) (model-matrix window)))
+(defmethod clui:set-window-position ((view group-owner-view-mixin) x y)
+  (multiple-value-bind (cur-x cur-y) (clui:window-position view)
+    (let* ((dx (- x cur-x))
+	   (dy (- y cur-y))
+	   (vec3 (vec3 dx dy 0)))
+      (translate-node view vec3))))
   
-(defmethod clui:window-size ((window homemade-window-mixin))
+(defmethod clui:window-size ((window view-mixin))
   (values (rect-width window) (rect-height window)))
 
-(defmethod clui:set-window-size ((window homemade-window-mixin) width height)
-  (assert (and (typep width 'real) (typep height 'real)))
+(defmethod clui:set-window-size ((window group-owner-view-mixin) (width real) (height real))
   (setf (rect-width window) width
 	(rect-height window) height)
   (delete-object-from-scene window)
   (add-homemade-window window :style (window-style window))
-  (values))  
-
-(defmethod global-model-matrix ((window homemade-window-mixin))
-  (m* (model-matrix window) (global-model-matrix (node-parent window))))
-
-#+NIL
-(defmethod transform-coordinate ((vec vec2) (window homemade-window-mixin))
-  (let* ((vec4 (vec4 (vx vec) (vy vec) 0 1))
-	 (coordinate (m* vec4 (global-model-matrix window))))
-    (vec3 (/ (vx coordinate) (vw coordinate)) (/ (vy coordinate) (vw coordinate)) (/ (vz coordinate) (vw coordinate)))))
-
-(defmethod global-model-matrix ((view view-mixin))
-  (if (model-matrix view)
-      (m* (model-matrix view) (global-model-matrix (node-parent view)))
-      (global-model-matrix (node-parent view))))
+  (values))
 
 (defmethod transform-coordinate ((vec vec2) (view view-mixin))
-  (let* ((vec4 (vec4 (vx vec) (vy vec) 0 1))
-	 (coordinate (m* vec4 (global-model-matrix view))))
-    (vec3 (- (/ (vx coordinate) (vw coordinate)) (rect-x view))
-	  (- (/ (vy coordinate) (vw coordinate)) (rect-y view))
-	  (/ (vz coordinate) (vw coordinate)))))
-
-(defmethod window-cursor-position ((window homemade-window-mixin))
-  (multiple-value-bind (x y) (window-cursor-position (node-parent window))
-    (let ((transformed (transform-coordinate (vec2 x y) window)))
-      (values (vx transformed) (vy transformed)))))
+  (transform-coordinate (vec3 (vx vec) (vy vec) (view-layer view)) view))
 
 (defmethod initialize-instance :after ((window homemade-window-mixin) &rest initargs
 				       &key (title-bar? t) (menu-bar? nil)
@@ -783,9 +731,6 @@
 	(setf (view-layer window) (* (1+ highest-z-index) +view-depth+)))
       
       (setf (view-layer window) 0))
-      
-
-  (setf (model-matrix window) (meye 4))
 
   (setf (%window-style window) style)
   
@@ -794,7 +739,7 @@
   (setf (object-group window) (new-group))
   
   (setf (node-scene window) scene)
-  
+
   (when title-bar?
     (let ((title-bar (make-instance 'title-bar
 				    :parent window
@@ -806,6 +751,12 @@
   
   (setf (node-children scene) (append (node-children scene) (list window)))
 
+  (let ((tb-height (title-bar-height style)))
+    (setf (window-client-rect window) (make-instance 'client-rect
+						     :rect-x 0 :rect-y tb-height
+						     :width (rect-width window)
+						     :height (- (rect-height window) tb-height))))
+
   (refresh-view window)
   
   (values))
@@ -814,7 +765,7 @@
   (delete-object-from-scene window)
   (scene-ensure-group (node-scene window) (object-group window))
   (add-homemade-window window :style (window-style window))
-  (group-set-model-matrix (node-scene window) (object-group window) (model-matrix window))
+  (group-set-model-matrix (node-scene window) (object-group window) (global-model-matrix window))
   (values))
   
 
@@ -1153,8 +1104,7 @@
 			 (object-id menu-bar)
 			 (view-layer menu-bar)))))
 
-(defmethod delete-object-from-scene ((object homemade-window-mixin))
-  (delete-group (node-scene object) (object-group object)))
+
 
 (defmethod clui:handle-event ((window homemade-window-mixin) (event clui::pointer-button-press-event-mixin))
   (clui:focus-window window)
@@ -1163,9 +1113,10 @@
 (defmethod clui:handle-event ((window krma-window-mixin) (event clui::pointer-button-press-event-mixin))
   (call-next-method)
   (let* ((hovered (most-specifically-hovered-2d (krma-select-box-2d (clui::window-display window)) 0 0)))
-    (let ((object (object-from-id hovered)))
-      (when object
-	(clui:handle-event object event)))
+    (when hovered
+      (let ((object (object-from-id hovered)))
+	(when object
+	  (clui:handle-event object event))))
     (values)))
 
 (defclass popup-window-mixin (homemade-window-mixin)
