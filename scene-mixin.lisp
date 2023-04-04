@@ -2080,10 +2080,33 @@
 				      t
 				      (let ((layer1 (cmd-layer one))
 					    (layer2 (cmd-layer two)))
-					(< layer1 layer2)))))))))
+					(< layer1 layer2))))))))
+	   (set-fp (draw-list)
+	     ;; should this be done in compaction thread?
+	     ;; seems convenient here, since it's sorted
+	     ;; actually, don't i already compact cmd vector in compaction thread??
+	     (let* ((cmds (draw-list-cmd-vector draw-list))
+		    (pos (position nil cmds)))
+	       (when pos
+		 (setf (fill-pointer cmds) pos)))))
       
       (do-sort 2d-point-list-draw-list)
+      (set-fp 2d-point-list-draw-list)
       (do-sort 2d-line-list-draw-list)
+      (set-fp 2d-line-list-draw-list)
       (do-sort 2d-triangle-list-draw-list)
-      (do-sort 2d-triangle-list-draw-list-for-text))))
+      (set-fp 2d-triangle-list-draw-list)
+      (do-sort 2d-triangle-list-draw-list-for-text)
+      (set-fp 2d-triangle-list-draw-list-for-text))))
 	       
+(defun delete-all-from-scene (scene)
+  (rm-dispatch-to-render-thread (scene draw-data)
+    (let ((dl1 (draw-data-2d-triangle-list-draw-list draw-data))
+	  (dl2 (draw-data-2d-line-list-draw-list draw-data)))
+      (flet ((d (d)
+	       (setf (draw-list-needs-compaction? d) nil)
+	       (setf (fill-pointer (draw-list-cmd-vector d)) 0)
+	       (setf (foreign-array-fill-pointer (draw-list-index-array d)) 0)
+	       (setf (foreign-array-fill-pointer (draw-list-vertex-array d)) 0)))
+	(d dl1)
+	(d dl2)))))

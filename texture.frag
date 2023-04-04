@@ -99,7 +99,7 @@ void main () {
 	+ uint(gl_FragCoord.x - pc.selectBox.x);
       if (selected_objects_2d[offset][zIndex] == 0) {
 	selected_objects_2d[offset][zIndex] = inObjectId;
-	}
+      }
       
     } else {
       float near = 0.1;

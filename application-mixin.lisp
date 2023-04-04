@@ -220,9 +220,6 @@
 	
 	(setq *app* app)
 
-	(unless (boundp '*style*)
-	  (setq *style* (make-gui-style-classic (application-display app))))
-	
 	(values)))))
 
 (defmethod application-default-font ((application krma-application-mixin))
@@ -264,7 +261,7 @@
   (:default-initargs :enable-fragment-stores-and-atomics t))
 
 (defun most-specifically-hovered-2d (2d-select-box x y)
-  (loop for i from 127 downto 0
+  (loop for i from (1- +select-box-2d-depth+) downto 0
 	do (when (not (zerop (aref 2d-select-box x y i)))
 	     (return (aref 2d-select-box x y i)))
 	finally (return nil)))
@@ -276,7 +273,7 @@
 	object))))
 
 (defun all-hovered-2d (2d-select-box x y)
-  (loop for i from 0 to 127
+  (loop for i from 0 below +select-box-2d-depth+
 	with result = ()
 	unless (zerop (aref 2d-select-box x y i))
 	do (push (aref 2d-select-box x y i) result)
@@ -413,7 +410,7 @@
 (defgeneric scene-class (application)
   (:documentation "Define your own scene-class method for your custom application object to tell krma which type of scene to use in your application."))
 
-(defmethod scene-class ((application krma-test-application))
+(defmethod scene-class ((application krma-application-mixin))
   'standard-scene)
 
 (defun add-2d-point-primitive (x y &key

@@ -5,7 +5,6 @@
   (defvar *muffle-compilation-notes* t))
 
 (defvar *app*)
-(defvar *style*)
 
 (defvar *default-application-class* 'krma-test-application)
 

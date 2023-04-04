@@ -468,7 +468,7 @@
   (:documentation "Define your own main function for your custom application if necessary."))
 
 
-(defmethod main ((app krma-test-application) &rest args &key &allow-other-keys)
+(defmethod main ((app krma-application-mixin) &rest args &key &allow-other-keys)
   (apply #'krma-application-main app args))
 
 #+NIL

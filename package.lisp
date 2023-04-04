@@ -162,9 +162,12 @@
 		#:character-event
 		)
   
-  (:export #:*default-application-class*
+  (:export #:*app*
+	   #:*default-application-class*
 	   #:default-application-class-for-window
 	   #:default-window-class-for-application
+	   #:default-system-font
+	   #:application-display
 	   #:2pi
 	   #:*default-znear*
 	   #:*default-zfar*
@@ -186,6 +189,12 @@
 	   #:*default-scene-ambient*
 	   #:*default-material*
 	   #:*compact-trigger*
+
+	   #:krma-window-mixin
+	   #:font-data
+	   #:main-window
+	   #:input-event-queue
+	   #:input-event-mixin
 
 	   #:d2r
 	   #:mperspective-vulkan	   
@@ -487,4 +496,5 @@
 
            #:group-set-light-position
            #:group-set-light-position-1
+
            ))
