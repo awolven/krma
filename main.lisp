@@ -413,23 +413,22 @@
 		    (ns::|run| app))
     (shutdown-application app)))
 
-#+(and noglfw darwin)
-(defmethod abstract-os::application-did-finish-launching ((application vulkan-application-mixin) notification)
+#+cocoa
+(defmethod clui::application-did-finish-launching ((application vulkan-application-mixin) notification)
   (declare (ignorable notification))
   ;;(abstract-os::post-empty-event application)
   ;;(ns::|stop:| application nil)
   (start-compactor-thread application)
   (values))
 
-
-
 #+cocoa
 (defmethod clui::content-view-draw-rect ((window vk::vulkan-window-mixin) view rect)
-  (with-slots ((app vk::application) queue command-pool) window
-    (maybe-defer-debug (app)
+  (declare (ignore view rect))
+  (with-slots ((dpy clui::display) queue command-pool) window
+    (maybe-defer-debug (dpy)
       (update-frame-rate window))
-    (maybe-defer-debug (app)
-      (frame-iteration app queue command-pool t))))
+    (maybe-defer-debug (dpy)
+      (frame-iteration dpy (number-of-images (swapchain window)) (window-show-frame-rate? window)))))
 
 (defun krma-application-main (app &rest args &key (show-frame-rate? t) &allow-other-keys)
   (declare (ignorable args))
