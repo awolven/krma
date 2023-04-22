@@ -98,7 +98,7 @@ void main () {
       uint offset = uint(gl_FragCoord.y - pc.selectBox.y) * row_size
 	+ uint(gl_FragCoord.x - pc.selectBox.x);
       if (selected_objects_2d[offset][zIndex] == 0) {
-	selected_objects_2d[offset][zIndex] = inObjectId;
+      	selected_objects_2d[offset][zIndex] = inObjectId;
       }
       
     } else {
@@ -114,5 +114,6 @@ void main () {
 	selected_objects_3d[offset][zIndex] = inObjectId;
       }
     }
-  }    
+  }
+  //selected_objects_2d[0][0] = 777;  
 }

@@ -9,7 +9,7 @@
 	       :cl-vulkan ;;#+darwin :cl-metal
 	       :sdf/bmfont :3b-bmfont/json
 	       :trivial-main-thread
-	       #-sbcl :lparallel)
+	       :lparallel)
   :author "Andrew K Wolven <awolven@gmail.com>"
   :license "MIT"
   :serial t

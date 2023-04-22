@@ -10,10 +10,6 @@
   (unless krma::*debug*
     (declaim (optimize (speed 3) (safety 0) (debug 0)))))
 
-#+sbcl
-(eval-when (:compile-toplevel :load-toplevel :execute)
-  (require :sb-concurrency))
-
 (defcstruct 3DMatrix
   (m00 :float)
   (m10 :float)
@@ -1559,16 +1555,18 @@
             (wq0 (draw-data-work-queue dd0))
             (wq1 (draw-data-work-queue dd1))
             (new-handle (gen-rm-handle)))
-        (sb-concurrency:enqueue #'(lambda ()
-                                    (%reinstance-primitive-1 ht0 new-handle handle group
-                                                             model-matrix line-thickness point-size color-override
-                                                             light-position font))
-                                wq0)
-        (sb-concurrency:enqueue #'(lambda ()
-                                    (%reinstance-primitive-1 ht1 new-handle handle group
-                                                             model-matrix line-thickness point-size color-override
-                                                             light-position font))
-                                wq1)
+	
+        #+notyet(sb-concurrency:enqueue #'(lambda ()
+					    (%reinstance-primitive-1 ht0 new-handle handle group
+								     model-matrix line-thickness point-size color-override
+								     light-position font))
+					wq0)
+	
+	#+notyet(sb-concurrency:enqueue #'(lambda ()
+					    (%reinstance-primitive-1 ht1 new-handle handle group
+								     model-matrix line-thickness point-size color-override
+								     light-position font))
+					wq1)
         new-handle))))
 
 (declaim (inline %primitive-set-color-1))
@@ -1598,8 +1596,8 @@
             (ht1 (draw-data-handle-hash-table dd1))
             (wq0 (draw-data-work-queue dd0))
             (wq1 (draw-data-work-queue dd1)))
-        (#+sbcl sb-concurrency:enqueue #-sbcl lparallel.queue:push-queue #'(lambda () (%primitive-set-color-1 ht0 handle color)) wq0)
-        (#+sbcl sb-concurrency:enqueue #-sbcl lparallel.queue:push-queue #'(lambda () (%primitive-set-color-1 ht1 handle color)) wq1)
+        (lparallel.queue:push-queue #'(lambda () (%primitive-set-color-1 ht0 handle color)) wq0)
+        (lparallel.queue:push-queue #'(lambda () (%primitive-set-color-1 ht1 handle color)) wq1)
         (values)))))
 
 (declaim (inline %primitive-set-light-position-1))
@@ -1627,8 +1625,8 @@
             (ht1 (draw-data-handle-hash-table dd1))
             (wq0 (draw-data-work-queue dd0))
             (wq1 (draw-data-work-queue dd1)))
-        (#+sbcl sb-concurrency:enqueue #-sbcl lparallel.queue:push-queue #'(lambda () (%primitive-set-light-position-1 ht0 handle pos)) wq0)
-        (#+sbcl sb-concurrency:enqueue #-sbcl lparallel.queue:push-queue #'(lambda () (%primitive-set-light-position-1 ht1 handle pos)) wq1)
+        (lparallel.queue:push-queue #'(lambda () (%primitive-set-light-position-1 ht0 handle pos)) wq0)
+        (lparallel.queue:push-queue #'(lambda () (%primitive-set-light-position-1 ht1 handle pos)) wq1)
         (values)))))
 
 (declaim (inline %primitive-set-transform-1))
@@ -1658,8 +1656,8 @@
             (ht1 (draw-data-handle-hash-table dd1))
             (wq0 (draw-data-work-queue dd0))
             (wq1 (draw-data-work-queue dd1)))
-        (#+sbcl sb-concurrency:enqueue #-sbcl lparallel.queue:push-queue #'(lambda () (%primitive-set-transform-1 ht0 handle matrix)) wq0)
-        (#+sbcl sb-concurrency:enqueue #-sbcl lparallel.queue:push-queue #'(lambda () (%primitive-set-transform-1 ht1 handle matrix)) wq1)
+        (lparallel.queue:push-queue #'(lambda () (%primitive-set-transform-1 ht0 handle matrix)) wq0)
+        (lparallel.queue:push-queue #'(lambda () (%primitive-set-transform-1 ht1 handle matrix)) wq1)
         (values)))))
 
 (declaim (inline %primitive-apply-transform-1))
@@ -1693,8 +1691,8 @@
             (ht1 (draw-data-handle-hash-table dd1))
             (wq0 (draw-data-work-queue dd0))
             (wq1 (draw-data-work-queue dd1)))
-        (#+sbcl sb-concurrency:enqueue #-sbcl lparallel.queue:push-queue #'(lambda () (%primitive-apply-transform-1 ht0 handle matrix)) wq0)
-        (#+sbcl sb-concurrency:enqueue #-sbcl lparallel.queue:push-queue #'(lambda () (%primitive-apply-transform-1 ht1 handle matrix)) wq1)
+        (lparallel.queue:push-queue #'(lambda () (%primitive-apply-transform-1 ht0 handle matrix)) wq0)
+        (lparallel.queue:push-queue #'(lambda () (%primitive-apply-transform-1 ht1 handle matrix)) wq1)
         (values)))))
 
 (declaim (inline %primitive-set-line-thickness-1))
@@ -1724,8 +1722,8 @@
             (ht1 (draw-data-handle-hash-table dd1))
             (wq0 (draw-data-work-queue dd0))
             (wq1 (draw-data-work-queue dd1)))
-        #+sbcl(sb-concurrency:enqueue #'(lambda () (%primitive-set-line-thickness-1 ht0 handle thickness)) wq0)
-        #+sbcl(sb-concurrency:enqueue #'(lambda () (%primitive-set-line-thickness-1 ht1 handle thickness)) wq1)
+        #+notyet(sb-concurrency:enqueue #'(lambda () (%primitive-set-line-thickness-1 ht0 handle thickness)) wq0)
+        #+notyet(sb-concurrency:enqueue #'(lambda () (%primitive-set-line-thickness-1 ht1 handle thickness)) wq1)
         (values)))))
 
 
@@ -1766,14 +1764,12 @@
             (wq1 (draw-data-work-queue dd1))
             (ht0 (draw-data-handle-hash-table dd0))
             (ht1 (draw-data-handle-hash-table dd1)))
-        (#+sbcl sb-concurrency:enqueue
-	 #-sbcl lparallel.queue:push-queue
+        (lparallel.queue:push-queue
 	 #'(lambda ()
              (loop for handle in list-of-handles
                    do (%delete-primitive-1 ht0 handle)))
          wq0)
-        (#+sbcl sb-concurrency:enqueue
-	 #-sbcl lparallel.queue:push-queue
+        (lparallel.queue:push-queue
 	 #'(lambda ()
              (loop for handle in list-of-handles
                    do (%delete-primitive-1 ht1 handle)))

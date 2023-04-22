@@ -1,7 +1,6 @@
 (in-package :cl-user)
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
-  #+SBCL(require :sb-concurrency)
   (ql:quickload :cffi))
 
 (defpackage :krma

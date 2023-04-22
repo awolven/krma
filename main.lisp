@@ -60,10 +60,9 @@
 
 (defun compute-select-boxes-descriptor-set (dpy window frame-count current-frame)
   (multiple-value-bind (mouse-x mouse-y) (window-cursor-position window)
-    (multiple-value-bind (xscale yscale) (window-content-scale window)
-      ;;(setq mouse-x (* xscale mouse-x))
-      ;;(setq mouse-y (* yscale mouse-y))
-      )
+    ;;(print mouse-x)
+    ;;(print mouse-y)
+    ;;(finish-output)
     (let* ((new-coords (vec4 (- mouse-x 1/2) (- mouse-y 1/2)
 			     (+ mouse-x 1/2) (+ mouse-y 1/2)))
 	   (width (round (- (vz new-coords) (vx new-coords)))) ;; should be 1.0 atm, in the future it might not be
@@ -215,10 +214,9 @@
 
     (maybe-defer-debug (dpy)
       (loop with work = nil
-	    while (setq work #+sbcl (sb-concurrency:dequeue work-queue)
-			     #-sbcl (lparallel.queue:peek-queue work-queue))
-	    do (lparallel.queue:pop-queue work-queue)
-	       (funcall work)))
+	    while (setq work (and (lparallel.queue:peek-queue work-queue)
+				  (lparallel.queue:pop-queue work-queue)))
+	    do (funcall work)))
 
     (sort-2d-draw-lists (aref (rm-draw-data scene) current-draw-data-index))    
     
@@ -257,13 +255,6 @@
     
     (values)))
 
-(defun vk::after-fences-callback ()
-  #+NIL
-  (let ((dpy (default-display)))
-    (maybe-defer-debug (dpy)
-      (read-select-boxes dpy (car (current-frame-cons dpy))))))
-  
-
 (defun update-counts (current-frame-cons current-draw-data-cons frame-count)
   #+sbcl(sb-ext:atomic-update (car current-frame-cons)
 			      #'(lambda (cf) (mod (1+ cf) frame-count)))
@@ -298,10 +289,9 @@
 
     #-nvidia(maybe-defer-debug (dpy)
 	      (read-select-boxes dpy (car (current-frame-cons dpy))))
-
+    
     #-nvidia(maybe-defer-debug (dpy)
-	      (monitor-select-boxes dpy)
-      )
+	      (monitor-select-boxes dpy))
 
     ;;(print (krma-select-box-2d dpy))
 
@@ -311,8 +301,8 @@
     ;; not being copied to gpu memory, or not being compacted.
     ;; It is a candidate for parallelization.
     (loop for app in (display-applications dpy)
-	  do (loop for scene in (active-scenes app)
-		   do (before-frame-begin dpy scene current-draw-data)))
+       do (loop for scene in (active-scenes app)
+	     do (before-frame-begin dpy scene current-draw-data)))
 
     (maybe-defer-debug (dpy)
       (call-immediate-mode-work-functions dpy))
@@ -344,13 +334,13 @@
 		    (read-select-boxes dpy (car (current-frame-cons dpy))))
 
 	  (during-frame dpy window command-buffer current-draw-data show-frame-rate?))))
-
+    
     ;; frame-present must occur in this thread, so no parallelization here
     (do* ((window (clui::display-window-list-head dpy) (clui::window-next window))
 	  (i 0 (1+ i))
 	  (image-index (aref image-indices i)))
 	
-	((null window))
+	 ((null window))
 
       (with-slots (queue command-pool) window
 	
@@ -362,11 +352,12 @@
 	  
 	  (frame-present swapchain queue current-frame image-index window))))
 
-    #+nvidia(maybe-defer-debug (dpy)
-	      (monitor-select-boxes dpy)
-      )
+    
 
-     (values)))
+    #+nvidia(maybe-defer-debug (dpy)
+	      (monitor-select-boxes dpy))
+
+    (values)))
 
 (defun compactor-thread-iteration (dpy active-scenes)
   (bt:wait-on-semaphore (frame-iteration-complete-semaphore dpy))
