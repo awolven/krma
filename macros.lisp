@@ -4,9 +4,6 @@
   (when krma::*debug*
     (declaim (optimize (safety 3) (debug 3)))))
 
-;;(defmacro krma ()
-;;  `*krma*)
-
 (defmacro maybe-defer-debug ((app) &body body)
   "Sets up `ignore' restart, and records error message and backtrace in application object."
   (let ((app-sym (gensym)))

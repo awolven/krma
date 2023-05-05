@@ -48,6 +48,14 @@
   (foreign-type nil)
   (foreign-type-size 1 :type (integer 0 512))) ;; foreign-type-size can't be more than 512
 
+(defmethod print-object ((thing foreign-adjustable-array) stream)
+  (print-unreadable-object (thing stream :identity t)
+    (princ (type-of thing) stream)
+    (princ " fp = " stream)
+    (princ (foreign-array-fill-pointer thing) stream)
+    (princ ", count = " stream)
+    (princ (foreign-array-allocated-count thing) stream)))
+
 (defstruct (index-array
 	    (:include foreign-adjustable-array)
 	    (:constructor make-index-array
@@ -124,8 +132,8 @@
 		      (setf (aref bytes fp) index)
 		    
 		    (type-error (c)		      
-		      (format t "~&upgrading index array from unsigned-short to unsigned-int.")
-		      (finish-output)
+		      (format *debug-io* "~&upgrading index array from unsigned-short to unsigned-int.")
+		      (force-output *debug-io*)
 		      (upgrade-index-array! c)
 		      (go retry)))
 	       
@@ -133,7 +141,17 @@
 		    (prog1 fp
 		      (incf fill-pointer))))))))))
 
-(defstruct (vertex-array (:include foreign-adjustable-array)))
+(defstruct (vertex-array
+	     (:include foreign-adjustable-array)
+	     (:constructor make-vertex-array
+			   (&optional
+			    (allocated-count +draw-list-alloc-size+)
+			    (foreign-type :unsigned-short)
+			    (foreign-type-size (foreign-type-size foreign-type))
+			    (fill-pointer 0)
+			    (bytes (make-array (* (ash foreign-type-size -2)
+						  (cl:the fixnum allocated-count))
+					       :element-type '(unsigned-byte 32)))))))
 
 ;; we use a textured vertex for non-textured (standard) use to be able to use the same shader and draw-lists for simplicity
 ;; we simply put the tex coordinates of a white pixel and blend as if we were drawing text

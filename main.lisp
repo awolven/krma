@@ -239,9 +239,12 @@
     (loop for viewport in (window-viewports window)
 	  do (let ((scene (viewport-scene viewport)))
 
+	       #+NIL
 	       (maybe-defer-debug (dpy)
-		 (update-2d-camera scene))
-  
+		 (multiple-value-bind (width height) (window-framebuffer-size window)
+		   (update-2d-camera scene
+				     (mortho-vulkan 0 width height 0 0 1024))))
+	       #+NIL
 	       (maybe-defer-debug (dpy)
 		 (update-3d-camera scene))
 
@@ -280,6 +283,8 @@
 	 (current-frame (car current-frame-cons))
 	 (current-draw-data (car current-draw-data-cons))
 	 (image-indices (make-array 100 :adjustable t :fill-pointer 0 :initial-element nil)))
+
+    ;;(print (clui::window-keys (main-window (first (display-applications dpy)))))
     
     ;; maybe create new descriptor set if select box size has changed
     (maybe-defer-debug (dpy)
@@ -357,19 +362,26 @@
     #+nvidia(maybe-defer-debug (dpy)
 	      (monitor-select-boxes dpy))
 
+    ;; first time use of compacting complete semaphore is :count 1
+    ;; this needs to be the only thread that modifies current-frame
+    (update-counts (current-frame-cons dpy) (current-draw-data-cons dpy) (number-of-images (swapchain (main-window (first (display-applications dpy))))))
+    (bt:wait-on-semaphore (compacting-complete-semaphore dpy))
+    (bt:signal-semaphore (frame-iteration-complete-semaphore dpy))
+
     (values)))
 
 (defun compactor-thread-iteration (dpy active-scenes)
   (bt:wait-on-semaphore (frame-iteration-complete-semaphore dpy))
   (let* ((current-draw-data-cons (current-draw-data-cons dpy))
 	 (alt-index (mod (1+ (car current-draw-data-cons)) 2)))
-;;    (break)
+
     (loop for active-scene in active-scenes
 	  do (let ((rm-draw-data-pair (rm-draw-data active-scene)))
 	       (compact-draw-lists
 		dpy
 		;; the draw data that is not currently being modified
 		(aref rm-draw-data-pair alt-index))))
+    
     (bt:signal-semaphore (compacting-complete-semaphore dpy))))
 
 (defun compactor-loop (dpy)
@@ -404,13 +416,7 @@
 		    (ns::|run| app))
     (shutdown-application app)))
 
-#+cocoa
-(defmethod clui::application-did-finish-launching ((application vulkan-application-mixin) notification)
-  (declare (ignorable notification))
-  ;;(abstract-os::post-empty-event application)
-  ;;(ns::|stop:| application nil)
-  (start-compactor-thread application)
-  (values))
+
 
 #+cocoa
 (defmethod clui::content-view-draw-rect ((window vk::vulkan-window-mixin) view rect)
@@ -431,25 +437,20 @@
 
     (unwind-protect
 	 (loop until (run-loop-exit? dpy)
-		 initially (start-compactor-thread dpy)
-	       do (maybe-defer-debug (dpy)
-		    (poll-events dpy))
+	    initially (start-compactor-thread dpy)
+	    do (maybe-defer-debug (dpy)
+		 (poll-events dpy))
 		
-		  (maybe-defer-debug (dpy)
-		    (update-frame-rate main-window))
-		
-		  (do ((window (clui::display-window-list-head dpy) (clui::window-next window)))
-		      ((null window))
-		    (maybe-defer-debug (dpy)
-			(frame-iteration dpy (number-of-images (swapchain window)) show-frame-rate?)))
-       
-		  ;; first time use of compacting complete semaphore is :count 1
-		     ;; this needs to be the only thread that modifies current-frame
-		  (update-counts (current-frame-cons dpy) (current-draw-data-cons dpy) (number-of-images (swapchain main-window)))
-		  (bt:wait-on-semaphore (compacting-complete-semaphore dpy))
-		  (bt:signal-semaphore (frame-iteration-complete-semaphore dpy))
+	      (maybe-defer-debug (dpy)
+		(update-frame-rate main-window))
 
-		  )
+	      (maybe-defer-debug (dpy)
+		(frame-iteration dpy (number-of-images (swapchain window)) show-frame-rate?))
+	      
+       
+	    
+
+	      )
 
       (shutdown-run-loop dpy))))
     

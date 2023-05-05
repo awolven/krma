@@ -7,12 +7,15 @@
 (defclass draw-list-mixin ()
   ((index-array
     :accessor draw-list-index-array
-    :initform (make-index-array))
+    :initform (make-index-array)
+    :initarg :index-array)
    (vertex-array
-    :reader draw-list-vertex-array)
+    :reader draw-list-vertex-array
+    :initarg :vertex-array)
    (cmd-vector
     :initform (make-array +draw-list-alloc-size+ :adjustable t :fill-pointer 0)
-    :reader draw-list-cmd-vector)
+    :reader draw-list-cmd-vector
+    :initarg :cmd-vector)
    (changed?
     :initform t
     :accessor draw-list-changed?)
@@ -21,22 +24,28 @@
     :accessor draw-list-needs-compaction?)
    (index-memory
     :accessor draw-list-index-memory
-    :initform nil)
+    :initform nil
+    :initarg :index-memory)
    (index-size-aligned
     :accessor draw-list-index-size-aligned
-    :initform 0)
+    :initform 0
+    :initarg :index-size-aligned)
    (vertex-memory
     :accessor draw-list-vertex-memory
-    :initform nil)
+    :initform nil
+    :initarg :vertex-memory)
    (vertex-size-aligned
     :accessor draw-list-vertex-size-aligned
-    :initform 0)
+    :initform 0
+    :initarg :vertex-size-aligned)
    (texture
     :accessor draw-list-texture
-    :initform nil :initarg :texture)
+    :initform nil
+    :initarg :texture)
    (font
     :accessor draw-list-font
-    :initform nil :initarg :font)
+    :initform nil
+    :initarg :font)
    (line-thickness
     :accessor draw-list-line-thickness
     :initform nil

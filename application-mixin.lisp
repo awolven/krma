@@ -158,22 +158,28 @@
   (let ((main-viewport (first (window-viewports window)))
 	(new-width (clui::window-resize-event-new-width event))
 	(new-height (clui::window-resize-event-new-height event)))
+
+    (unless (or (zerop new-width)
+		(zerop new-height))
     
-    (setf (viewport-width main-viewport) new-width
-	  (viewport-height main-viewport) new-height)
-    (let ((3d-camera (or (viewport-3d-camera main-viewport)
-			 (setf (viewport-3d-camera main-viewport)
-			       (make-camera
-				:proj-matrix (mperspective-vulkan
-					      45 (/ new-width new-height)
-					      *default-znear* *default-zfar*)
-				:view-matrix (mlookat (vec3 0 0 1500) (vec3 0 0 0) (vec3 0 1 0)))))))
+      (setf (viewport-width main-viewport) new-width
+	    (viewport-height main-viewport) new-height)
+      (let ((3d-camera (or (viewport-3d-camera main-viewport)
+			   (setf (viewport-3d-camera main-viewport)
+				 (make-camera))))
+	    (2d-camera (or (viewport-2d-camera main-viewport)
+			   (setf (viewport-2d-camera main-viewport)
+				 (make-camera)))))
       
-      (setf (camera-proj-matrix 3d-camera) (mperspective-vulkan 45 (/ new-width new-height)
-								0.1 3000
-								;;*default-znear* *default-zfar*
-								))
-      (setf (camera-view-matrix 3d-camera) (mlookat (vec3 0 0 1500) (vec3 0 0 0) (vec3 0 1 0))))
+	(setf (camera-proj-matrix 3d-camera) (mperspective-vulkan 45 (/ new-width new-height)
+								  0.1 3000
+								  ;;*default-znear* *default-zfar*
+								  ))
+	(setf (camera-view-matrix 3d-camera) (mlookat (vec3 0 0 1500) (vec3 0 0 0) (vec3 0 1 0)))
+
+	(setf (camera-proj-matrix 2d-camera) (mortho-vulkan 0 new-width new-height 0 0 1024))
+
+	(setf (camera-view-matrix 2d-camera) (mlookat (vec3 0 0 +select-box-2d-depth+) (vec3 0 0 0) (vec3 0 1 0)))))
     
     (values)))
 
@@ -183,6 +189,11 @@
    (active-scenes :initform nil :accessor active-scenes)
    (main-window :initform nil :initarg :main-window :accessor main-window))
   (:documentation "Abstract superclass for top-level application objects.  Base your own top-level application class on this mixin.  Objects based on this type will be bound to krma:*app* after instantiation."))
+
+(defmethod initialize-instance :before ((app krma-application-mixin) &rest initargs &key &allow-other-keys)
+  (declare (ignorable initargs))
+  (setq *app* app)
+  (values))
 
 (defmethod initialize-instance :after ((app krma-application-mixin) &rest initargs &key (display (default-display)) &allow-other-keys)
   (declare (ignorable initargs))
@@ -217,8 +228,6 @@
 	    (let ((index (queue-family-index (render-surface main-window))))
 	      (setf queue (find-queue device index))
 	      (setf command-pool (find-command-pool device index)))))
-	
-	(setq *app* app)
 
 	(values)))))
 
@@ -277,7 +286,30 @@
 	with result = ()
 	unless (zerop (aref 2d-select-box x y i))
 	do (push (aref 2d-select-box x y i) result)
-	finally (return result)))
+     finally (return result)))
+
+
+(defun focused-hovered-2d (2d-select-box x y)
+  (first (remove-if #'(lambda (list)
+			(every #'zerop list))
+		    (loop for i from (1- +select-box-2d-depth+) downto (1- +view-depth+) by +view-depth+
+		       collect (loop for j from i downto 0 repeat +view-depth+
+				  unless (zerop (aref 2d-select-box x y j))
+				  collect (aref 2d-select-box x y j))))))
+
+#+NIL
+(defun focused-hovered-2d (2d-select-box x y)
+  (let ((i (loop for i from (1- +select-box-2d-depth+) downto 0
+	      when (and (zerop (mod (1+ i) +view-depth+))
+			(not (zerop (aref 2d-select-box x y i))))
+	      do (return i)
+	      finally (return 0))))
+    (loop for j from i
+       repeat +view-depth+
+       with result = ()
+       unless (zerop (aref 2d-select-box x y j))
+       do (push (aref 2d-select-box x y j) result)
+       finally (return (nreverse result)))))
   
 
 (defun monitor-select-boxes (dpy)

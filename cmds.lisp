@@ -43,32 +43,37 @@
   (layer))
 
 (defstruct (text-draw-indexed-cmd
-            (:include standard-draw-indexed-cmd)
-            (:conc-name "CMD-")
-	    (:constructor make-text-draw-indexed-cmd
-                (font draw-list first-idx elem-count vtx-offset
-                 &optional (group nil) (model-mtx nil) (color-override nil) (texture *white-texture*)
-                   (point-size nil) (line-thickness nil) (material nil) (layer 0))))
+	     (:include standard-draw-indexed-cmd)
+	     (:conc-name "CMD-")
+	     (:constructor make-text-draw-indexed-cmd
+			   (font draw-list first-idx elem-count vtx-offset
+				 &optional (group nil) (model-mtx nil) (color-override nil) (texture *white-texture*)
+				 (point-size nil) (line-thickness nil) (material nil) (layer 0))))
   (font))
 
-(defun %reinstance-cmd-1 (cmd constructor new-draw-list first-idx elem-count vtx-offset
+(defun %reinstance-cmd-1 (cmd new-draw-list first-idx elem-count vtx-offset
 			  &key
 			    (group (cmd-group cmd))
 			    (model-mtx (cmd-model-mtx cmd))
 			    (ub32-color-override (cmd-color-override cmd))
 			    (texture (cmd-texture cmd))
 			    (material (cmd-material cmd))
+			    (sf-point-size (cmd-point-size cmd))
 			    (sf-line-thickness (cmd-line-thickness cmd))
-			    (sf-point-size (cmd-point-size cmd)))
-  (declare (type function constructor))
-  (let ((cmd (funcall constructor
-		      new-draw-list
-		      first-idx elem-count vtx-offset
-		      group (when model-mtx (mcopy model-mtx))
-		      ub32-color-override
-		      texture
-		      sf-line-thickness
-		      sf-point-size
-		      material)))
+			    (layer (cmd-layer cmd)))
+  (let ((cmd (apply (etypecase cmd
+		      (text-draw-indexed-cmd #'make-text-draw-indexed-cmd)
+		      (standard-draw-indexed-cmd #'make-standard-draw-indexed-cmd))
+		    (append (when (typep cmd 'text-draw-indexed-cmd)
+			      (list (cmd-font cmd)))
+			    (list new-draw-list
+				  first-idx elem-count vtx-offset
+				  group (when model-mtx (mcopy model-mtx))
+				  ub32-color-override
+				  texture
+				  sf-point-size
+				  sf-line-thickness
+				  material
+				  layer)))))
     (vector-push-extend cmd (draw-list-cmd-vector new-draw-list))
     cmd))

@@ -501,12 +501,6 @@
 
                 texture-image))))))))
 
-;; initialize buffers for immediate mode should happen right after draw lists
-;;                    are built in secondary render thread
-;; initialize buffers for retained mode should happen in tertiary render thread
-;;                    and amended in secondary render thread
-
-
 (defun initialize-buffers (dpy draw-list)
   (let ((vertex-array (draw-list-vertex-array draw-list))
         (index-array (draw-list-index-array draw-list)))

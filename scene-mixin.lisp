@@ -141,16 +141,8 @@
 
 
 (defmethod update-2d-camera (scene &optional
-				     #+NIL(proj #+NIL(mperspective-vulkan
-					    45 (/ 640 480)
-					    *default-znear* *default-zfar*)
-					   (mortho-vulkan -1500 1500
-							       (* -1500 (/ 640 480))
-							       (* 1500 (/ 640 480))
-							       *default-znear* *default-zfar*))
-				     #+NIL(view (mlookat (vec3 0 0 1500) (vec3 0 0 0) (vec3 0 1 0)))
-				     (proj (mortho-vulkan 0 640 480 0 0 127))
-				     (view (mlookat (vec3 0 0 -127) (vec3 0 0 0) (vec3 0 1 0))))
+				     (proj (mortho-vulkan 0 640 480 0 0 1024))
+				     (view (mlookat (vec3 0 0 -1024) (vec3 0 0 0) (vec3 0 1 0))))
   "Function which takes a projection matrix and a view matrix from a 2d-camera and stores it in the scene so that the scene need not know about the camera class directly. Called before render-scene."
   (declare (type krma-essential-scene-mixin scene))
   (with-slots (2d-camera-projection-matrix
@@ -1442,21 +1434,22 @@
   (declare (type (or mat4 null) model-matrix))
   (declare (type (unsigned-byte 32) object-id))
   (declare (type atom group))
-  (let ((data (font-data font)))
-    (declare (type 3b-bmfont-common:bmfont data))
-    (let* ((glyph-table (slot-value data '3b-bmfont-common::chars))
-           (scale-w (float (3b-bmfont-common:scale-w data) 1.0f0))
-           (scale-h (float (3b-bmfont-common:scale-h data) 1.0f0))
-	   (pos-x (clampf pos-x))
-	   (pos-y (clampf pos-y))
-	   (color (canonicalize-color color))
-           (vertices (compute-text-coordinates pos-x pos-y string glyph-table scale-w scale-h))
-	   (layer (clampf layer)))
-      (rm-dispatch-to-render-thread-with-handle (scene draw-data handle)
-	(%draw-data-add-text-quad-list-primitive draw-data handle object-id group
-						 (when model-matrix (mcopy model-matrix))
-						 font color layer
-						 vertices)))))
+  (unless (string= string "")
+    (let ((data (font-data font)))
+      (declare (type 3b-bmfont-common:bmfont data))
+      (let* ((glyph-table (slot-value data '3b-bmfont-common::chars))
+	     (scale-w (float (3b-bmfont-common:scale-w data) 1.0f0))
+	     (scale-h (float (3b-bmfont-common:scale-h data) 1.0f0))
+	     (pos-x (clampf pos-x))
+	     (pos-y (clampf pos-y))
+	     (color (canonicalize-color color))
+	     (vertices (compute-text-coordinates pos-x pos-y string glyph-table scale-w scale-h))
+	     (layer (clampf layer)))
+	(rm-dispatch-to-render-thread-with-handle (scene draw-data handle)
+	  (%draw-data-add-text-quad-list-primitive draw-data handle object-id group
+						   (when model-matrix (mcopy model-matrix))
+						   font color layer
+						   vertices))))))
 
 (defun scene-add-text (scene group font color pos-x pos-y string &optional (object-id 0) (layer 0))
   "Retained-mode function, adds text to the draw lists, returns no values.  scene must be of the type krma-essential-scene-mixin, group must be a non-null atom, font is a font object as returned by vulkan-make-font, color can either be a 4 component vector who's elements are real numbers between zero and one, or a 32 bit unsigned integer, pos-x and pos-y represent the top left corner of the text and must be real numbers, string is the string you wish to render.  Dispatches actual work to render thread.  To delete the text, you must delete the entire group."
@@ -1464,18 +1457,19 @@
   (declare (type string string))
   (declare (type (unsigned-byte 32) object-id))
   (declare (type (and atom t) group))
-  (let ((data (font-data font)))
-    (declare (type 3b-bmfont-common:bmfont data))
-    (let* ((glyph-table (slot-value data '3b-bmfont-common::chars))
-           (scale-w (float (3b-bmfont-common:scale-w data) 1.0f0))
-           (scale-h (float (3b-bmfont-common:scale-h data) 1.0f0))
-	   (pos-x (clampf pos-x))
-	   (pos-y (clampf pos-y))
-	   (color (canonicalize-color color))
-           (vertices (compute-text-coordinates pos-x pos-y string glyph-table scale-w scale-h))
-	   (layer (clampf layer)))
-      (rm-dispatch-to-render-thread (scene draw-data)
-	(%draw-data-add-text-quad-list draw-data object-id group font color layer vertices)))))
+  (unless (string= string "")
+    (let ((data (font-data font)))
+      (declare (type 3b-bmfont-common:bmfont data))
+      (let* ((glyph-table (slot-value data '3b-bmfont-common::chars))
+	     (scale-w (float (3b-bmfont-common:scale-w data) 1.0f0))
+	     (scale-h (float (3b-bmfont-common:scale-h data) 1.0f0))
+	     (pos-x (clampf pos-x))
+	     (pos-y (clampf pos-y))
+	     (color (canonicalize-color color))
+	     (vertices (compute-text-coordinates pos-x pos-y string glyph-table scale-w scale-h))
+	     (layer (clampf layer)))
+	(rm-dispatch-to-render-thread (scene draw-data)
+	  (%draw-data-add-text-quad-list draw-data object-id group font color layer vertices))))))
 
 (defun scene-draw-text (scene group font color pos-x pos-y string &optional (object-id 0) (layer 0))
   "Retained-mode function, draws text, returns no values.  scene must be of the type krma-essential-scene-mixin, group must be a non-null atom, font is a font object as returned by vulkan-make-font, color can either be a 4 component vector who's elements are real numbers between zero and one, or a 32 bit unsigned integer, pos-x and pos-y represent the top left corner of the text and must be real numbers, string is the string you wish to render.  Performs work in current thread, which should be the render thread.  Effects of this function only last for the current frame."
@@ -1727,6 +1721,34 @@
         (values)))))
 
 
+#+NIL
+(defun %delete-primitives-2 (ht handles)
+  (handler-case
+      (let ((cmds (mapcar #'(lambda (handle)
+			      (cons handle (gethash handle ht))) handles)))
+	(let* ((cmd-vector (draw-list-cmd-vector draw-list))
+	       (holes 0))
+	  (loop for entry across cmd-vector
+	     with cmd = nil
+	     for i from 0
+	     unless entry
+	     do (incf holes)
+	     when (setq cmd (find entry cmds :key #'cdr))
+	     do (remhash (car cmd) ht)
+	       (setq cmds (delete entry cmds :key #'cdr))
+	       (setf (aref cmd-vector i) nil)
+	       (incf holes)
+	     unless cmds
+	     do (return))
+	  ;; we do not count all the holes here, we'll do that elsewhere
+	  ;; but if holes happens to exceed trigger already, then schedule compaction
+	  (when (> holes (floor (* (fill-pointer cmd-vector) *compact-trigger*)))
+	    (setf (draw-list-needs-compaction? draw-list) t))
+	  (values)))
+    (error (c)
+      (warn (concatenate 'string "while in %delete-primitive2-2 ..." (princ-to-string c)))
+      (values))))    
+
 (defun %delete-primitive-1 (ht handle)
   (handler-case
       (let ((cmd (gethash handle ht)))
@@ -1734,18 +1756,12 @@
             (warn "while in %delete-primitive-1 ...could not find primitive to delete ~S" handle)
             (let* ((draw-list (cmd-draw-list cmd))
                    (cmd-vector (draw-list-cmd-vector draw-list)))
-              (loop for entry across cmd-vector with holes = 0
-                    for i from 0
-		    unless entry
-		      do (incf holes)
-                    when (eq cmd entry)
-		      do (setf (aref cmd-vector i) nil)
-			 (incf holes)
-			 (remhash handle ht)
-			 ;; we don't return from here because we want to count the holes
-		    finally (when (> holes (floor (* i *compact-trigger*)))
-			      (setf (draw-list-needs-compaction? draw-list) t))
-			    (return (values))))))
+              (loop for entry across cmd-vector
+		 for i from 0
+		 when (and entry (eq cmd entry))
+		 do (setf (aref cmd-vector i) nil)
+		   (remhash handle ht)
+		   (return (values))))))
     (error (c)
       (warn (concatenate 'string "while in %delete-primitive-1 ..." (princ-to-string c)))
       (values))))
@@ -1766,13 +1782,13 @@
             (ht1 (draw-data-handle-hash-table dd1)))
         (lparallel.queue:push-queue
 	 #'(lambda ()
-             (loop for handle in list-of-handles
-                   do (%delete-primitive-1 ht0 handle)))
+	     (loop for handle in list-of-handles
+		  do (%delete-primitive-1 ht0 handle)))
          wq0)
         (lparallel.queue:push-queue
 	 #'(lambda ()
-             (loop for handle in list-of-handles
-                   do (%delete-primitive-1 ht1 handle)))
+	     (loop for handle in list-of-handles
+		do (%delete-primitive-1 ht1 handle)))
          wq1)))))
 
 (defun delete-primitive (scene handle)
@@ -2000,7 +2016,6 @@
   (declare (type krma-essential-scene-mixin scene))
   (declare (type (or mat4 null) matrix))
   (declare (type (and atom t) group))
-  (print matrix)
   (rm-dispatch-to-render-thread (scene draw-data)
     (%group-set-model-matrix-1 draw-data group (mcopy matrix))))
 
@@ -2077,23 +2092,25 @@
 				      (let ((layer1 (cmd-layer one))
 					    (layer2 (cmd-layer two)))
 					(< layer1 layer2))))))))
-	   (set-fp (draw-list)
+	   (check-for-compaction (draw-list)
 	     ;; should this be done in compaction thread?
 	     ;; seems convenient here, since it's sorted
 	     ;; actually, don't i already compact cmd vector in compaction thread??
 	     (let* ((cmds (draw-list-cmd-vector draw-list))
 		    (pos (position nil cmds)))
 	       (when pos
-		 (setf (fill-pointer cmds) pos)))))
+		 (let ((holes (- (fill-pointer cmds) pos)))
+		   (when (> holes (floor (* (fill-pointer cmds) *compact-trigger*)))
+		     (setf (draw-list-needs-compaction? draw-list) t)))))))
       
       (do-sort 2d-point-list-draw-list)
-      (set-fp 2d-point-list-draw-list)
+      (check-for-compaction 2d-point-list-draw-list)
       (do-sort 2d-line-list-draw-list)
-      (set-fp 2d-line-list-draw-list)
+      (check-for-compaction 2d-line-list-draw-list)
       (do-sort 2d-triangle-list-draw-list)
-      (set-fp 2d-triangle-list-draw-list)
+      (check-for-compaction 2d-triangle-list-draw-list)
       (do-sort 2d-triangle-list-draw-list-for-text)
-      (set-fp 2d-triangle-list-draw-list-for-text))))
+      (check-for-compaction 2d-triangle-list-draw-list-for-text))))
 	       
 (defun delete-all-from-scene (scene)
   (rm-dispatch-to-render-thread (scene draw-data)
