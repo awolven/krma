@@ -230,9 +230,9 @@
     (when show-frame-rate?
       (maybe-defer-debug (dpy)
 	(multiple-value-bind (w h) (window-framebuffer-size window)
-	  (multiple-value-bind (xscale yscale) (window-content-scale window)
-	    (draw-text (format nil "fps: ~4,0f" (window-frame-rate window))
-		       (- (/ w xscale) 100) (- (/ h yscale) 25) :color #x000000ff)))))
+	  (declare (ignorable h))
+	  (draw-text (format nil "fps: ~4,0f" (window-frame-rate window))
+		     (- w 100) 15 :color #x000000ff))))
     
     ;; render here.
     
