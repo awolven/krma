@@ -60,9 +60,6 @@
 
 (defun compute-select-boxes-descriptor-set (dpy window frame-count current-frame)
   (multiple-value-bind (mouse-x mouse-y) (window-cursor-position window)
-    ;;(print mouse-x)
-    ;;(print mouse-y)
-    ;;(finish-output)
     (let* ((new-coords (vec4 (- mouse-x 1/2) (- mouse-y 1/2)
 			     (+ mouse-x 1/2) (+ mouse-y 1/2)))
 	   (width (round (- (vz new-coords) (vx new-coords)))) ;; should be 1.0 atm, in the future it might not be
@@ -70,8 +67,12 @@
 	   (new-2d-size (* width height +select-box-2d-depth+ (load-time-value (foreign-type-size :unsigned-int))))
 	   (new-3d-size (* width height +select-box-3d-depth+ (load-time-value (foreign-type-size :unsigned-int)))))
 
+      
+
       (when (or (/= width (last-select-box-width dpy))
-		(/= height (last-select-box-height dpy)))
+		(/= height (last-select-box-height dpy))
+		(not (krma-select-box-2d dpy))
+		(not (krma-select-box-3d dpy)))
 	
 	(let ((2d-array (make-array (* width height +select-box-2d-depth+) :element-type '(unsigned-byte 32)))
 	      (3d-array (make-array (* width height +select-box-3d-depth+) :element-type '(unsigned-byte 32))))
@@ -406,7 +407,7 @@
 (defvar *threshold* 0.008)
 (defvar *test* 1290)
 
-#+(and noglfw nil)
+#+(and cocoa noglfw)
 (defun krma-application-main (app &rest args &key (show-frame-rate? t) &allow-other-keys)
   (declare (ignore args))
   (setf (window-show-frame-rate? (main-window app)) show-frame-rate?)
@@ -437,21 +438,16 @@
 
     (unwind-protect
 	 (loop until (run-loop-exit? dpy)
-	    initially (start-compactor-thread dpy)
-	    do (maybe-defer-debug (dpy)
-		 (poll-events dpy))
-		
-	      (maybe-defer-debug (dpy)
-		(update-frame-rate main-window))
+		 initially (start-compactor-thread dpy)
+	       do (maybe-defer-debug (dpy)
+		    (poll-events dpy))
 
-	      (maybe-defer-debug (dpy)
-		(frame-iteration dpy (number-of-images (swapchain window)) show-frame-rate?))
-	      
-       
-	    
-
-	      )
-
+		  (maybe-defer-debug (dpy)
+		    (update-frame-rate main-window))
+		  
+		  (maybe-defer-debug (dpy)
+		    (frame-iteration dpy (number-of-images (swapchain main-window)) show-frame-rate?)))
+      
       (shutdown-run-loop dpy))))
     
 
@@ -481,3 +477,6 @@
      (let ((args (copy-list args)))
        (remf args :show-frame-rate?)
        (apply #'run-1 :class class :show-frame-rate? show-frame-rate? args)))))
+
+
+

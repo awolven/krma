@@ -270,16 +270,18 @@
   (:default-initargs :enable-fragment-stores-and-atomics t))
 
 (defun most-specifically-hovered-2d (2d-select-box x y)
-  (loop for i from (1- +select-box-2d-depth+) downto 0
-	do (when (not (zerop (aref 2d-select-box x y i)))
-	     (return (aref 2d-select-box x y i)))
-	finally (return nil)))
+  (when 2d-select-box
+    (loop for i from (1- +select-box-2d-depth+) downto 0
+	  do (when (not (zerop (aref 2d-select-box x y i)))
+	       (return (aref 2d-select-box x y i)))
+	  finally (return nil))))
 
 (defun most-specifically-hovered-2d-object (2d-select-box x y)
-  (let ((hovered (most-specifically-hovered-2d 2d-select-box x y)))
-    (when hovered
-      (let ((object (object-from-id hovered)))
-	object))))
+  (when 2d-select-box
+    (let ((hovered (most-specifically-hovered-2d 2d-select-box x y)))
+      (when hovered
+	(let ((object (object-from-id hovered)))
+	  object)))))
 
 (defun all-hovered-2d (2d-select-box x y)
   (loop for i from 0 below +select-box-2d-depth+
