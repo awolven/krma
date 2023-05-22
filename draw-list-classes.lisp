@@ -28,7 +28,7 @@
     :initarg :index-memory)
    (index-size-aligned
     :accessor draw-list-index-size-aligned
-    :initform 0
+    :initform nil
     :initarg :index-size-aligned)
    (vertex-memory
     :accessor draw-list-vertex-memory
@@ -36,7 +36,7 @@
     :initarg :vertex-memory)
    (vertex-size-aligned
     :accessor draw-list-vertex-size-aligned
-    :initform 0
+    :initform nil
     :initarg :vertex-size-aligned)
    (texture
     :accessor draw-list-texture

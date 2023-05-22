@@ -97,8 +97,8 @@
 	(pipeline-store-2d-point-list-pipeline pipeline-store)
 	(draw-data-2d-point-list-draw-list draw-data)
 
-	(pipeline-store-msdf-text-pipeline pipeline-store)
-	(draw-data-2d-triangle-list-draw-list-for-text draw-data)))
+	#+NOMORE(pipeline-store-msdf-text-pipeline pipeline-store)
+	#+NOMORE(draw-data-2d-triangle-list-draw-list-for-text draw-data)))
 
 (defmethod 2d-draw-list-oriented-combinations ((pipeline-store pipeline-store-mixin)
 					       (draw-data retained-mode-draw-data))
@@ -112,6 +112,7 @@
 	(point-pipeline (pipeline-store-2d-point-list-pipeline pipeline-store))
 	(line-pipeline (pipeline-store-2d-line-list-pipeline pipeline-store))
 	(triangle-pipeline (pipeline-store-2d-triangle-list-pipeline pipeline-store))
+	#+NOMORE
 	(text-pipeline (pipeline-store-msdf-text-pipeline pipeline-store)))
 
     ;; 2d is currently using depth testing, so order does not matter
@@ -124,7 +125,7 @@
 
     ;; note that there are no triangle strips for draw-list oriented renders
 
-    (maphash #'(lambda (k v)
+    #+NOMORE(maphash #'(lambda (k v)
 		 (declare (ignore k))
 		 (push v res)
 		 (push text-pipeline res))
@@ -241,12 +242,14 @@
 	(point-pipeline (pipeline-store-2d-point-list-pipeline pipeline-store))
 	(line-pipeline (pipeline-store-2d-line-list-pipeline pipeline-store))
 	(triangle-pipeline (pipeline-store-2d-triangle-list-pipeline pipeline-store))
+	#+NOMORE
 	(text-pipeline (pipeline-store-msdf-text-pipeline pipeline-store)))
 
     ;; 2d has no depth buffer
     ;; so the first thing displayed is covered by later things displayed
     ;; the first thing pushed is the last thing displayed
 
+    #+NOMORE
     (maphash #'(lambda (k v)
 		 (declare (ignore k))
 		 (push v res)
@@ -289,8 +292,10 @@
 	(point-pipeline (pipeline-store-2d-point-list-pipeline pipeline-store))
 	(line-pipeline (pipeline-store-2d-line-list-pipeline pipeline-store))
 	(triangle-pipeline (pipeline-store-2d-triangle-list-pipeline pipeline-store))
+	#+NOMORE
 	(text-pipeline (pipeline-store-msdf-text-pipeline pipeline-store)))
 
+    #+NOMORE
     (maphash #'(lambda (k v)
 		 (declare (ignore k))
 		 (push v res)

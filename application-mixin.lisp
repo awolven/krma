@@ -9,7 +9,7 @@
    (2d-line-list-pipeline :accessor pipeline-store-2d-line-list-pipeline)
    (2d-line-strip-pipeline :accessor pipeline-store-2d-line-strip-pipeline)
    (2d-triangle-list-pipeline :accessor pipeline-store-2d-triangle-list-pipeline)
-   (msdf-text-pipeline :accessor pipeline-store-msdf-text-pipeline)
+   #+NOMORE(msdf-text-pipeline :accessor pipeline-store-msdf-text-pipeline)
    (2d-triangle-strip-pipeline :accessor pipeline-store-2d-triangle-strip-pipeline)
    (3d-point-list-pipeline :accessor pipeline-store-3d-point-list-pipeline)
    (3d-line-list-pipeline :accessor pipeline-store-3d-line-list-pipeline)
@@ -38,7 +38,7 @@
                2d-line-list-pipeline
                2d-line-strip-pipeline
                2d-triangle-list-pipeline
-               msdf-text-pipeline
+               #+NOMORE msdf-text-pipeline
                2d-triangle-strip-pipeline)
       instance
 
@@ -62,6 +62,7 @@
 			 :dpy dpy
 			 :name :2d-triangle-list-pipeline)
 
+	  #+NOMORE #+NOMORE
 	  msdf-text-pipeline
 	  (make-instance 'msdf-text-pipeline
 			 :dpy dpy

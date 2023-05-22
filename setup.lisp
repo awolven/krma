@@ -48,4 +48,4 @@
 (defvar *default-spot-direction* (vec3 0 1 0))
 (defvar *default-scene-ambient* #xffffffff)
 (defvar *default-material*)
-(defvar *compact-trigger* 1/3) ;; must be real number between 0 and 1
+(defvar *compact-trigger* 1/2) ;; must be real number between 0 and 1

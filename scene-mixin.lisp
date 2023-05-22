@@ -212,14 +212,20 @@
 					3d-camera-view-matrix 3d-camera-projection-matrix
 					viewport))	
 
+	(loop for (p dl) on (2d-cmd-oriented-combinations pipeline-store rm-draw-data) by #'cddr
+	      do (render-draw-list-cmds p rm-draw-data dl dpy device command-buffer
+					scene
+					2d-camera-view-matrix 2d-camera-projection-matrix
+					viewport))
+
 	(loop for (p dl) on (2d-draw-list-oriented-combinations pipeline-store rm-draw-data) by #'cddr
 	      do (render-draw-list p rm-draw-data dl dpy device command-buffer
 				   scene
 				   2d-camera-view-matrix 2d-camera-projection-matrix
 				   viewport))
 
-	(loop for (p dl) on (2d-cmd-oriented-combinations pipeline-store rm-draw-data) by #'cddr
-	      do (render-draw-list-cmds p rm-draw-data dl dpy device command-buffer
+	(loop for (p dl) on (2d-cmd-oriented-combinations pipeline-store im-draw-data) by #'cddr
+	      do (render-draw-list-cmds p im-draw-data dl dpy device command-buffer
 					scene
 					2d-camera-view-matrix 2d-camera-projection-matrix
 					viewport))
@@ -229,14 +235,7 @@
 				   scene
 				   2d-camera-view-matrix 2d-camera-projection-matrix
 				   viewport))
-
-	(loop for (p dl) on (2d-cmd-oriented-combinations pipeline-store im-draw-data) by #'cddr
-	      do (render-draw-list-cmds p im-draw-data dl dpy device command-buffer
-					scene
-					2d-camera-view-matrix 2d-camera-projection-matrix
-					viewport)) 
-	)
-      (values))))
+      (values)))))
 
 ;; 2d-point
 (defun scene-add-2d-point-primitive (scene group model-matrix point-size color x y &optional (object-id 0) (layer 0))
@@ -1445,11 +1444,14 @@
 	     (color (canonicalize-color color))
 	     (vertices (compute-text-coordinates pos-x pos-y string glyph-table scale-w scale-h))
 	     (layer (clampf layer)))
-	(rm-dispatch-to-render-thread-with-handle (scene draw-data handle)
-	  (%draw-data-add-text-quad-list-primitive draw-data handle object-id group
-						   (when model-matrix (mcopy model-matrix))
-						   font color layer
-						   vertices))))))
+	(when vertices
+	  (rm-dispatch-to-render-thread-with-handle (scene draw-data handle)
+	    (%draw-data-add-text-quad-list-primitive draw-data handle object-id group
+						     (when model-matrix (mcopy model-matrix))
+						     font color layer
+						     vertices)))))))
+
+
 
 (defun scene-add-text (scene group font color pos-x pos-y string &optional (object-id 0) (layer 0))
   "Retained-mode function, adds text to the draw lists, returns no values.  scene must be of the type krma-essential-scene-mixin, group must be a non-null atom, font is a font object as returned by vulkan-make-font, color can either be a 4 component vector who's elements are real numbers between zero and one, or a 32 bit unsigned integer, pos-x and pos-y represent the top left corner of the text and must be real numbers, string is the string you wish to render.  Dispatches actual work to render thread.  To delete the text, you must delete the entire group."
@@ -1468,8 +1470,12 @@
 	     (color (canonicalize-color color))
 	     (vertices (compute-text-coordinates pos-x pos-y string glyph-table scale-w scale-h))
 	     (layer (clampf layer)))
-	(rm-dispatch-to-render-thread (scene draw-data)
-	  (%draw-data-add-text-quad-list draw-data object-id group font color layer vertices))))))
+	(when vertices
+	  (rm-dispatch-to-render-thread (scene draw-data)
+	    (%draw-data-add-text-quad-list draw-data object-id group font color layer vertices)))))))
+
+
+  
 
 (defun scene-draw-text (scene group font color pos-x pos-y string &optional (object-id 0) (layer 0))
   "Retained-mode function, draws text, returns no values.  scene must be of the type krma-essential-scene-mixin, group must be a non-null atom, font is a font object as returned by vulkan-make-font, color can either be a 4 component vector who's elements are real numbers between zero and one, or a 32 bit unsigned integer, pos-x and pos-y represent the top left corner of the text and must be real numbers, string is the string you wish to render.  Performs work in current thread, which should be the render thread.  Effects of this function only last for the current frame."
@@ -1486,7 +1492,8 @@
 	   (pos-y (clampf pos-y))
            (vertices (compute-text-coordinates pos-x pos-y string glyph-table scale-w scale-h)))
       (setq layer (clampf layer))
-      (%draw-data-draw-text-quad-list (im-draw-data scene) object-id group font (canonicalize-color color) layer vertices))))
+      (when vertices
+	(%draw-data-draw-text-quad-list (im-draw-data scene) object-id group font (canonicalize-color color) layer vertices)))))
 
 
 
@@ -1824,8 +1831,10 @@
 				  (when (find (car key) list-of-groups)
 				    (let ((im (draw-list-index-memory draw-list))
 					  (vm (draw-list-vertex-memory draw-list)))
-				      (vk::release-index-memory dpy im)
-				      (vk::release-vertex-memory dpy vm))))
+				      (when im
+					(vk::release-index-memory dpy im))
+				      (when vm
+					(vk::release-vertex-memory dpy vm)))))
 			      ht)
 
 		     new-ht)
@@ -1940,8 +1949,10 @@
                                 (foreign-free (foreign-array-ptr ia))
                                 (foreign-free (foreign-array-ptr va))
 				(when dpy
-				  (vk::release-index-memory dpy im)
-				  (vk::release-vertex-memory dpy vm))
+				  (when im
+				    (vk::release-index-memory dpy im))
+				  (when vm
+				    (vk::release-vertex-memory dpy vm)))
                                 nil))
                           ht)))
 

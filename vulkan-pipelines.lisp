@@ -511,44 +511,52 @@
                           (foreign-array-foreign-type-size vertex-array))))
 
       (flet ((mmap-buffer (buffer lisp-array size memory-resource aligned-size)
-               (let ((memory (allocated-memory buffer))
-                     (offset (vk::memory-resource-offset memory-resource))
-                     (device (vk::device buffer)))
-                 (with-foreign-object (pp-dst :pointer)
+	       (unless (zerop size)
+		 (let ((memory (allocated-memory buffer))
+                       (offset (vk::memory-resource-offset memory-resource))
+                       (device (vk::device buffer)))
+                   (with-foreign-object (pp-dst :pointer)
 
-                   (check-vk-result (vkMapMemory (h device) (h memory) offset aligned-size 0 pp-dst))
+                     (check-vk-result (vkMapMemory (h device) (h memory) offset aligned-size 0 pp-dst))
 
-                   (let ((p-dst (mem-aref pp-dst :pointer)))
-		     #+sbcl
-		     (sb-sys:with-pinned-objects (lisp-array)
-		       (vk::memcpy p-dst (sb-sys:vector-sap lisp-array) size))
-		     #+ccl
-		     (ccl::%copy-ivector-to-ptr lisp-array 0 p-dst 0 size)
+                     (let ((p-dst (mem-aref pp-dst :pointer)))
+		       #+sbcl
+		       (sb-sys:with-pinned-objects (lisp-array)
+			 (vk::memcpy p-dst (sb-sys:vector-sap lisp-array) size))
+		       #+ccl
+		       (ccl::%copy-ivector-to-ptr lisp-array 0 p-dst 0 size)
 
-	             (with-foreign-object (p-range '(:struct VkMappedMemoryRange))
-	               (zero-struct p-range '(:struct VkMappedMemoryRange))
+	               (with-foreign-object (p-range '(:struct VkMappedMemoryRange))
+			 (zero-struct p-range '(:struct VkMappedMemoryRange))
 
-	               (with-foreign-slots ((%vk::sType
-				             %vk::memory
-				             %vk::size
-                                             %vk::offset)
-                                            p-range (:struct VkMappedMemoryRange))
+			 (with-foreign-slots ((%vk::sType
+				               %vk::memory
+				               %vk::size
+                                               %vk::offset)
+                                              p-range (:struct VkMappedMemoryRange))
 
-	                 (setf %vk::sType VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE
-		               %vk::memory (h memory)
-		               %vk::size aligned-size
-                               %vk::offset offset))
+	                   (setf %vk::sType VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE
+				 %vk::memory (h memory)
+				 %vk::size aligned-size
+				 %vk::offset offset))
 
-	               (check-vk-result (vkFlushMappedMemoryRanges (h device) 1 p-range))
+			 (check-vk-result (vkFlushMappedMemoryRanges (h device) 1 p-range))
 
-	               (vkUnmapMemory (h device) (h memory))
+			 (vkUnmapMemory (h device) (h memory))
 
-	               (values)))))))
+			 (values))))))))
+
+	(let ((new-size-aligned (vk::aligned-size vertex-size)))
+
+	  (unless (draw-list-vertex-size-aligned draw-list)
+	    (setf (draw-list-vertex-memory draw-list)
+		  (vk::acquire-vertex-memory-sized dpy new-size-aligned :host-visible))
+	    (setf (draw-list-vertex-size-aligned draw-list) new-size-aligned))
 
         (unless (zerop vertex-size)
           (let* ((old-size-aligned (draw-list-vertex-size-aligned draw-list))
-                 (new-size-aligned (* (1+ (ceiling (/ (1- vertex-size) +buffer-alignment+))) +buffer-alignment+))
                  (memory-resource))
+	    
             (setq memory-resource
 		  (if (> new-size-aligned old-size-aligned)
 		      (prog1
@@ -565,33 +573,43 @@
 			      (setf (draw-list-vertex-memory draw-list)
 				    (vk::acquire-vertex-memory-sized dpy new-size-aligned :host-visible))
 			    (setf (draw-list-vertex-size-aligned draw-list) new-size-aligned)))))
+	    
             (mmap-buffer (vk::memory-pool-buffer (vk::memory-resource-memory-pool memory-resource))
                          (foreign-array-bytes vertex-array) vertex-size memory-resource
-                         new-size-aligned)))
+                         new-size-aligned))))
 
-        (unless (zerop index-size)
-          (let* ((new-size-aligned (* (1+ (ceiling (/ (1- index-size) +buffer-alignment+))) +buffer-alignment+))
-                 (old-size-aligned (draw-list-index-size-aligned draw-list))
-                 (memory-resource))
-            (setq memory-resource
-		  (if (> new-size-aligned old-size-aligned)
-		      (prog1 
-			  (if (draw-list-index-memory draw-list)
-			      (progn (vk::release-index-memory dpy (draw-list-index-memory draw-list))
-				     (setf (draw-list-index-memory draw-list)
-					   (vk::acquire-index-memory-sized dpy new-size-aligned :host-visible)))
-			      (setf (draw-list-index-memory draw-list)
-				    (vk::acquire-index-memory-sized dpy new-size-aligned :host-visible)))
-			(setf (draw-list-index-size-aligned draw-list) new-size-aligned))
-		      (if (draw-list-index-memory draw-list)
-			  (draw-list-index-memory draw-list)
-			  (prog1
-			      (setf (draw-list-index-memory draw-list)
-				    (vk::acquire-index-memory-sized dpy new-size-aligned :host-visible))
-			    (setf (draw-list-index-size-aligned draw-list) new-size-aligned)))))
-	    (mmap-buffer (vk::memory-pool-buffer (vk::memory-resource-memory-pool memory-resource))
-                         (foreign-array-bytes index-array) index-size memory-resource
-                         new-size-aligned))))))
+	(let ((new-size-aligned (vk::aligned-size index-size)))
+	  
+	  (unless (draw-list-index-size-aligned draw-list)
+	    (setf (draw-list-index-memory draw-list)
+		  (vk::acquire-index-memory-sized dpy new-size-aligned :host-visible))
+	    (setf (draw-list-index-size-aligned draw-list) new-size-aligned))
+
+	  (unless (zerop index-size)
+	    
+	    (let* ((old-size-aligned (draw-list-index-size-aligned draw-list))
+                   (memory-resource))
+	      
+              (setq memory-resource
+		    (if (> new-size-aligned old-size-aligned)
+			(prog1 
+			    (if (draw-list-index-memory draw-list)
+				(progn (vk::release-index-memory dpy (draw-list-index-memory draw-list))
+				       (setf (draw-list-index-memory draw-list)
+					     (vk::acquire-index-memory-sized dpy new-size-aligned :host-visible)))
+				(setf (draw-list-index-memory draw-list)
+				      (vk::acquire-index-memory-sized dpy new-size-aligned :host-visible)))
+			  (setf (draw-list-index-size-aligned draw-list) new-size-aligned))
+			(if (draw-list-index-memory draw-list)
+			    (draw-list-index-memory draw-list)
+			    (prog1
+				(setf (draw-list-index-memory draw-list)
+				      (vk::acquire-index-memory-sized dpy new-size-aligned :host-visible))
+			      (setf (draw-list-index-size-aligned draw-list) new-size-aligned)))))
+	      
+	      (mmap-buffer (vk::memory-pool-buffer (vk::memory-resource-memory-pool memory-resource))
+                           (foreign-array-bytes index-array) index-size memory-resource
+                           new-size-aligned)))))))
   
   (values))
 
@@ -782,13 +800,13 @@
 (defclass 2d-triangle-list-pipeline (2d-triangle-list-pipeline-mixin)
   ())
 
-(defclass msdf-text-pipeline (2d-triangle-list-pipeline-mixin)
+#+NOMORE(defclass msdf-text-pipeline (2d-triangle-list-pipeline-mixin)
   ())
 
-(defmethod pipeline-default-font ((pipeline msdf-text-pipeline))
+#+NOMORE(defmethod pipeline-default-font ((pipeline msdf-text-pipeline))
   (display-system-font (pipeline-display pipeline)))
 
-(defmethod fragment-shader-pathname ((pipeline msdf-text-pipeline)) 
+#+NOMORE(defmethod fragment-shader-pathname ((pipeline msdf-text-pipeline)) 
   (asdf/system:system-relative-pathname :krma "submodules/krma-shader-bin/msdf-texture.frag.spv"))
 
 (defclass 2d-triangle-strip-pipeline (triangle-strip-pipeline-mixin
@@ -1127,6 +1145,9 @@
 			 (if pipeline-line-width
 			     (vkCmdSetLineWidth command-buffer-handle pipeline-line-width)
 			     (vkCmdSetLineWidth command-buffer-handle *default-line-thickness*))))))
+
+		((draw-list-font draw-list)
+		 (setf (mem-aref pvalues :uint32 +uber-vertex-shader-primitive-type-offset+) 3))
 		
 		(t (setf (mem-aref pvalues :uint32 +uber-vertex-shader-primitive-type-offset+) 2)))
 

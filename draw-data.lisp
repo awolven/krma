@@ -1191,10 +1191,33 @@
                       font args))))
     (values)))
 
+(defun draw-data-add-text-primitive (draw-data group model-matrix font color pos-x pos-y string &optional (object-id 0) (layer 0))
+  (declare (type real pos-x pos-y))
+  (declare (type string string))
+  (declare (type (or mat4 null) model-matrix))
+  (declare (type (unsigned-byte 32) object-id))
+  (declare (type atom group))
+  (unless (string= string "")
+    (let ((data (font-data font)))
+      (declare (type 3b-bmfont-common:bmfont data))
+      (let* ((glyph-table (slot-value data '3b-bmfont-common::chars))
+	     (scale-w (float (3b-bmfont-common:scale-w data) 1.0f0))
+	     (scale-h (float (3b-bmfont-common:scale-h data) 1.0f0))
+	     (pos-x (clampf pos-x))
+	     (pos-y (clampf pos-y))
+	     (color (canonicalize-color color))
+	     (vertices (compute-text-coordinates pos-x pos-y string glyph-table scale-w scale-h))
+	     (layer (clampf layer)))
+	(when vertices
+	  (%draw-data-add-text-quad-list-primitive draw-data -2 object-id group
+						   (when model-matrix (mcopy model-matrix))
+						   font color layer
+						   vertices))))))
+
 
 (defun %draw-data-add-text-quad-list (draw-data ub32-oid atom-group font ub32-color sf-layer vertices)
   (declare (type retained-mode-draw-data draw-data))
-  (let* ((draw-list-table (draw-data-2d-triangle-list-draw-list-for-text-table draw-data))
+  (let* ((draw-list-table (draw-data-2d-triangle-list-draw-list-table draw-data))
 	 (group-hash-table (draw-data-group-hash-table draw-data))
 	 (texture (font-atlas font))
 	 (key (list atom-group texture))
@@ -1208,10 +1231,30 @@
     (%draw-list-draw-textured-2d-rectangle-list draw-list ub32-oid ub32-color sf-layer vertices)
     (values)))
 
+(defun draw-data-add-text (draw-data group font color pos-x pos-y string &optional (object-id 0) (layer 0))
+  (declare (type real pos-x pos-y))
+  (declare (type string string))
+  (declare (type (unsigned-byte 32) object-id))
+  (declare (type (and atom t) group))
+  (unless (string= string "")
+    (let ((data (font-data font)))
+      (declare (type 3b-bmfont-common:bmfont data))
+      (let* ((glyph-table (slot-value data '3b-bmfont-common::chars))
+	     (scale-w (float (3b-bmfont-common:scale-w data) 1.0f0))
+	     (scale-h (float (3b-bmfont-common:scale-h data) 1.0f0))
+	     (pos-x (clampf pos-x))
+	     (pos-y (clampf pos-y))
+	     (vertices (compute-text-coordinates pos-x pos-y string glyph-table scale-w scale-h)))
+	(when vertices
+	  (let ((color (canonicalize-color color))
+		(layer (clampf layer)))
+
+	    (%draw-data-add-text-quad-list draw-data object-id group font color layer vertices)))))))
+
 
 (defun %draw-data-draw-text-quad-list (draw-data ub32-oid atom-group font ub32-color sf-layer vertices)
   (declare (type immediate-mode-draw-data draw-data))
-  (let* ((draw-list-table (draw-data-2d-triangle-list-draw-list-for-text-table draw-data))
+  (let* ((draw-list-table (draw-data-2d-triangle-list-draw-list-table draw-data))
          (group-hash-table (draw-data-group-hash-table draw-data))
 	 (texture (font-atlas font))
          (key (list atom-group texture))
@@ -1224,5 +1267,7 @@
 							      (make-group atom-group))))))))
     (%draw-list-draw-textured-2d-rectangle-list draw-list ub32-oid ub32-color sf-layer vertices)
     (values)))
+
+
 
 
