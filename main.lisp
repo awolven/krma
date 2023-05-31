@@ -201,6 +201,8 @@
       (values))))
 
 (defun call-immediate-mode-work-functions (dpy)
+  (let ((f (immediate-mode-work-function-2 dpy)))
+    (when f (funcall f)))
   (let ((f (immediate-mode-work-function-1 dpy)))
     (when f (funcall f))))
 
