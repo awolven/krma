@@ -151,7 +151,8 @@
     
     (unless (display-stock-render-pass dpy)
       (setf (display-stock-render-pass dpy)
-	    (create-render-pass device (vk::surface-format-format (find-supported-format surface)))))
+	    (let ((format-enum (vk::surface-format-format (find-supported-format surface))))
+	      (create-render-pass device format-enum))))									  
     
     (create-device-objects pipeline device (display-stock-render-pass dpy))
     (values)))

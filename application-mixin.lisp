@@ -248,6 +248,7 @@
    (retained-mode-handle-count-cons :initform (list -1) :accessor retained-mode-handle-count-cons)
    (immediate-mode-work-function-1 :initform nil :accessor immediate-mode-work-function-1)
    (immediate-mode-work-function-2 :initform nil :accessor immediate-mode-work-function-2)
+   (immediate-mode-work-function-3 :initform nil :accessor immediate-mode-work-function-3)
    (backtrace :initform nil :accessor system-backtrace)
    (error-msg :initform nil :accessor system-error-msg)
    (select-box-coords :initform (vec4 -1 -1 -1 -1) :accessor krma-select-box-coords)

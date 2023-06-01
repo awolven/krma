@@ -7,8 +7,8 @@
          (w (3b-bmfont-common:scale-w data))
          (h (3b-bmfont-common:scale-h data)))
     (rm-dispatch-to-render-thread-with-handle (scene draw-data handle)
-					      (%draw-data-add-text-quad-list-primitive draw-data handle :foo
-										       nil font #xffffffff
+					      (%draw-data-add-text-quad-list-primitive draw-data handle 0 :foo
+										       nil font #x000000ff 0.0f0
 										       (list 0 0 0 0 w h 1 1)))))
 
 (defvar *handles*)
@@ -41,7 +41,7 @@
   (y-or-n-p))
 
 (defun 2d-line-test-4 ()
-  (add-text "2d line test #4: Do you see a blue horizontal 5px thick line segment below this text? (y/n" 100 275 :group :foo)
+  (add-text "2d line test #4: Do you see a blue horizontal 5px thick line segment below this text? (y/n)" 100 275 :group :foo)
   (add-2d-line 100 325 300 325 :color #x0000ffff :line-thickness 5 :group :foo)
   (y-or-n-p))
 
@@ -157,7 +157,7 @@
 
 (defun test-im ()
   (let ((scene (application-scene *app*)))
-    (setf (immediate-mode-work-function-1 *app*)
+    (setf (immediate-mode-work-function-3 (clui:default-display))
           #'(lambda ()
               (draw-2d-point 1000 1000 :color #xffff00ff :group :foo)
               (scene-draw-3d-point scene :bar 5 #x00ff00ff 900 900 -20)
@@ -170,7 +170,7 @@
                                                        500 935 #x00ffffff))
               (scene-draw-2d-triangle scene :foo 2 #xff0000ff 300 300 300 400 400 400)
               (scene-draw-2d-rectangle scene :foo 2 #x00ff00ff 300 500 400 600)
-              (scene-draw-2d-circular-arc scene :foo nil 2 #x0000ffff 160 1270 20 0 pi)
-              (scene-draw-2d-circle scene :foo 2 #x00ffffff 210 1270 20)
+              (scene-draw-2d-circular-arc scene :foo nil 2 #x0000ffff 160 1270 20 0 pi 32)
+              (scene-draw-2d-circle scene :foo 2 #x00ffffff 210 1270 20 32)
 	      (scene-draw-text scene :foo (application-default-font *app*)
 			       #xff0000ff 1000 100 "hullabaloo2")))))
