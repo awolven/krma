@@ -138,13 +138,14 @@
 	      (setq new-3d-memory-resource (vk::acquire-storage-memory-sized dpy aligned-size-3d :host-visible))
 	      (setq memory-resource-changed-p t)))
 
-	(let ((buffer (vk::memory-pool-buffer (vk::storage-buffer-memory-pool dpy))))
+	(let ((buffer-2d (vk::memory-resource-buffer new-2d-memory-resource))
+	      (buffer-3d (vk::memory-resource-buffer new-3d-memory-resource)))
 	  
 	  (if memory-resource-changed-p
 		
 	      (progn
-		(clear-buffer buffer 0 aligned-size-2d new-2d-memory-resource)
-		(clear-buffer buffer 0 aligned-size-3d new-3d-memory-resource)
+		(clear-buffer buffer-2d 0 aligned-size-2d new-2d-memory-resource)
+		(clear-buffer buffer-3d 0 aligned-size-3d new-3d-memory-resource)
 		  
 		(when old-descriptor-set
 		  (vk::free-descriptor-sets (list old-descriptor-set) (default-descriptor-pool dpy)))
@@ -161,11 +162,11 @@
 		       (list (krma-select-boxes-descriptor-set-layout dpy))
 		       (default-descriptor-pool dpy)
 		       :descriptor-buffer-info (list (make-instance 'descriptor-storage-buffer-info
-								    :buffer buffer
+								    :buffer buffer-2d
 								    :offset (vk::memory-resource-offset new-2d-memory-resource)
 								    :range new-2d-size)
 						     (make-instance 'descriptor-storage-buffer-info
-								    :buffer buffer
+								    :buffer buffer-3d
 								    :offset (vk::memory-resource-offset new-3d-memory-resource)
 								    :range new-3d-size)))))
 

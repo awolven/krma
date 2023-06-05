@@ -502,6 +502,26 @@
 
                 texture-image))))))))
 
+(defun get-my-index-array (&optional (i 1))
+  (let* ((scene (application-scene *app*))
+	 (rm-draw-data-array (rm-draw-data scene))
+	 (draw-data (aref rm-draw-data-array i))
+	 (table (draw-data-3d-triangle-list-with-normals-draw-list-table draw-data))
+	 (kkk))
+    (maphash (lambda (k v)
+	       (setq kkk v)) table)
+    (draw-list-index-array kkk)))
+
+(defun get-my-index-buffer (&optional (i 1))
+  (let* ((scene (application-scene *app*))
+	 (rm-draw-data-array (rm-draw-data scene))
+	 (draw-data (aref rm-draw-data-array i))
+	 (table (draw-data-3d-triangle-list-with-normals-draw-list-table draw-data))
+	 (kkk))
+    (maphash (lambda (k v)
+	       (setq kkk v)) table)
+    (draw-list-index-memory kkk)))
+
 (defun initialize-buffers (dpy draw-list)
   (let ((vertex-array (draw-list-vertex-array draw-list))
         (index-array (draw-list-index-array draw-list)))
@@ -520,32 +540,33 @@
 
                      (check-vk-result (vkMapMemory (h device) (h memory) offset aligned-size 0 pp-dst))
 
-                     (let ((p-dst (mem-aref pp-dst :pointer)))
-		       #+sbcl
-		       (sb-sys:with-pinned-objects (lisp-array)
-			 (vk::memcpy p-dst (sb-sys:vector-sap lisp-array) size))
-		       #+ccl
-		       (ccl::%copy-ivector-to-ptr lisp-array 0 p-dst 0 size)
+		     (unwind-protect
+			  (let ((p-dst (mem-aref pp-dst :pointer)))
+			    #+sbcl
+			    (sb-sys:with-pinned-objects (lisp-array)
+			      (vk::memcpy p-dst (sb-sys:vector-sap lisp-array) size))
+			    #+ccl
+			    (ccl::%copy-ivector-to-ptr lisp-array 0 p-dst 0 size)
+			    
+			    (with-foreign-object (p-range '(:struct VkMappedMemoryRange))
+			      (zero-struct p-range '(:struct VkMappedMemoryRange))
+			      
+			      (with-foreign-slots ((%vk::sType
+						    %vk::memory
+						    %vk::size
+						    %vk::offset)
+						   p-range (:struct VkMappedMemoryRange))
+				
+				(setf %vk::sType VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE
+				      %vk::memory (h memory)
+				      %vk::size aligned-size
+				      %vk::offset offset))
+			      
+			      (check-vk-result (vkFlushMappedMemoryRanges (h device) 1 p-range))))
+			      
+		       (vkUnmapMemory (h device) (h memory)))
 
-	               (with-foreign-object (p-range '(:struct VkMappedMemoryRange))
-			 (zero-struct p-range '(:struct VkMappedMemoryRange))
-
-			 (with-foreign-slots ((%vk::sType
-				               %vk::memory
-				               %vk::size
-                                               %vk::offset)
-                                              p-range (:struct VkMappedMemoryRange))
-
-	                   (setf %vk::sType VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE
-				 %vk::memory (h memory)
-				 %vk::size aligned-size
-				 %vk::offset offset))
-
-			 (check-vk-result (vkFlushMappedMemoryRanges (h device) 1 p-range))
-
-			 (vkUnmapMemory (h device) (h memory))
-
-			 (values))))))))
+		     (values))))))
 
 	(let ((new-size-aligned (vk::aligned-size vertex-size)))
 
@@ -560,22 +581,20 @@
 	    
             (setq memory-resource
 		  (if (> new-size-aligned old-size-aligned)
-		      (prog1
-			  (if (draw-list-vertex-memory draw-list)
-			      (progn (vk::release-vertex-memory dpy (draw-list-vertex-memory draw-list))
-				     (setf (draw-list-vertex-memory draw-list)
-					   (vk::acquire-vertex-memory-sized dpy new-size-aligned :host-visible)))
-			      (setf (draw-list-vertex-memory draw-list)
-				    (vk::acquire-vertex-memory-sized dpy new-size-aligned :host-visible)))
-			(setf (draw-list-vertex-size-aligned draw-list) new-size-aligned))
+		      (if (draw-list-vertex-memory draw-list)
+			  (progn (vk::release-vertex-memory dpy (draw-list-vertex-memory draw-list))
+				 (setf (draw-list-vertex-memory draw-list)
+				       (vk::acquire-vertex-memory-sized dpy new-size-aligned :host-visible)))
+			  (setf (draw-list-vertex-memory draw-list)
+				(vk::acquire-vertex-memory-sized dpy new-size-aligned :host-visible)))
 		      (if (draw-list-vertex-memory draw-list)
 			  (draw-list-vertex-memory draw-list)
-			  (prog1
-			      (setf (draw-list-vertex-memory draw-list)
-				    (vk::acquire-vertex-memory-sized dpy new-size-aligned :host-visible))
-			    (setf (draw-list-vertex-size-aligned draw-list) new-size-aligned)))))
+			  (setf (draw-list-vertex-memory draw-list)
+				(vk::acquire-vertex-memory-sized dpy new-size-aligned :host-visible)))))
 	    
-            (mmap-buffer (vk::memory-pool-buffer (vk::memory-resource-memory-pool memory-resource))
+	    (setf (draw-list-vertex-size-aligned draw-list) new-size-aligned)
+	    
+            (mmap-buffer (vk::memory-resource-buffer memory-resource)
                          (foreign-array-bytes vertex-array) vertex-size memory-resource
                          new-size-aligned))))
 
@@ -593,22 +612,20 @@
 	      
               (setq memory-resource
 		    (if (> new-size-aligned old-size-aligned)
-			(prog1 
-			    (if (draw-list-index-memory draw-list)
-				(progn (vk::release-index-memory dpy (draw-list-index-memory draw-list))
-				       (setf (draw-list-index-memory draw-list)
-					     (vk::acquire-index-memory-sized dpy new-size-aligned :host-visible)))
-				(setf (draw-list-index-memory draw-list)
-				      (vk::acquire-index-memory-sized dpy new-size-aligned :host-visible)))
-			  (setf (draw-list-index-size-aligned draw-list) new-size-aligned))
+			(if (draw-list-index-memory draw-list)
+			    (progn (vk::release-index-memory dpy (draw-list-index-memory draw-list))
+				   (setf (draw-list-index-memory draw-list)
+					 (vk::acquire-index-memory-sized dpy new-size-aligned :host-visible)))
+			    (setf (draw-list-index-memory draw-list)
+				  (vk::acquire-index-memory-sized dpy new-size-aligned :host-visible)))
 			(if (draw-list-index-memory draw-list)
 			    (draw-list-index-memory draw-list)
-			    (prog1
-				(setf (draw-list-index-memory draw-list)
-				      (vk::acquire-index-memory-sized dpy new-size-aligned :host-visible))
-			      (setf (draw-list-index-size-aligned draw-list) new-size-aligned)))))
+			    (setf (draw-list-index-memory draw-list)
+				  (vk::acquire-index-memory-sized dpy new-size-aligned :host-visible)))))
 	      
-	      (mmap-buffer (vk::memory-pool-buffer (vk::memory-resource-memory-pool memory-resource))
+	      (setf (draw-list-index-size-aligned draw-list) new-size-aligned)
+	      
+	      (mmap-buffer (vk::memory-resource-buffer memory-resource)
                            (foreign-array-bytes index-array) index-size memory-resource
                            new-size-aligned)))))))
   
@@ -884,9 +901,9 @@
                                        p-descriptor-sets
                                        0 +nullptr+))
 
-            (cmd-bind-vertex-buffers command-buffer (list (vk::memory-pool-buffer (vk::memory-resource-memory-pool (draw-list-vertex-memory draw-list))))
+            (cmd-bind-vertex-buffers command-buffer (list (vk::memory-resource-buffer (draw-list-vertex-memory draw-list)))
                                      (list (vk::memory-resource-offset (draw-list-vertex-memory draw-list))))
-            (cmd-bind-index-buffer command-buffer (vk::memory-pool-buffer (vk::memory-resource-memory-pool (draw-list-index-memory draw-list)))
+            (cmd-bind-index-buffer command-buffer (vk::memory-resource-buffer (draw-list-index-memory draw-list))
                                    (vk::memory-resource-offset (draw-list-index-memory draw-list)) (foreign-array-foreign-type index-array))
 
             (flet ((render-standard-draw-indexed-cmd (cmd &aux (pipeline-default-font nil))
@@ -1084,9 +1101,9 @@
                                    p-descriptor-sets
                                    0 +nullptr+))
 	
-        (cmd-bind-vertex-buffers command-buffer (list (vk::memory-pool-buffer (vk::memory-resource-memory-pool (draw-list-vertex-memory draw-list))))
+        (cmd-bind-vertex-buffers command-buffer (list (vk::memory-resource-buffer (draw-list-vertex-memory draw-list)))
                                  (list (vk::memory-resource-offset (draw-list-vertex-memory draw-list))))
-        (cmd-bind-index-buffer command-buffer (vk::memory-pool-buffer (vk::memory-resource-memory-pool (draw-list-index-memory draw-list)))
+        (cmd-bind-index-buffer command-buffer (vk::memory-resource-buffer (draw-list-index-memory draw-list))
                                (vk::memory-resource-offset (draw-list-index-memory draw-list)) (foreign-array-foreign-type index-array))
 
 	(let ((descriptor-set (texture-image-descriptor-set (or (draw-list-texture draw-list)
@@ -1261,13 +1278,15 @@
 	     (size-in-bytes (* size (foreign-type-size :unsigned-int)))
 	     (aligned-size (aligned-size size-in-bytes)))
 
-	(read-buffer (vk::memory-pool-buffer
-		      (vk::storage-buffer-memory-pool dpy))
+	(read-buffer (vk::memory-resource-buffer
+		      (aref (krma-select-box-2d-memory-resources dpy) frame-to-read))
 		     (array-displacement (krma-select-box-2d dpy)) size-in-bytes
 		     (aref (krma-select-box-2d-memory-resources dpy) frame-to-read)
 		     aligned-size)
       
-	(clear-buffer (vk::memory-pool-buffer (vk::storage-buffer-memory-pool dpy)) 0 aligned-size
+	(clear-buffer (vk::memory-resource-buffer
+		       (aref (krma-select-box-2d-memory-resources dpy) frame-to-read))
+		      0 aligned-size
 		      (aref (krma-select-box-2d-memory-resources dpy) frame-to-read))))
 
     (when (aref (krma-select-box-3d-memory-resources dpy) frame-to-read)
@@ -1276,12 +1295,14 @@
 	     (size-in-bytes (* size (foreign-type-size :unsigned-int)))
 	     (aligned-size (aligned-size size-in-bytes)))
 	
-	(read-buffer (vk::memory-pool-buffer
-		      (vk::storage-buffer-memory-pool dpy))
+	(read-buffer (vk::memory-resource-buffer
+		      (aref (krma-select-box-3d-memory-resources dpy) frame-to-read))
 		     (array-displacement (krma-select-box-3d dpy)) size-in-bytes
 		     (aref (krma-select-box-3d-memory-resources dpy) frame-to-read)
 		     aligned-size)
 
-	(clear-buffer (vk::memory-pool-buffer (vk::storage-buffer-memory-pool dpy)) 0 aligned-size
+	(clear-buffer (vk::memory-resource-buffer
+		       (aref (krma-select-box-3d-memory-resources dpy) frame-to-read))
+		      0 aligned-size
 		      (aref (krma-select-box-3d-memory-resources dpy) frame-to-read))))))
       
