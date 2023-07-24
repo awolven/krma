@@ -9,9 +9,8 @@
     (declaim (optimize (safety 3) (debug 3))))
   (unless krma::*debug*
     (declaim (optimize (safety 0) (speed 3) (debug 0)))
-    (declaim (inline d2r) (type double-float d2r))
-    (declaim (inline canonicalize-color) (type (unsigned-byte 32) canonicalize-color))
-    (declaim (inline clampf) (type single-float clampf))))
+    (declaim (inline d2r) (ftype (function (real) double-float) d2r))
+    (declaim (inline canonicalize-color) (ftype (function (T) (unsigned-byte 32)) canonicalize-color))))
 
 (cffi:defcfun ("memcpy" memcpy) :pointer
   (dst :pointer)
@@ -27,15 +26,15 @@
          (xaxis (vunit (vc up zaxis)))
          (yaxis (vc zaxis xaxis))
          (orientation
-           (mat (vx xaxis) (vy xaxis) (vz xaxis) 0
-                (vx yaxis) (vy yaxis) (vz yaxis) 0
-                (vx zaxis) (vy zaxis) (vz zaxis) 0
-                0          0          0          1))
+           (mat4 (vx xaxis) (vy xaxis) (vz xaxis) 0
+                 (vx yaxis) (vy yaxis) (vz yaxis) 0
+                 (vx zaxis) (vy zaxis) (vz zaxis) 0
+                 0          0          0          1))
          (translation
-           (mat 1 0 0 (- (vx eye))
-                0 1 0 (- (vy eye))
-                0 0 1 (- (vz eye))
-                0 0 0 1)))
+           (mat4 1 0 0 (- (vx eye))
+                 0 1 0 (- (vy eye))
+                 0 0 1 (- (vz eye))
+                 0 0 0 1)))
     (m* orientation translation)))
 
 (defun lookat-lh (eye target up)
@@ -43,15 +42,15 @@
          (xaxis (vunit (vc up zaxis)))
          (yaxis (vc zaxis xaxis))
          (orientation
-           (mat (vx xaxis) (vy xaxis) (vz xaxis) 0
-                (vx yaxis) (vy yaxis) (vz yaxis) 0
-                (vx zaxis) (vy zaxis) (vz zaxis) 0
-                0          0          0          1))
+           (mat4 (vx xaxis) (vy xaxis) (vz xaxis) 0
+                 (vx yaxis) (vy yaxis) (vz yaxis) 0
+                 (vx zaxis) (vy zaxis) (vz zaxis) 0
+                 0          0          0          1))
          (translation
-           (mat 1 0 0 (- (vx eye))
-                0 1 0 (- (vy eye))
-                0 0 1 (- (vz eye))
-                0 0 0 1)))
+           (mat4 1 0 0 (- (vx eye))
+                 0 1 0 (- (vy eye))
+                 0 0 1 (- (vz eye))
+                 0 0 0 1)))
     (m* orientation translation)))
 
 (defun lookat-lh-2 (eye target up)
@@ -59,10 +58,10 @@
   (let* ((zaxis (vunit (v- target eye)))
          (xaxis (vunit (vc up zaxis)))
          (yaxis (vc zaxis xaxis)))
-    (mat (vx xaxis)         (vy xaxis)         (vz xaxis)         0
-         (vx yaxis)         (vy yaxis)         (vz yaxis)         0
-         (vx zaxis)         (vy zaxis)         (vz zaxis)         0
-         (- (v. xaxis eye)) (- (v. yaxis eye)) (- (v. zaxis eye)) 1)))
+    (mat4 (vx xaxis)         (vy xaxis)         (vz xaxis)         0
+          (vx yaxis)         (vy yaxis)         (vz yaxis)         0
+          (vx zaxis)         (vy zaxis)         (vz zaxis)         0
+          (- (v. xaxis eye)) (- (v. yaxis eye)) (- (v. zaxis eye)) 1)))
 
 
   
@@ -82,10 +81,10 @@
 	     (x (/ f aspect-ratio))
 	     (y (- f)))
 
-    (3d-matrices::mat x      zero zero   zero
-                      zero   y    zero   zero
-                      zero   zero A      B
-                      zero   zero -1.0   zero)))
+    (mat4 x      zero zero   zero
+          zero   y    zero   zero
+          zero   zero A      B
+          zero   zero -1.0   zero)))
 
 (defun mortho-vulkan (left right bottom top near far)
   "https://github.com/PacktPublishing/Vulkan-Cookbook/blob/master/Library/Source%20Files/10%20Helper%20Recipes/05%20Preparing%20an%20orthographic%20projection%20matrix.cpp"
@@ -99,10 +98,10 @@
 	(n near)
 	(f far))
 
-    (3d-matrices::mat (/ f2 (- r l)) f0             f0              (- (/ (+ r l) (- r l)))
-                      f0             (/ f2 (- b u)) f0              (- (/ (+ b u) (- b u)))
-                      f0             f0             (/ f1 (- n f))  (/ n (- n f))
-                      f0             f0             f0              f1)))
+    (mat4 (/ f2 (- r l)) f0             f0              (- (/ (+ r l) (- r l)))
+          f0             (/ f2 (- b u)) f0              (- (/ (+ b u) (- b u)))
+          f0             f0             (/ f1 (- n f))  (/ n (- n f))
+          f0             f0             f0              f1)))
 
 (defun canonicalize-color (color)
   (etypecase color

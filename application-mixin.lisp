@@ -432,9 +432,6 @@
     
     (values)))
 
-
-  
-
 (defmethod initialize-instance :after ((instance krma-enabled-display-mixin) &rest initargs)
   (apply #'setup-krma instance initargs)
   (values))

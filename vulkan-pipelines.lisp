@@ -1235,37 +1235,39 @@
   (let ((memory (allocated-memory buffer))
         (offset (vk::memory-resource-offset memory-resource))
         (device (vk::device buffer)))
+    
     (with-foreign-object (pp-src :pointer)
-
+      
       (check-vk-result (vkMapMemory (h device) (h memory) offset aligned-size 0 pp-src))
-
+      
       (let ((p-src (mem-aref pp-src :pointer)))
-	#+sbcl
-	(sb-sys:with-pinned-objects (lisp-array)
-	  (vk::memcpy (sb-sys:vector-sap lisp-array) p-src size))
-
-	#+ccl
-	(ccl::%copy-ptr-to-ivector p-src 0 lisp-array 0 size)
 	
 	(with-foreign-object (p-range '(:struct VkMappedMemoryRange))
 	  (zero-struct p-range '(:struct VkMappedMemoryRange))
-
+	  
 	  (with-foreign-slots ((%vk::sType
 				%vk::memory
 				%vk::size
-                                %vk::offset)
-                               p-range (:struct VkMappedMemoryRange))
-
+				%vk::offset)
+			       p-range (:struct VkMappedMemoryRange))
+	    
 	    (setf %vk::sType VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE
 		  %vk::memory (h memory)
 		  %vk::size aligned-size
-                  %vk::offset offset))
+		  %vk::offset offset))
 
-	  (check-vk-result (vkFlushMappedMemoryRanges (h device) 1 p-range))
+	  (check-vk-result (vkInvalidateMappedMemoryRanges (h device) 1 p-range)))
 
-	  (vkUnmapMemory (h device) (h memory))
-
-	  (values))))))
+	#+sbcl
+	(sb-sys:with-pinned-objects (lisp-array)
+	  (vk::memcpy (sb-sys:vector-sap lisp-array) p-src size))
+	
+	#+ccl
+	(ccl::%copy-ptr-to-ivector p-src 0 lisp-array 0 size))
+	
+      (vkUnmapMemory (h device) (h memory))
+	
+      (values))))
 
 (defun read-select-boxes (dpy frame-to-read)
   (let* ((coords (krma-select-box-coords dpy))

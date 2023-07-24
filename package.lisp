@@ -3,8 +3,9 @@
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (ql:quickload :cffi))
 
-(defpackage :krma
-  (:use :cl :cffi :vk :%vk #-noglfw :$glfw :3d-vectors :3d-matrices)
+(3dm::define-package :krma :3dm.f
+  (:use :cl :cffi :vk :%vk #-noglfw :$glfw ;;:3d-vectors :3d-matrices
+			   )
   (:import-from :clui
 
 		#:get-displays

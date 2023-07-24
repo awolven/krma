@@ -31,6 +31,7 @@
   (m23 :float)
   (m33 :float))
 
+#+NIL
 (defun copy-matrix-to-foreign (lisp-matrix p-matrix)
   ;; glsl expects transpose of what is in marr of mat4
   (let ((array (marr lisp-matrix)))
@@ -39,6 +40,12 @@
 		   do (setf (mem-aref p-matrix :float (+ j (* i 4)))
 			    (clampf (aref array (+ i (* j 4)))))))
     (values)))
+
+(defun copy-matrix-to-foreign (lisp-matrix p-matrix)
+  (let ((array (3dm.f::marr4 lisp-matrix)))
+    (sb-sys:with-pinned-objects (array)
+      (vk::memcpy p-matrix (sb-sys:vector-sap array) (load-time-value (* 16 (foreign-type-size :float))))))
+  (values))
 
 (defcstruct vertex-uniform-buffer
   (view (:struct 3DMatrix))
@@ -73,9 +80,9 @@
 			    (foreign-slot-value p-light '(:struct light) 'pos-y) (clampf (vy position))
 			    (foreign-slot-value p-light '(:struct light) 'pos-z) (clampf (vz position))
 			    (foreign-slot-value p-light '(:struct light) 'pos-w) (typecase light
-										   (directional-light 0.0)
-										   (light-mixin 1.0)
-										   (t 0.0))
+										   (directional-light 0.0f0)
+										   (light-mixin 1.0f0)
+										   (t 0.0f0))
 			    (foreign-slot-value p-light '(:struct light) 'diffuse) (canonicalize-color diffuse)
 			    (foreign-slot-value p-light '(:struct light) 'specular) (canonicalize-color specular)
 			    (foreign-slot-value p-light '(:struct light) 'constant-attenuation) (clampf constant-attenuation)

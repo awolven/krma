@@ -33,7 +33,7 @@
 
 (defvar *white-texture*)
 (defvar *default-color* #xffffffff)
-(defvar *identity-matrix* (3d-matrices::meye 4))
+(defvar *identity-matrix* (meye 4))
 (defvar *default-point-size* 4.0f0)
 (defvar *default-line-thickness* 2.0f0)
 (defvar *default-number-of-segments* 64)

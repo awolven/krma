@@ -5,7 +5,7 @@
   :description "A platform independent graphics primitive rendering library."
   :depends-on (:cffi
 	       :float-features
-	       :3d-vectors :3d-matrices
+	       :3d-math
 	       :cl-vulkan ;;#+darwin :cl-metal
 	       :sdf/bmfont :3b-bmfont/json
 	       :trivial-main-thread
