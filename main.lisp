@@ -415,12 +415,18 @@
 #+(and cocoa noglfw)
 (defun krma-application-main (app &rest args &key (show-frame-rate? t) &allow-other-keys)
   (declare (ignore args))
-  (setf (window-show-frame-rate? (main-window app)) show-frame-rate?)
-;;  (ns::|setNeedsDisplay:| (abstract-os::window-content-view (main-window app)) t)
-  (unwind-protect (progn
-		    (start-compactor-thread app)
-		    (ns::|run| app))
-    (shutdown-application app)))
+  (let* ((main-window (main-window app))
+	 (dpy (clui::window-display main-window)))
+    
+    (setf (window-show-frame-rate? main-window) show-frame-rate?)
+
+    ;; this is called in ApplicationDidFinishLaunching:
+    ;;(start-compactor-thread dpy)
+    ;; need to move that method from clui/ to krma/
+    
+    (unwind-protect (progn
+		      (ns::|run| dpy))
+      (shutdown-run-loop dpy))))
 
 
 
@@ -433,6 +439,7 @@
     (maybe-defer-debug (dpy)
       (frame-iteration dpy (number-of-images (swapchain window)) (window-show-frame-rate? window)))))
 
+#-cocoa
 (defun krma-application-main (app &rest args &key (show-frame-rate? t) &allow-other-keys)
   (declare (ignorable args))
 
