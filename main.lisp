@@ -209,7 +209,7 @@
   (let ((f (immediate-mode-work-function-1 dpy)))
     (when f (funcall f))))
 
-(defun before-frame-begin (dpy scene current-draw-data-index)
+(defun before-frame-begin (dpy scene current-draw-data-index once)
   (let ((work-queue))
 
     (maybe-defer-debug (dpy)
@@ -224,6 +224,10 @@
 				  (lparallel.queue:pop-queue work-queue)))
 	    do (funcall work)))
 
+    (unless once
+      (maybe-defer-debug (dpy)
+	(call-immediate-mode-work-functions dpy)))
+
     (sort-2d-draw-lists (aref (rm-draw-data scene) current-draw-data-index))    
     
     (values)))
@@ -231,7 +235,6 @@
 (defun during-frame (dpy window command-buffer current-draw-data-index show-frame-rate?)
 
   (let ()
-
 
     (when show-frame-rate?
       (maybe-defer-debug (dpy)
@@ -277,6 +280,7 @@
   (when (recreate-swapchain? window)
     (multiple-value-bind (width height) (window-framebuffer-size window)
       (recreate-swapchain window (render-pass window) (swapchain window) width height)
+      #+NIL
       (setf (clui::last-framebuffer-width window) width
 	    (clui::last-framebuffer-height window) height)
       (setf (recreate-swapchain? window) nil)))
@@ -305,46 +309,62 @@
 	      (monitor-select-boxes dpy))
 
     ;;(print (krma-select-box-2d dpy))
-
+    
     ;; This loop takes all the scenes in all the applications
     ;; and updates the portion of the scene's draw-lists
     ;; which are not currently in use, that is,
     ;; not being copied to gpu memory, or not being compacted.
     ;; It is a candidate for parallelization.
-    (loop for app in (display-applications dpy)
-       do (loop for scene in (active-scenes app)
-	     do (before-frame-begin dpy scene current-draw-data)))
-
-    (maybe-defer-debug (dpy)
-      (call-immediate-mode-work-functions dpy))
+    
+    
 
     ;; This loop is a candidate for parallelization
     ;; It processes each scene on each application
     ;; in the context of a window.
     ;; Todo: if the scene does not appear in the window, by means of comparing clip coordinates,
     ;; then it is not processed for that window
-    (do ((window (clui::display-window-list-head dpy) (clui::window-next window)))
-	((null window))
+    (let ((once nil))
+      (do ((window (clui::display-window-list-head dpy) (clui::window-next window)))
+	  ((null window))
       
-      (recreate-swapchain-when-necessary window)
+	(recreate-swapchain-when-necessary window)
       
-      (with-slots (queue command-pool) window
+	(with-slots (queue command-pool) window
+
+	  ;; todo: extract out wait-for-fences from frame-begin in cl-vulkan
+	  ;; and call it here instead of queuewaitidle.  it won't then be necessary in frame begin, but could just
+	  ;; leave it there since it is harmless, but needed when wait-for-fences is otherwise not called
+
+	  (unless once
+	    
+	    (let ((swapchain (swapchain window)))
+	      ;; make sure the previous frame is done being processed before altering it's draw lists
+	      (vk::wait-for-fence swapchain (mod (1- current-frame) (number-of-images swapchain))))
+		  
+	    (loop for app in (display-applications dpy)
+		  with once = nil
+		  do (loop for scene in (active-scenes app)
+			   do (before-frame-begin dpy scene current-draw-data once)
+			      (setq once t)))
+	  
+	    (maybe-defer-debug (dpy)
+	      (call-immediate-mode-work-functions dpy))
+	    (setq once t))
 	
-	(let* ((swapchain (swapchain window))
-	       (frame-resource (elt (frame-resources swapchain) current-frame))
-	       (command-buffer (frame-command-buffer frame-resource)))
+	  (let* ((swapchain (swapchain window))
+		 (frame-resource (elt (frame-resources swapchain) current-frame))
+		 (command-buffer (frame-command-buffer frame-resource)))
 	  
-	  (vector-push-extend
-	   (frame-begin swapchain (render-pass window)
-			current-frame (clear-value window)
-			command-pool)
-	   image-indices)
+	    (vector-push-extend
+	     (frame-begin swapchain (render-pass window)
+			  current-frame (clear-value window)
+			  command-pool)
+	     image-indices)
 
-	  
-	  #+nvidia(maybe-defer-debug (dpy)
-		    (read-select-boxes dpy (car (current-frame-cons dpy))))
+	    #+nvidia(maybe-defer-debug (dpy)
+		      (read-select-boxes dpy (car (current-frame-cons dpy))))
 
-	  (during-frame dpy window command-buffer current-draw-data show-frame-rate?))))
+	    (during-frame dpy window command-buffer current-draw-data show-frame-rate?)))))
     
     ;; frame-present must occur in this thread, so no parallelization here
     (do* ((window (clui::display-window-list-head dpy) (clui::window-next window))
