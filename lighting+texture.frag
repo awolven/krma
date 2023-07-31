@@ -1,4 +1,4 @@
-#version 460
+#version 450
 #extension GL_ARB_separate_shader_objects : enable
 
 #define SELECT_BOX_DEPTH_2D 1024
@@ -22,10 +22,13 @@ layout(set = 0, binding = 1) uniform uniformBuffer {
   uint padding2;
 } ub;
 
-layout(set = 1, binding = 0) buffer select_buffers {
+layout(set = 1, binding = 0) buffer select_buffer_2d {
   uint selected_objects_2d[][SELECT_BOX_DEPTH_2D];
+} ;
+
+layout(set = 1, binding = 1) buffer select_buffer_3d {
   uint selected_objects_3d[][SELECT_BOX_DEPTH_3D];
-};
+} ;
 
 layout(set = 2 , binding = 0) uniform sampler2D texSampler;
 

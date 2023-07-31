@@ -147,6 +147,7 @@
   (:documentation "A concrete scene class based on krma-essential-scene-mixin used in krma-test-application."))
 
 
+#+DELETEME
 (defmethod update-2d-camera (scene &optional
 				     (proj (mortho-vulkan 0 640 480 0 0 1024))
 				     (view (mlookat (vec3 0 0 -1024) (vec3 0 0 0) (vec3 0 1 0))))
@@ -160,6 +161,7 @@
     (setf 2d-camera-view-matrix view)
     (values)))
 
+#+DELETEME
 (defmethod update-3d-camera (scene &optional
 				     (proj (mperspective-vulkan
 					    45 (/ 640 480)
@@ -181,6 +183,12 @@
 
 (defmethod render-scene ((scene krma-essential-scene-mixin)
 			 viewport dpy command-buffer rm-draw-data im-draw-data)
+  (render-3d-scene scene viewport dpy command-buffer rm-draw-data im-draw-data)
+  (render-2d-scene scene viewport dpy command-buffer rm-draw-data im-draw-data)
+  (values))
+
+(defmethod render-2d-scene ((scene krma-essential-scene-mixin)
+			    viewport dpy command-buffer rm-draw-data im-draw-data)
   "The default method to render krma scenes.  You can define your own methods for your own scene classes and call-next-method if you like."
 
   ;; todo: think about having separate clos objects for 3d-scene and 2d-scene
@@ -191,9 +199,49 @@
     (with-slots (x y width height 2d-camera 3d-camera) viewport
 
       (let ((2d-camera-projection-matrix (camera-proj-matrix 2d-camera))
-	    (2d-camera-view-matrix (camera-view-matrix 2d-camera))
-	    (3d-camera-projection-matrix (camera-proj-matrix 3d-camera))
+	    (2d-camera-view-matrix (camera-view-matrix 2d-camera)))
+
+	(loop for (p dl) on (2d-cmd-oriented-combinations pipeline-store rm-draw-data) by #'cddr
+	      do (render-draw-list-cmds p rm-draw-data dl dpy device command-buffer
+					scene
+					2d-camera-view-matrix 2d-camera-projection-matrix
+					viewport))
+
+	(loop for (p dl) on (2d-draw-list-oriented-combinations pipeline-store rm-draw-data) by #'cddr
+	      do (render-draw-list p rm-draw-data dl dpy device command-buffer
+				   scene
+				   2d-camera-view-matrix 2d-camera-projection-matrix
+				   viewport))
+
+	(loop for (p dl) on (2d-cmd-oriented-combinations pipeline-store im-draw-data) by #'cddr
+	      do (render-draw-list-cmds p im-draw-data dl dpy device command-buffer
+					scene
+					2d-camera-view-matrix 2d-camera-projection-matrix
+					viewport))
+
+	(loop for (p dl) on (2d-draw-list-oriented-combinations pipeline-store im-draw-data) by #'cddr
+	      do (render-draw-list p im-draw-data dl dpy device command-buffer
+				   scene
+				   2d-camera-view-matrix 2d-camera-projection-matrix
+				   viewport))
+	(values)))))
+
+(defmethod render-3d-scene ((scene krma-essential-scene-mixin)
+			    viewport dpy command-buffer rm-draw-data im-draw-data)
+  "The default method to render krma scenes.  You can define your own methods for your own scene classes and call-next-method if you like."
+
+  ;; todo: think about having separate clos objects for 3d-scene and 2d-scene
+  
+  (let ((device (default-logical-device dpy))
+	(pipeline-store (krma-pipeline-store dpy)))
+
+    (with-slots (x y width height 2d-camera 3d-camera) viewport
+
+      (let ((3d-camera-projection-matrix (camera-proj-matrix 3d-camera))
 	    (3d-camera-view-matrix (camera-view-matrix 3d-camera)))
+
+	;;(print 2d-camera-projection-matrix)
+	;;(print 2d-camera-view-matrix)
 
 	(loop for (p dl) on (3d-draw-list-oriented-combinations pipeline-store rm-draw-data) by #'cddr
 	      do (render-draw-list p rm-draw-data dl dpy device command-buffer
@@ -219,29 +267,6 @@
 					3d-camera-view-matrix 3d-camera-projection-matrix
 					viewport))	
 
-	(loop for (p dl) on (2d-cmd-oriented-combinations pipeline-store rm-draw-data) by #'cddr
-	      do (render-draw-list-cmds p rm-draw-data dl dpy device command-buffer
-					scene
-					2d-camera-view-matrix 2d-camera-projection-matrix
-					viewport))
-
-	(loop for (p dl) on (2d-draw-list-oriented-combinations pipeline-store rm-draw-data) by #'cddr
-	      do (render-draw-list p rm-draw-data dl dpy device command-buffer
-				   scene
-				   2d-camera-view-matrix 2d-camera-projection-matrix
-				   viewport))
-
-	(loop for (p dl) on (2d-cmd-oriented-combinations pipeline-store im-draw-data) by #'cddr
-	      do (render-draw-list-cmds p im-draw-data dl dpy device command-buffer
-					scene
-					2d-camera-view-matrix 2d-camera-projection-matrix
-					viewport))
-
-	(loop for (p dl) on (2d-draw-list-oriented-combinations pipeline-store im-draw-data) by #'cddr
-	      do (render-draw-list p im-draw-data dl dpy device command-buffer
-				   scene
-				   2d-camera-view-matrix 2d-camera-projection-matrix
-				   viewport))
       (values)))))
 
 ;; 2d-point

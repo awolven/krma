@@ -818,15 +818,6 @@
 (defclass 2d-triangle-list-pipeline (2d-triangle-list-pipeline-mixin)
   ())
 
-#+NOMORE(defclass msdf-text-pipeline (2d-triangle-list-pipeline-mixin)
-  ())
-
-#+NOMORE(defmethod pipeline-default-font ((pipeline msdf-text-pipeline))
-  (display-system-font (pipeline-display pipeline)))
-
-#+NOMORE(defmethod fragment-shader-pathname ((pipeline msdf-text-pipeline)) 
-  (asdf/system:system-relative-pathname :krma "submodules/krma-shader-bin/msdf-texture.frag.spv"))
-
 (defclass 2d-triangle-strip-pipeline (triangle-strip-pipeline-mixin
                                       2d-texture-pipeline-mixin)
   ())

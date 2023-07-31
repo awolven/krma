@@ -29,6 +29,7 @@
    (:file "draw-data")
    (:file "scene-mixin")
    (:file "application-mixin")
+   (:file "clui-support")
    (:file "vulkan-pipelines")
    (:file "pipeline-combinations")
    (:file "text")

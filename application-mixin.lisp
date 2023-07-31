@@ -126,22 +126,63 @@
   (3d-camera)
   (scene)) ;; only one scene per viewport
 
-(defstruct camera
+(defstruct (camera
+	    (:conc-name %CAMERA-))
   (proj-matrix)
   (view-matrix))
+
+(defmethod camera-proj-matrix ((camera camera))
+  (%camera-proj-matrix camera))
+
+(defmethod camera-view-matrix ((camera camera))
+  (%camera-view-matrix camera))
+
+(defmethod (setf camera-proj-matrix) (value (camera camera))
+  (setf (%camera-proj-matrix camera) value))
+
+(defmethod (setf camera-view-matrix) (value (camera camera))
+  (setf (%camera-view-matrix camera) value))
+
+(defmethod set-camera-width-height ((camera camera) new-width new-height camera-type)
+  (ecase camera-type
+    (:2d
+     (setf (camera-proj-matrix camera) (mortho-vulkan 0 new-width new-height 0 0 1024))
+     (setf (camera-view-matrix camera) (mlookat (vec3 0 0 +select-box-2d-depth+) (vec3 0 0 0) (vec3 0 1 0))))
+    (:3d
+     (setf (camera-proj-matrix camera) (mperspective-vulkan 45 (/ new-width new-height)
+							       0.1 3000
+							       ;;*default-znear* *default-zfar*
+							       ))
+     (setf (camera-view-matrix camera) (mlookat (vec3 0 0 1500) (vec3 0 0 0) (vec3 0 1 0)))))
+  (values))     
 
 (defclass krma-window-mixin (window-frame-rate-mixin vk:vulkan-window-mixin)
   ((queue :accessor window-queue)
    (command-pool :accessor window-command-pool)
-   (viewports :initform (list (make-viewport :x 0 :y 0))
-	      :accessor window-viewports)))
+   (viewports :accessor window-viewports)))
 
 
 
 (defclass krma-window (krma-window-mixin)
   ())
 
-
+(defmethod initialize-instance :after ((window krma-window) &rest initargs)
+  (declare (ignore initargs))
+  (multiple-value-bind (width height) (window-framebuffer-size window)
+    (setf (krma::window-viewports window)
+	  (list (krma::make-viewport
+		 :x 0 :y 0
+		 :width width
+		 :height height
+		 :2d-camera (make-camera
+			     :proj-matrix (mortho-vulkan 0 width height 0 0 +select-box-2d-depth+)
+			     :view-matrix (mlookat (vec3 0 0 +select-box-2d-depth+) (vec3 0 0 0) (vec3 0 1 0)))
+		 :3d-camera (make-camera
+			     :proj-matrix (mperspective-vulkan
+					   45 (/ width height)
+					   *default-znear* *default-zfar*)
+			     :view-matrix (mlookat (vec3 0 0 1500) (vec3 0 0 0) (vec3 0 1 0)))))))
+  (values))
 
 (defun update-frame-rate (window)
   (let ((app (clui::window-display window)))
@@ -160,27 +201,15 @@
 	(new-width (clui::window-resize-event-new-width event))
 	(new-height (clui::window-resize-event-new-height event)))
 
+
     (unless (or (zerop new-width)
 		(zerop new-height))
     
       (setf (viewport-width main-viewport) new-width
 	    (viewport-height main-viewport) new-height)
-      (let ((3d-camera (or (viewport-3d-camera main-viewport)
-			   (setf (viewport-3d-camera main-viewport)
-				 (make-camera))))
-	    (2d-camera (or (viewport-2d-camera main-viewport)
-			   (setf (viewport-2d-camera main-viewport)
-				 (make-camera)))))
-      
-	(setf (camera-proj-matrix 3d-camera) (mperspective-vulkan 45 (/ new-width new-height)
-								  0.1 3000
-								  ;;*default-znear* *default-zfar*
-								  ))
-	(setf (camera-view-matrix 3d-camera) (mlookat (vec3 0 0 1500) (vec3 0 0 0) (vec3 0 1 0)))
-
-	(setf (camera-proj-matrix 2d-camera) (mortho-vulkan 0 new-width new-height 0 0 1024))
-
-	(setf (camera-view-matrix 2d-camera) (mlookat (vec3 0 0 +select-box-2d-depth+) (vec3 0 0 0) (vec3 0 1 0)))))
+      (set-camera-width-height (viewport-3d-camera main-viewport) new-width new-height :3d)
+      (set-camera-width-height (viewport-2d-camera main-viewport) new-width new-height :2d)
+      )
     
     (values)))
 
@@ -199,38 +228,25 @@
 (defmethod initialize-instance :after ((app krma-application-mixin) &rest initargs &key (display (default-display)) &allow-other-keys)
   (declare (ignorable initargs))
   (setf (application-display app) display)
-  (setf (main-window app) (make-instance 'window :display display))
+  (setf (main-window app) (make-instance 'window :display display :title (vk::application-name app)))
+  
   (let* ((main-window (main-window app))
-	 (main-viewport (first (window-viewports main-window))))
-    
-    (multiple-value-bind (width height) (window-framebuffer-size main-window)
-      (setf (viewport-width main-viewport) width
-	    (viewport-height main-viewport) height)
+	 (main-viewport (first (window-viewports main-window)))
+	 (new-scene (make-instance (scene-class app) :app app :dpy display)))
 
-      (setf (viewport-2d-camera main-viewport) (make-camera
-						:proj-matrix (mortho-vulkan 0 width height 0 0 +select-box-2d-depth+)
-						:view-matrix (mlookat (vec3 0 0 +select-box-2d-depth+) (vec3 0 0 0) (vec3 0 1 0)))
-	    (viewport-3d-camera main-viewport) (make-camera
-						:proj-matrix (mperspective-vulkan
-							      45 (/ width height)
-							      *default-znear* *default-zfar*)
-						:view-matrix (mlookat (vec3 0 0 1500) (vec3 0 0 0) (vec3 0 1 0))))
+    (setf (viewport-scene main-viewport) new-scene)
 
-      (let ((new-scene (make-instance (scene-class app) :app app :dpy display)))
+    (push new-scene (active-scenes app))
 
-	(setf (viewport-scene main-viewport) new-scene)
+    (push app (display-applications (clui::window-display main-window)))
 
-	(push new-scene (active-scenes app))
+    (let ((device (default-logical-device (clui::window-display main-window))))
+      (with-slots (queue command-pool) main-window
+	(let ((index (queue-family-index (render-surface main-window))))
+	  (setf queue (find-queue device index))
+	  (setf command-pool (find-command-pool device index)))))
 
-	(push app (display-applications (clui::window-display main-window)))
-
-	(let ((device (default-logical-device (clui::window-display main-window))))
-	  (with-slots (queue command-pool) main-window
-	    (let ((index (queue-family-index (render-surface main-window))))
-	      (setf queue (find-queue device index))
-	      (setf command-pool (find-command-pool device index)))))
-
-	(values)))))
+    (values)))
 
 (defmethod application-default-font ((application krma-application-mixin))
   (default-system-font (clui::window-display (main-window application))))
@@ -269,7 +285,8 @@
 		  :accessor frame-iteration-complete-semaphore)
    (font :initform nil :accessor default-system-font)
    (stock-render-pass :initform nil :accessor display-stock-render-pass)
-   (hovered :initform () :accessor krma-hovered))
+   (hovered :initform () :accessor krma-hovered)
+   (hovered-3d :initform () :accessor krma-hovered-3d))
   (:default-initargs :enable-fragment-stores-and-atomics t))
 
 (defun most-specifically-hovered-2d (2d-select-box x y)
@@ -291,6 +308,13 @@
 	with result = ()
 	unless (zerop (aref 2d-select-box x y i))
 	do (push (aref 2d-select-box x y i) result)
+	finally (return result)))
+
+(defun all-hovered-3d (3d-select-box x y)
+  (loop for i from 0 below +select-box-3d-depth+
+	with result = ()
+	unless (zerop (aref 3d-select-box x y i))
+	do (push (aref 3d-select-box x y i) result)
      finally (return result)))
 
 
@@ -357,7 +381,49 @@
 	(mapcar #'enter-event difference))
 
       ;;(format t "~%2: ~S" all-hovered)
-      (setf (krma-hovered dpy) all-hovered))))
+      (setf (krma-hovered dpy) all-hovered)))
+
+  (unless (krma-hovered dpy)
+  
+    (let* ((all-hovered (all-hovered-3d (krma-select-box-3d dpy) 0 0)))
+    
+      (flet ((exit-event (hovered)
+	       (let ((object (object-from-id hovered)))
+		 (when object
+		   (if (clui::window-p object)
+		       (multiple-value-bind (x y) (window-cursor-position object)
+			 (handle-event object (make-instance 'pointer-exit-event
+							     :window object
+							     :timestamp (get-internal-real-time)
+							     :x x :y y)))
+		       (handle-event object (make-instance 'pointer-exit-event
+							   :window object
+							   :timestamp (get-internal-real-time)))))))
+	     (enter-event (hovered)
+	       (let ((object (object-from-id hovered)))
+		 (when object
+		   (if (clui::window-p object)
+		       (multiple-value-bind (x y) (window-cursor-position object)
+			 (handle-event object (make-instance 'pointer-enter-event
+							     :window object
+							     :timestamp (get-internal-real-time)
+							     :x x :y y)))
+		       (handle-event object (make-instance 'pointer-enter-event
+							   :window object
+							   :timestamp (get-internal-real-time))))))))
+
+	;;(print (krma-select-box-2d dpy))
+
+	(let ((difference (set-difference (krma-hovered-3d dpy) all-hovered)))
+	  ;;(format t "~%0: ~S" difference)
+	  (mapcar #'exit-event difference))
+
+	(let ((difference (set-difference all-hovered (krma-hovered-3d dpy))))
+	  ;;(format t "~%1: ~S" difference)
+	  (mapcar #'enter-event difference))
+
+	;;(format t "~%2: ~S" all-hovered)
+	(setf (krma-hovered-3d dpy) all-hovered)))))
 	      
 
 (defun make-select-boxes-descriptor-set-layout-bindings (dpy)

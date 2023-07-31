@@ -497,4 +497,26 @@
            #:group-set-light-position
            #:group-set-light-position-1
 
+	   #:vertex-uniform-buffer
+	   #:create-uniform-buffer
+	   #:default-logical-device
+	   #:make-global-descriptor-set-layout-bindings
+	   #:global-descriptor-set
+	   #:pipeline-topology
+	   #:pipeline-front-face-orientation
+	   #:pipeline-cull-mode
+	   #:vertex-shader-pathname
+	   #:fragment-shader-pathname
+	   #:pipeline-vertex-type
+	   #:make-vertex-input-attribute-descriptions
+	   #:render-scene
+	   #:global-descriptor-set
+	   #:global-descriptor-set-layout
+	   #:update-vertex-uniform-buffer
+	   #:camera-proj-matrix
+	   #:camera-view-matrix
+	   #:pipeline-mixin
+	   #:pipeline-vertex-uniform-buffer
+	   #:device-pipeline
+	   
            ))
