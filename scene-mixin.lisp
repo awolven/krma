@@ -184,6 +184,7 @@
 (defmethod render-scene ((scene krma-essential-scene-mixin)
 			 viewport dpy command-buffer rm-draw-data im-draw-data)
   (render-3d-scene scene viewport dpy command-buffer rm-draw-data im-draw-data)
+  (vkCmdNextSubpass (h command-buffer) VK_SUBPASS_CONTENTS_INLINE)
   (render-2d-scene scene viewport dpy command-buffer rm-draw-data im-draw-data)
   (values))
 

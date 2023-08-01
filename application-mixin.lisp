@@ -9,7 +9,6 @@
    (2d-line-list-pipeline :accessor pipeline-store-2d-line-list-pipeline)
    (2d-line-strip-pipeline :accessor pipeline-store-2d-line-strip-pipeline)
    (2d-triangle-list-pipeline :accessor pipeline-store-2d-triangle-list-pipeline)
-   #+NOMORE(msdf-text-pipeline :accessor pipeline-store-msdf-text-pipeline)
    (2d-triangle-strip-pipeline :accessor pipeline-store-2d-triangle-strip-pipeline)
    (3d-point-list-pipeline :accessor pipeline-store-3d-point-list-pipeline)
    (3d-line-list-pipeline :accessor pipeline-store-3d-line-list-pipeline)
@@ -45,22 +44,26 @@
     (setf 2d-point-list-pipeline
 	  (make-instance '2d-point-list-pipeline
 			 :dpy dpy
-			 :name :2d-point-list-pipeline)
+			 :name :2d-point-list-pipeline
+			 :subpass 1)
 
 	  2d-line-list-pipeline
 	  (make-instance '2d-line-list-pipeline
 			 :dpy dpy
-			 :name :2d-line-list-pipeline)
+			 :name :2d-line-list-pipeline
+			 :subpass 1)
 
 	  2d-line-strip-pipeline
 	  (make-instance '2d-line-strip-pipeline
 			 :dpy dpy
-			 :name :2d-line-strip-pipeline)
+			 :name :2d-line-strip-pipeline
+			 :subpass 1)
 
 	  2d-triangle-list-pipeline
 	  (make-instance '2d-triangle-list-pipeline
 			 :dpy dpy
-			 :name :2d-triangle-list-pipeline)
+			 :name :2d-triangle-list-pipeline
+			 :subpass 1)
 
 	  #+NOMORE #+NOMORE
 	  msdf-text-pipeline
@@ -71,42 +74,50 @@
           2d-triangle-strip-pipeline
 	  (make-instance '2d-triangle-strip-pipeline
 			 :dpy dpy
-			 :name :2d-triangle-strip-pipeline)
+			 :name :2d-triangle-strip-pipeline
+			 :subpass 1)
 
 	  3d-point-list-pipeline
 	  (make-instance '3d-point-list-pipeline
 			 :dpy dpy
-			 :name :3d-point-list-pipeline)
+			 :name :3d-point-list-pipeline
+			 :subpass 0)
 	  
 	  3d-line-list-pipeline
 	  (make-instance '3d-line-list-pipeline
 			 :dpy dpy
-			 :name :3d-line-list-pipeline)
+			 :name :3d-line-list-pipeline
+			 :subpass 0)
 	  
           3d-line-strip-pipeline
 	  (make-instance '3d-line-strip-pipeline
 			 :dpy dpy
-			 :name :3d-line-strip-pipeline)
+			 :name :3d-line-strip-pipeline
+			 :subpass 0)
 	  
           3d-triangle-list-pipeline
 	  (make-instance '3d-triangle-list-pipeline
 			 :dpy dpy
-			 :name :3d-triangle-list-pipeline)
+			 :name :3d-triangle-list-pipeline
+			 :subpass 0)
 	  
           3d-triangle-list-with-normals-pipeline
 	  (make-instance '3d-triangle-list-with-normals-pipeline
 			 :dpy dpy
-			 :name :3d-triangle-list-with-normals-pipeline)
+			 :name :3d-triangle-list-with-normals-pipeline
+			 :subpass 0)
 
 	  3d-triangle-strip-pipeline
 	  (make-instance '3d-triangle-strip-pipeline
 			 :dpy dpy
-			 :name :3d-triangle-strip-pipeline)
+			 :name :3d-triangle-strip-pipeline
+			 :subpass 0)
 	  
 	  3d-triangle-strip-with-normals-pipeline
 	  (make-instance '3d-triangle-strip-with-normals-pipeline
 			 :dpy dpy
-			 :name :3d-triangle-strip-with-normals-pipeline)))
+			 :name :3d-triangle-strip-with-normals-pipeline
+			 :subpass 0)))
   (values))
 
 (defclass window-frame-rate-mixin ()
@@ -161,6 +172,27 @@
    (command-pool :accessor window-command-pool)
    (viewports :accessor window-viewports)))
 
+;; this is a callback which happens after the native platfrom window has been created but before events start to happen
+(defmethod clui::initialize-window-devices ((window vulkan-window-mixin) &rest args &key width height &allow-other-keys)
+  (declare (ignore args))
+  (let* ((device (default-logical-device (clui::window-display window)))
+	 (surface (create-window-surface device window)))
+    (let* ((surface-format (find-supported-format
+			    surface
+			    :requested-image-format (vk::window-desired-format window)
+			    :requested-color-space (vk::window-desired-color-space window)))
+           (present-mode (vk::get-physical-device-surface-present-mode (vk::paired-gpu surface) surface))
+	   (render-pass (krma::display-stock-render-pass (clui::window-display window))))
+      
+      (setf (render-pass window) render-pass)
+
+      (let ((swapchain (create-swapchain device window width height surface-format present-mode)))
+
+      (setup-framebuffers device render-pass swapchain)
+      
+      (create-frame-resources swapchain (queue-family-index surface))
+      
+      (values)))))
 
 
 (defclass krma-window (krma-window-mixin)
