@@ -854,13 +854,13 @@
 
 
 (defun %draw-data-add-filled-3d-convex-polygon-with-normals-primitive
-    (draw-data handle ub32-oid atom-group model-mtx ub32-color vertices light-position)
+    (draw-data handle ub32-oid atom-group model-mtx ub32-color vertices material)
   (declare (type retained-mode-draw-data draw-data))
   (let ((draw-list (draw-data-3d-triangle-list-with-normals-draw-list draw-data)))
     (setf (gethash handle (draw-data-handle-hash-table draw-data))
           (%draw-list-add-filled-3d-convex-polygon-with-normals
            draw-list ub32-oid atom-group
-           model-mtx ub32-color vertices light-position))
+           model-mtx ub32-color vertices material))
     (values)))
 
 
@@ -897,12 +897,12 @@
 
 
 (defun %draw-data-add-multicolor-3d-convex-polygon-with-normals-primitive
-    (draw-data handle ub32-oid atom-group model-mtx vertices light-position)
+    (draw-data handle ub32-oid atom-group model-mtx vertices material)
   (declare (type retained-mode-draw-data draw-data))
   (let* ((draw-list (draw-data-3d-triangle-list-draw-list draw-data)))
     (setf (gethash handle (draw-data-handle-hash-table draw-data))
           (%draw-list-add-multicolor-3d-convex-polygon-with-normals
-           draw-list ub32-oid atom-group model-mtx vertices light-position))
+           draw-list ub32-oid atom-group model-mtx vertices material))
     (values)))
 
 
@@ -988,13 +988,13 @@
 
 ;; can't render triangle strips without cmd!!
 (defun %draw-data-add-filled-3d-triangle-list-with-normals-primitive
-    (draw-data handle ub32-oid atom-group model-mtx ub32-color vertices light-position)
+    (draw-data handle ub32-oid atom-group model-mtx ub32-color vertices material)
   (declare (type retained-mode-draw-data draw-data))
   (let ((draw-list (draw-data-3d-triangle-list-with-normals-draw-list draw-data)))
     (setf (gethash handle (draw-data-handle-hash-table draw-data))
           (%draw-list-add-filled-3d-triangle-strip/list-with-normals
            draw-list ub32-oid
-           atom-group model-mtx ub32-color vertices light-position))
+           atom-group model-mtx ub32-color vertices material))
     (values)))
 
 
@@ -1031,13 +1031,13 @@
 
 
 (defun %draw-data-add-multicolor-3d-triangle-list-with-normals-primitive
-    (draw-data handle ub32-oid atom-group model-mtx vertices light-position)
+    (draw-data handle ub32-oid atom-group model-mtx vertices material)
   (declare (type retained-mode-draw-data draw-data))
   (let ((draw-list (draw-data-3d-triangle-list-with-normals-draw-list draw-data)))
     (setf (gethash handle (draw-data-handle-hash-table draw-data))
           (%draw-list-add-multicolor-3d-triangle-strip/list-with-normals
            draw-list ub32-oid atom-group
-           model-mtx vertices light-position))
+           model-mtx vertices material))
     (values)))
 
 
@@ -1075,13 +1075,13 @@
 
 
 (defun %draw-data-add-filled-3d-triangle-strip-with-normals-primitive
-    (draw-data handle ub32-oid atom-group model-mtx ub32-color vertices light-position)
+    (draw-data handle ub32-oid atom-group model-mtx ub32-color vertices material)
   (declare (type retained-mode-draw-data draw-data))
   (let ((draw-list (draw-data-3d-triangle-strip-with-normals-draw-list draw-data)))
     (setf (gethash handle (draw-data-handle-hash-table draw-data))
           (%draw-list-add-filled-3d-triangle-strip/list-with-normals
            draw-list ub32-oid atom-group
-           model-mtx ub32-color vertices light-position))
+           model-mtx ub32-color vertices material))
     (values)))
 
 ;; can't render triangle strips without cmd!!
@@ -1138,12 +1138,12 @@
 
 
 (defun %draw-data-add-filled-sphere-primitive
-    (draw-data handle ub32-oid atom-group model-mtx ub32-color origin-x origin-y origin-z radius resolution light-position)
+    (draw-data handle ub32-oid atom-group model-mtx ub32-color origin-x origin-y origin-z radius resolution material)
   (declare (type retained-mode-draw-data draw-data))
   (let ((draw-list (draw-data-3d-triangle-list-with-normals-draw-list draw-data)))
     (setf (gethash handle (draw-data-handle-hash-table draw-data))
           (%draw-list-add-filled-sphere
-	   draw-list ub32-oid atom-group model-mtx ub32-color origin-x origin-y origin-z radius resolution light-position))
+	   draw-list ub32-oid atom-group model-mtx ub32-color origin-x origin-y origin-z radius resolution material))
     (values)))
 
 

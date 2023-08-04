@@ -1135,7 +1135,7 @@
 
 
 (defun %draw-list-add-filled-3d-triangle-strip/list-with-normals
-    (3d-draw-list ub32-oid atom-group model-mtx ub32-color seq-vertices light-position)
+    (3d-draw-list ub32-oid atom-group model-mtx ub32-color seq-vertices material)
   (declare (type 3d-vertex-draw-list-mixin 3d-draw-list))
   (declare (type (unsigned-byte 32) ub32-oid ub32-color))
   (declare (type sequence seq-vertices))
@@ -1163,7 +1163,7 @@
 		  3d-draw-list
 		  first-index number-of-vertices vtx-offset
 		  atom-group model-mtx
-		  nil *white-texture* nil nil light-position)))
+		  nil *white-texture* nil nil material)))
         (vector-push-extend cmd (draw-list-cmd-vector 3d-draw-list))
         cmd))))
 
@@ -1198,7 +1198,7 @@
 
 
 (defun %draw-list-add-multicolor-3d-triangle-strip/list-with-normals
-    (3d-draw-list ub32-oid atom-group model-mtx seq-vertices light-position)
+    (3d-draw-list ub32-oid atom-group model-mtx seq-vertices material)
   (declare (type 3d-vertex-draw-list-mixin 3d-draw-list))
   (declare (type sequence seq-vertices))
   ;; must be at least three vertices to succeed
@@ -1227,7 +1227,7 @@
 		  3d-draw-list
 		  first-index number-of-vertices vtx-offset
 		  atom-group model-mtx
-		  nil *white-texture* nil nil light-position)))
+		  nil *white-texture* nil nil material)))
         (vector-push-extend cmd (draw-list-cmd-vector 3d-draw-list))
         cmd))))
 
@@ -1330,7 +1330,7 @@
 
 
 (defun %draw-list-add-textured-3d-triangle-strip/list-with-normals
-    (3d-draw-list ub32-oid atom-group model-mtx texture ub32-color seq-vertices light-position)
+    (3d-draw-list ub32-oid atom-group model-mtx texture ub32-color seq-vertices material)
   (declare (type 3d-vertex-draw-list-mixin 3d-draw-list))
   (declare (type (unsigned-byte 32) ub32-oid ub32-color))
   (declare (type sequence seq-vertices))
@@ -1365,7 +1365,7 @@
 		  3d-draw-list
 		  first-index number-of-vertices vtx-offset
 		  atom-group model-mtx
-		  nil texture nil nil light-position)))
+		  nil texture nil nil material)))
         (vector-push-extend cmd (draw-list-cmd-vector 3d-draw-list))
         cmd))))
 
@@ -1420,7 +1420,7 @@
 		 (return (values)))))))))
 
 
-(defun %draw-list-add-multicolor-3d-convex-polygon-with-normals (3d-draw-list ub32-oid atom-group model-mtx seq-vertices light-position)
+(defun %draw-list-add-multicolor-3d-convex-polygon-with-normals (3d-draw-list ub32-oid atom-group model-mtx seq-vertices material)
   (declare (type 3d-vertex-with-normal-draw-list-mixin 3d-draw-list))
   (declare (type sequence seq-vertices))
   ;; must be at least 3 vertexes to succeed
@@ -1466,7 +1466,7 @@
 		  3d-draw-list
 		  first-index number-of-vertices vtx-offset
 		  atom-group model-mtx
-		  nil *white-texture* nil nil light-position)))
+		  nil *white-texture* nil nil material)))
 	(vector-push-extend cmd (draw-list-cmd-vector 3d-draw-list))
 	cmd))))
 
@@ -1620,7 +1620,7 @@
 
 
 (defun %draw-list-add-filled-3d-convex-polygon-with-normals
-    (3d-draw-list ub32-oid atom-group model-mtx ub32-color seq-vertices light-position)
+    (3d-draw-list ub32-oid atom-group model-mtx ub32-color seq-vertices material)
   (declare (type 3d-vertex-with-normal-draw-list-mixin 3d-draw-list))
   (declare (type sequence seq-vertices))
   (declare (type (unsigned-byte 32) ub32-color))
@@ -1629,8 +1629,8 @@
          (vertex-array (draw-list-vertex-array 3d-draw-list))
 	 (first-index (foreign-array-fill-pointer index-array))
 	 (vtx-offset (foreign-array-fill-pointer vertex-array))
-	 (number-of-vertices 0))
-    (declare (type fixnum number-of-vertices))
+	 (elem-count 0))
+    (declare (type fixnum elem-count))
     (with-draw-list-transaction (%draw-list-add-filled-3d-convex-polygon-with-normals 3d-draw-list first-index vtx-offset)
       (etypecase seq-vertices
 	(list
@@ -1640,11 +1640,11 @@
 	       do (standard-3d-vertex-with-normal-array-push-extend
 		   vertex-array ub32-oid (clampf x) (clampf y) (clampf z)
 		   (clampf nx) (clampf ny) (clampf nz) ub32-color)
-	       (incf number-of-vertices)
 	       when (>= i 2)
 		 do (index-array-push-extend index-array 0)
 	       (index-array-push-extend index-array (1- i))
-	       (index-array-push-extend index-array i)))
+	       (index-array-push-extend index-array i)
+	       (incf elem-count 3)))
 	(array
          (let ((len (length seq-vertices)))
            (loop for j from 0 by 6 below len
@@ -1658,17 +1658,17 @@
 		     (clampf (aref seq-vertices (+ j 4)))
 		     (clampf (aref seq-vertices (+ j 5)))
 		     ub32-color)
-		 (incf number-of-vertices)
 	         when (>= i 2)
 		 do (index-array-push-extend index-array 0)
 		 (index-array-push-extend index-array (1- i))
-		 (index-array-push-extend index-array i)))))
-      (assert (>= number-of-vertices 3))
+		 (index-array-push-extend index-array i)
+		 (incf elem-count 3)))))
+      (assert (>= elem-count 3))
       (let ((cmd (make-standard-draw-indexed-cmd
 		  3d-draw-list
-		  first-index number-of-vertices vtx-offset
+		  first-index elem-count vtx-offset
 		  atom-group model-mtx
-		  nil *white-texture* nil nil light-position)))
+		  nil *white-texture* nil nil material)))
 	(vector-push-extend cmd (draw-list-cmd-vector 3d-draw-list))
 	cmd))))
 
@@ -1845,7 +1845,7 @@
 				     df-origin-z
 				     df-radius
 				     fixnum-resolution
-				     light-position)
+				     material)
   (declare (type 3d-vertex-with-normal-draw-list-mixin 3d-draw-list))
   (declare (type (unsigned-byte 32) ub32-color))
   (declare (type double-float df-origin-x df-origin-y df-origin-z df-radius))
@@ -1903,7 +1903,7 @@
                       3d-draw-list
                       first-index elem-count vtx-offset
                       atom-group model-mtx
-                      nil *white-texture* nil nil light-position)))
+                      nil *white-texture* nil nil material)))
 	    (vector-push-extend cmd (draw-list-cmd-vector 3d-draw-list))
 	    cmd))))))
 
