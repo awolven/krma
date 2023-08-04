@@ -31,16 +31,17 @@
   (m23 :float)
   (m33 :float))
 
-#+NIL
 (defun copy-matrix-to-foreign (lisp-matrix p-matrix)
-  ;; glsl expects transpose of what is in marr of mat4
-  (let ((array (marr lisp-matrix)))
+  ;; arrays in 3d-math are column major internally
+  ;; matrices in glsl are also column major
+  (let ((array (3dm::marr lisp-matrix)))
     (loop for i from 0 below 4
 	  do (loop for j from 0 below 4
 		   do (setf (mem-aref p-matrix :float (+ j (* i 4)))
-			    (clampf (aref array (+ i (* j 4)))))))
+			    (clampf (aref array (+ j (* i 4)))))))
     (values)))
 
+#+NIL
 (defun copy-matrix-to-foreign (lisp-matrix p-matrix)
   (let ((array (3dm.f::marr4 lisp-matrix)))
     (sb-sys:with-pinned-objects (array)
@@ -1681,7 +1682,7 @@
 (defun primitive-set-transform (scene handle matrix)
   "Retained-mode function.  Sets the model-matrix of the primitive, renderer composes the primitive model matrix with the group model matrix.  To be run in a thread outside of the render thread.  Dispatches actual work to render thread."
   (declare (type krma-essential-scene-mixin scene))
-  (declare (type (or mat4 null) matrix))
+  (declare (type (or 3dm.rat:mat4 3dm.d:mat4 3dm.f:mat4 null) matrix))
   (let ((draw-data (rm-draw-data scene)))
     (let ((dd0 (svref draw-data 0))
           (dd1 (svref draw-data 1)))
@@ -2052,13 +2053,13 @@
         (warn "while in %group-set-model-matrix-1 ...no group named ~S" atom-group))))
 
 (defun group-set-model-matrix-1 (draw-data group matrix)
-  (declare (type (or mat4 null) matrix))
+  (declare (type (or 3dm.f:mat4 3dm.d:mat4 3dm.rat:mat4 null) matrix))
   (declare (type (and atom t) group))
   (%group-set-model-matrix-1 draw-data group matrix))
 
 (defun group-set-model-matrix (scene group matrix)
   (declare (type krma-essential-scene-mixin scene))
-  (declare (type (or mat4 null) matrix))
+  (declare (type (or 3dm.f:mat4 3dm.d:mat4 3dm.rat:mat4 null) matrix))
   (declare (type (and atom t) group))
   (rm-dispatch-to-render-thread (scene draw-data)
     (%group-set-model-matrix-1 draw-data group (mcopy matrix))))

@@ -116,7 +116,7 @@
   VK_FRONT_FACE_COUNTER_CLOCKWISE)
 
 (defmethod pipeline-cull-mode ((pipeline pipeline-mixin))
-  VK_CULL_MODE_BACK_BIT)
+  VK_CULL_MODE_NONE)
 
 (defmethod vk::make-descriptor-image-info ((pipeline pipeline-mixin))
   nil)
@@ -345,7 +345,7 @@
   '(:struct textured-3d-vertex))
 
 (defmethod pipeline-cull-mode ((pipeline 3d-texture-pipeline-mixin))
-  VK_CULL_MODE_BACK_BIT)
+  VK_CULL_MODE_NONE)
 
 
 (defclass 3d-texture-with-normals-pipeline-mixin (3d-texture-pipeline-mixin)
@@ -957,9 +957,15 @@
 			       (cmd-color-override (cmd-color-override cmd)))
 
 			   (if cmd-model-matrix
+			       (setq mm cmd-model-matrix)
+			       (if group-model-matrix
+				   (setq mm group-model-matrix)
+				   (setq mm *identity-matrix*))
+			       #+NIL
 			       (if group-model-matrix
 				   (setq mm (m* cmd-model-matrix group-model-matrix))
 				   (setq mm (m* cmd-model-matrix)))
+			       #+NIL
 			       (if group-model-matrix
 				   (setq mm (m* group-model-matrix))
 				   (setq mm *identity-matrix*)))

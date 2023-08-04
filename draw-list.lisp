@@ -1642,7 +1642,7 @@
 		   (clampf nx) (clampf ny) (clampf nz) ub32-color)
 	       (incf number-of-vertices)
 	       when (>= i 2)
-	       do (index-array-push-extend index-array 0)
+		 do (index-array-push-extend index-array 0)
 	       (index-array-push-extend index-array (1- i))
 	       (index-array-push-extend index-array i)))
 	(array
@@ -1720,7 +1720,7 @@
 
 
 (defun %draw-list-add-filled-3d-convex-polygon (3d-draw-list ub32-oid atom-group model-mtx ub32-color seq-vertices)
-  (declare (type 3d-vertex-with-normal-draw-list-mixin 3d-draw-list))
+  (declare (type 3d-vertex-draw-list-mixin 3d-draw-list))
   (declare (type sequence seq-vertices))
   (declare (type (unsigned-byte 32) ub32-oid ub32-color))
   ;; must be at least 3 vertexes to succeed
@@ -1729,8 +1729,8 @@
     (declare (type foreign-adjustable-array index-array vertex-array))
     (let ((first-index (foreign-array-fill-pointer index-array))
 	  (vtx-offset (foreign-array-fill-pointer vertex-array))
-	  (number-of-vertices 0))
-      (declare (type fixnum number-of-vertices))
+	  (elem-count 0))
+      (declare (type fixnum elem-count))
       (with-draw-list-transaction (%draw-list-add-filled-3d-convex-polygon 3d-draw-list first-index vtx-offset)
 	(etypecase seq-vertices
 	  (list
@@ -1738,11 +1738,11 @@
 		 for (x y z) on seq-vertices by #'cdddr
                  do (standard-3d-vertex-array-push-extend
 		     vertex-array ub32-oid (clampf x) (clampf y) (clampf z) ub32-color)
-		 (incf number-of-vertices)
 		 when (>= i 2)
 		 do (index-array-push-extend index-array 0)
 		 (index-array-push-extend index-array (1- i))
-		 (index-array-push-extend index-array i)))
+		 (index-array-push-extend index-array i)
+		 (incf elem-count 3)))
 	  (array
            (let ((len (length seq-vertices)))
              (assert (>= len 9))
@@ -1754,14 +1754,14 @@
                        (clampf (aref seq-vertices (1+ j)))
                        (clampf (aref seq-vertices (+ j 2)))
                        ub32-color)
-                   (incf number-of-vertices)
                    when (>= i 2)
                    do (index-array-push-extend index-array 0)
                    (index-array-push-extend index-array (1- i))
-                   (index-array-push-extend index-array i)))))
+                   (index-array-push-extend index-array i)
+		   (incf elem-count 3)))))
 	(let ((cmd (make-standard-draw-indexed-cmd
 		    3d-draw-list
-		    first-index number-of-vertices vtx-offset
+		    first-index elem-count vtx-offset
 		    atom-group model-mtx
 		    nil *white-texture* nil nil nil)))
           (vector-push-extend cmd (draw-list-cmd-vector 3d-draw-list))
