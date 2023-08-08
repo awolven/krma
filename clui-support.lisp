@@ -164,7 +164,7 @@
 						    &rest initargs)
   (list* (find-class 'wayland:desktop-with-krma) initargs))
 
-#+(and win32 nil)
+#+win32
 (defmethod get-a-win32-window-class ((display win32:desktop-with-krma-mixin) errorp &rest initargs
 				     &key &allow-other-keys)
   (declare (ignore initargs))

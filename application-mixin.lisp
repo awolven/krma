@@ -198,9 +198,12 @@
 (defclass krma-window (krma-window-mixin)
   ())
 
-(defmethod initialize-instance :after ((window krma-window) &rest initargs)
+(defmethod initialize-instance :before ((window krma-window) &rest initargs)
   (declare (ignore initargs))
-  (multiple-value-bind (width height) (window-framebuffer-size window)
+
+  (multiple-value-bind (width height) (if (slot-boundp window 'clui::handle)
+					  (window-framebuffer-size window)
+					  (values 640 480))
     (setf (krma::window-viewports window)
 	  (list (krma::make-viewport
 		 :x 0 :y 0
