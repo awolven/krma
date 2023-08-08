@@ -2,7 +2,7 @@
 #+darwin(cl:pushnew :metal cl:*features*)
 
 (defsystem krma
-  :description "A platform independent graphics primitive rendering library."
+  :description "A cross platform graphics abstraction layer."
   :depends-on (:cffi
 	       :float-features
 	       :3d-math
