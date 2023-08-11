@@ -419,15 +419,16 @@
 	     do (setf active-scenes (nconc active-scenes (active-scenes app))))
        (compactor-thread-iteration dpy active-scenes))
      ;; todo: make close button on window setf application-exit? to t.
-     (when (run-loop-exit? dpy)
+     (when (clui::run-loop-exit? dpy)
        (go exit))
      (go again)
    exit))
 
 (defun start-compactor-thread (dpy)
-  (bt:make-thread #'(lambda ()
-		      (compactor-loop dpy))
-		  :name "draw-list-compactor-thread"))
+  (setf (compactor-thread dpy)
+	(bt:make-thread #'(lambda ()
+			    (compactor-loop dpy))
+			:name "draw-list-compactor-thread")))
 
 (defvar *threshold* 0.008)
 (defvar *test* 1290)
@@ -469,11 +470,14 @@
     (setf (window-show-frame-rate? main-window) show-frame-rate?)
 
     (unwind-protect
-	 (loop until (run-loop-exit? dpy)
+	 (loop until (clui::run-loop-exit? dpy)
 		 initially (start-compactor-thread dpy)
 	       do (maybe-defer-debug (dpy)
 		    (poll-events dpy))
 
+		  (when (clui::run-loop-exit? dpy)
+		    (return))
+		  
 		  (maybe-defer-debug (dpy)
 		    (update-frame-rate main-window))
 		  

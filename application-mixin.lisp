@@ -248,6 +248,8 @@
     
     (values)))
 
+
+
 (defclass krma-application-mixin (vulkan-application-mixin)
   ((vk::application-name :initform "krma-application")
    (dpy :accessor application-display)
@@ -293,7 +295,7 @@
   ((pipeline-store :accessor krma-pipeline-store)
    (texture-sampler :accessor krma-texture-sampler)
    (applications :accessor display-applications :initform nil)
-   (exit? :initform nil :accessor run-loop-exit?)
+   (compactor-thread :initform nil :accessor compactor-thread)
    (current-frame-cons :initform (list 0) :accessor current-frame-cons)
    (current-draw-data-cons :initform (list 0) :accessor current-draw-data-cons)
    (retained-mode-handle-count-cons :initform (list -1) :accessor retained-mode-handle-count-cons)
@@ -323,6 +325,10 @@
    (hovered :initform () :accessor krma-hovered)
    (hovered-3d :initform () :accessor krma-hovered-3d))
   (:default-initargs :enable-fragment-stores-and-atomics t))
+
+(defmethod shutdown-run-loop ((dpy krma-enabled-display-mixin))
+  (vk::shutdown-application dpy)
+  (values))
 
 (defun most-specifically-hovered-2d (2d-select-box x y)
   (when 2d-select-box
