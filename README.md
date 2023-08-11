@@ -30,6 +30,8 @@ then from lisp:  (assumes SBCL or CCL with quicklisp)
 
 (ql:quickload :krma)
 
+(trivial-main-thread:call-in-main-thread #'(lambda () (krma:main (make-instance 'krma::krma-test-application))))
+
 (krma:add-2d-line 100 100 200 200 :color #xffff00ff)
 (krma:add-text "Sample Text" 250 200)
 
