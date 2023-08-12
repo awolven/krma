@@ -181,6 +181,11 @@
   (declare (ignore initargs))
   (find-class 'x11:krma-enabled-window errorp))
 
+#+cocoa
+(defmethod get-a-cocoa-window-class (display errorp &rest initargs &key &allow-other-keys)
+  (declare (ignore display initargs))
+  (find-class 'cocoa:krma-enabled-window errorp))
+
 #+win32
 (defmethod create-native-window-surface ((display win32:desktop-mixin)
 					 instance window
