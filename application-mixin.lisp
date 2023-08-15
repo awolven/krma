@@ -201,7 +201,7 @@
 (defmethod initialize-instance :before ((window krma-window) &rest initargs)
   (declare (ignore initargs))
 
-  (multiple-value-bind (width height) (if (slot-boundp window 'clui::handle)
+  (multiple-value-bind (width height) (if #+(or (and linux x11) win32)(slot-boundp window 'clui::handle) #+cocoa(slot-boundp window 'clui::id)
 					  (window-framebuffer-size window)
 					  (values 640 480))
     (setf (krma::window-viewports window)
