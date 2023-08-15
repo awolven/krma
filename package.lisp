@@ -4,8 +4,7 @@
   (ql:quickload :cffi))
 
 (3dm::define-package :krma :3dm.f
-  (:use :cl :cffi :vk :%vk #-noglfw :$glfw ;;:3d-vectors :3d-matrices
-			   )
+  (:use :cl :cffi :vk :%vk #+glfw :$glfw)
   (:import-from :clui
 
 		#:get-displays
