@@ -77,7 +77,7 @@
 		 (foreign-array-fill-pointer (draw-list-vertex-array ,draw-list-sym)) ,initial-vtx-offset)
 	   nil)))))
 
-(defun %draw-list-draw-2d-point (2d-draw-list ub32-oid ub32-color sf-layer sf-x sf-y)
+(defun %draw-list-draw-2d-point (2d-draw-list ub32-oid ub32-color sf-elevation sf-x sf-y)
   ;; for point-list-pipeline
   (declare (type 3d-vertex-draw-list-mixin 2d-draw-list))
   (declare (type (unsigned-byte 32) ub32-oid ub32-color))
@@ -86,12 +86,12 @@
     (let ((first-index (foreign-array-fill-pointer index-array))
           (vtx-offset (foreign-array-fill-pointer vertex-array)))
       (with-draw-list-transaction (%draw-list-draw-2d-point 2d-draw-list first-index vtx-offset)
-	(let ((offset (standard-3d-vertex-array-push-extend vertex-array ub32-oid sf-x sf-y sf-layer ub32-color)))
+	(let ((offset (standard-3d-vertex-array-push-extend vertex-array ub32-oid sf-x sf-y sf-elevation ub32-color)))
           (index-array-push-extend index-array offset)
           (values))))))
 
 
-(defun %draw-list-add-2d-point (2d-draw-list ub32-oid atom-group model-mtx sf-point-size ub32-color sf-layer sf-x sf-y)
+(defun %draw-list-add-2d-point (2d-draw-list ub32-oid atom-group model-mtx sf-point-size ub32-color sf-elevation sf-x sf-y)
   ;; for point-list-pipeline
   (declare (type 3d-vertex-draw-list-mixin 2d-draw-list))
   (declare (type (unsigned-byte 32) ub32-oid ub32-color))
@@ -100,12 +100,12 @@
     (let ((first-index (foreign-array-fill-pointer index-array))
           (vtx-offset (foreign-array-fill-pointer vertex-array)))
       (with-draw-list-transaction (%draw-list-add-2d-point 2d-draw-list first-index vtx-offset)
-	(standard-3d-vertex-array-push-extend vertex-array ub32-oid sf-x sf-y sf-layer ub32-color)
+	(standard-3d-vertex-array-push-extend vertex-array ub32-oid sf-x sf-y sf-elevation ub32-color)
 	(index-array-push-extend index-array 0)
 	(let ((cmd (make-standard-draw-indexed-cmd
 		    2d-draw-list
 		    first-index 1 vtx-offset
-		    atom-group model-mtx nil *white-texture* sf-point-size nil nil sf-layer)))
+		    atom-group model-mtx nil *white-texture* sf-point-size nil nil sf-elevation)))
 	  (vector-push-extend cmd (draw-list-cmd-vector 2d-draw-list))
 	  cmd)))))
 
@@ -143,7 +143,7 @@
 	  cmd)))))
 
 
-(defun %draw-list-draw-2d-line (2d-draw-list ub32-oid ub32-color sf-layer sf-x0 sf-y0 sf-x1 sf-y1)
+(defun %draw-list-draw-2d-line (2d-draw-list ub32-oid ub32-color sf-elevation sf-x0 sf-y0 sf-x1 sf-y1)
   ;; for line-list pipeline
   (declare (type 3d-vertex-draw-list-mixin 2d-draw-list))
   (declare (type (unsigned-byte 32) ub32-oid ub32-color))
@@ -153,14 +153,14 @@
          (first-index (foreign-array-fill-pointer ia))
          (vtx-offset (foreign-array-fill-pointer va)))
     (with-draw-list-transaction (%draw-list-draw-2d-line 2d-draw-list first-index vtx-offset)
-      (let ((offset0 (standard-3d-vertex-array-push-extend va ub32-oid sf-x0 sf-y0 sf-layer ub32-color))
-            (offset1 (standard-3d-vertex-array-push-extend va ub32-oid sf-x1 sf-y1 sf-layer ub32-color)))
+      (let ((offset0 (standard-3d-vertex-array-push-extend va ub32-oid sf-x0 sf-y0 sf-elevation ub32-color))
+            (offset1 (standard-3d-vertex-array-push-extend va ub32-oid sf-x1 sf-y1 sf-elevation ub32-color)))
         (index-array-push-extend ia offset0)
         (index-array-push-extend ia offset1)
         (values)))))
 
 
-(defun %draw-list-add-2d-line (2d-draw-list ub32-oid atom-group model-mtx sf-line-thickness ub32-color sf-layer sf-x0 sf-y0 sf-x1 sf-y1)
+(defun %draw-list-add-2d-line (2d-draw-list ub32-oid atom-group model-mtx sf-line-thickness ub32-color sf-elevation sf-x0 sf-y0 sf-x1 sf-y1)
   ;; for line-list pipeline
   (declare (type 3d-vertex-draw-list-mixin 2d-draw-list))
   (declare (type (unsigned-byte 32) ub32-oid ub32-color))
@@ -170,14 +170,14 @@
          (first-index (foreign-array-fill-pointer ia))
          (vtx-offset (foreign-array-fill-pointer va)))
     (with-draw-list-transaction (%draw-list-add-2d-line 2d-draw-list first-index vtx-offset)
-      (standard-3d-vertex-array-push-extend va ub32-oid sf-x0 sf-y0 sf-layer ub32-color)
-      (standard-3d-vertex-array-push-extend va ub32-oid sf-x1 sf-y1 sf-layer ub32-color)
+      (standard-3d-vertex-array-push-extend va ub32-oid sf-x0 sf-y0 sf-elevation ub32-color)
+      (standard-3d-vertex-array-push-extend va ub32-oid sf-x1 sf-y1 sf-elevation ub32-color)
       (index-array-push-extend ia 0)
       (index-array-push-extend ia 1)
       (let ((cmd (make-standard-draw-indexed-cmd
                   2d-draw-list
                   first-index 2 vtx-offset
-                  atom-group model-mtx nil *white-texture* nil sf-line-thickness nil sf-layer)))
+                  atom-group model-mtx nil *white-texture* nil sf-line-thickness nil sf-elevation)))
         (vector-push-extend cmd (draw-list-cmd-vector 2d-draw-list))
         cmd))))
 
@@ -222,7 +222,7 @@
 	cmd))))
 
 
-(defun %draw-list-draw-2d-polyline (2d-draw-list ub32-oid bool-closed? ub32-color sf-layer seq-vertices)
+(defun %draw-list-draw-2d-polyline (2d-draw-list ub32-oid bool-closed? ub32-color sf-elevation seq-vertices)
   ;; for line-list pipeline
   (declare (type 3d-vertex-draw-list-mixin 2d-draw-list))
   (declare (type boolean bool-closed?))
@@ -245,9 +245,9 @@
 	       (setq y0 (clampf y0))
 	       (setq x1 (clampf x1))
 	       (setq y1 (clampf y1))
-	       (setq offset (standard-3d-vertex-array-push-extend vertex-array ub32-oid x0 y0 sf-layer ub32-color))
+	       (setq offset (standard-3d-vertex-array-push-extend vertex-array ub32-oid x0 y0 sf-elevation ub32-color))
 	       (index-array-push-extend index-array offset)
-	       (setq offset (standard-3d-vertex-array-push-extend vertex-array ub32-oid x1 y1 sf-layer ub32-color))
+	       (setq offset (standard-3d-vertex-array-push-extend vertex-array ub32-oid x1 y1 sf-elevation ub32-color))
 	       (index-array-push-extend index-array offset)
 	       (incf number-of-vertices 2)
                finally (assert (>= number-of-vertices 2))
@@ -257,18 +257,18 @@
 	       (return (values))))))))
 
 
-(defun %draw-list-draw-2d-rectangle (2d-draw-list ub32-oid ub32-color sf-layer sf-x0 sf-y0 sf-x1 sf-y1)
+(defun %draw-list-draw-2d-rectangle (2d-draw-list ub32-oid ub32-color sf-elevation sf-x0 sf-y0 sf-x1 sf-y1)
   ;; for line-list pipeline
   (declare (type 3d-vertex-draw-list-mixin 2d-draw-list))
   (declare (type (unsigned-byte 32) ub32-oid ub32-color))
   (declare (type single-float sf-x0 sf-y0 sf-x1 sf-y1))
-  (%draw-list-draw-2d-polyline 2d-draw-list ub32-oid t ub32-color sf-layer
+  (%draw-list-draw-2d-polyline 2d-draw-list ub32-oid t ub32-color sf-elevation
                                (list sf-x0 sf-y0 sf-x0 sf-y1 sf-x1 sf-y1 sf-x1 sf-y0)))
 
 
 
 (defun %draw-list-add-2d-polyline (2d-draw-list ub32-oid atom-group model-mtx bool-closed?
-				   sf-line-thickness ub32-color sf-layer seq-vertices)
+				   sf-line-thickness ub32-color sf-elevation seq-vertices)
   ;; for line-strip pipeline
   (declare (type 3d-vertex-draw-list-mixin 2d-draw-list))
   (declare (type boolean bool-closed?))
@@ -287,7 +287,7 @@
 	 (loop for (x y) on seq-vertices by #'cddr
                do (setq x (clampf x))
 	       (setq y (clampf y))
-	       (standard-3d-vertex-array-push-extend vertex-array ub32-oid x y sf-layer ub32-color)
+	       (standard-3d-vertex-array-push-extend vertex-array ub32-oid x y sf-elevation ub32-color)
                (index-array-push-extend index-array elem-count)
                (incf elem-count)
                finally (when bool-closed?
@@ -297,22 +297,22 @@
       (let ((cmd (make-standard-draw-indexed-cmd
                   2d-draw-list
                   first-index elem-count vtx-offset
-                  atom-group model-mtx nil *white-texture* nil sf-line-thickness nil sf-layer)))
+                  atom-group model-mtx nil *white-texture* nil sf-line-thickness nil sf-elevation)))
         (vector-push-extend cmd (draw-list-cmd-vector 2d-draw-list))
         cmd))))
 
 
-(defun %draw-list-add-2d-rectangle (2d-draw-list ub32-oid atom-group model-mtx sf-line-thickness ub32-color sf-layer
+(defun %draw-list-add-2d-rectangle (2d-draw-list ub32-oid atom-group model-mtx sf-line-thickness ub32-color sf-elevation
                                     sf-x0 sf-y0 sf-x1 sf-y1)
   ;; for line-strip pipeline
   (declare (type 3d-vertex-draw-list-mixin 2d-draw-list))
   (declare (type (unsigned-byte 32) ub32-color))
   (declare (type single-float sf-x0 sf-y0 sf-x1 sf-y1))
-  (%draw-list-add-2d-polyline 2d-draw-list ub32-oid atom-group model-mtx t sf-line-thickness sf-layer
+  (%draw-list-add-2d-polyline 2d-draw-list ub32-oid atom-group model-mtx t sf-line-thickness sf-elevation
 			      ub32-color (list sf-x0 sf-y0 sf-x0 sf-y1 sf-x1 sf-y1 sf-x1 sf-y0)))
 
 ;; the argument `seq-vertices' is a cl sequence of x y color ... repeating
-(defun %draw-list-draw-multicolor-2d-polyline (2d-draw-list ub32-oid bool-closed? sf-layer seq-vertices)
+(defun %draw-list-draw-multicolor-2d-polyline (2d-draw-list ub32-oid bool-closed? sf-elevation seq-vertices)
   ;; uses line-list
   (declare (type 3d-vertex-draw-list-mixin 2d-draw-list))
   (declare (type boolean bool-closed?))
@@ -336,9 +336,9 @@
 	       (setq x1 (clampf x1))
 	       (setq y1 (clampf y1))
 	       (setq color1 (canonicalize-color color1))
-	       (setq offset (standard-3d-vertex-array-push-extend vertex-array ub32-oid x0 y0 sf-layer color0))
+	       (setq offset (standard-3d-vertex-array-push-extend vertex-array ub32-oid x0 y0 sf-elevation color0))
 	       (index-array-push-extend index-array offset)
-	       (setq offset (standard-3d-vertex-array-push-extend vertex-array ub32-oid x1 y1 sf-layer color1))
+	       (setq offset (standard-3d-vertex-array-push-extend vertex-array ub32-oid x1 y1 sf-elevation color1))
 	       (index-array-push-extend index-array offset)
 	       (incf number-of-vertices 2)
 	       finally (assert (>= number-of-vertices 2))
@@ -348,7 +348,7 @@
 	       (return (values))))))))
 
 
-(defun %draw-list-add-multicolor-2d-polyline (2d-draw-list ub32-oid atom-group model-mtx bool-closed? sf-line-thickness sf-layer
+(defun %draw-list-add-multicolor-2d-polyline (2d-draw-list ub32-oid atom-group model-mtx bool-closed? sf-line-thickness sf-elevation
 					      seq-vertices)
   ;; uses line-strip
   (declare (type 3d-vertex-draw-list-mixin 2d-draw-list))
@@ -370,7 +370,7 @@
 	       do (setq x (clampf x))
 	       (setq y (clampf y))
 	       (setq color (canonicalize-color color))
-	       (standard-3d-vertex-array-push-extend vertex-array ub32-oid x y sf-layer color)
+	       (standard-3d-vertex-array-push-extend vertex-array ub32-oid x y sf-elevation color)
 	       (index-array-push-extend index-array elem-count)
 	       (incf elem-count)
 	       finally (when bool-closed?
@@ -380,12 +380,12 @@
       (let ((cmd (make-standard-draw-indexed-cmd
 		  2d-draw-list
 		  first-index elem-count vtx-offset
-		  atom-group model-mtx nil *white-texture* nil sf-line-thickness nil sf-layer)))
+		  atom-group model-mtx nil *white-texture* nil sf-line-thickness nil sf-elevation)))
         (vector-push-extend cmd cmd-vector)
         cmd))))
 
 
-(defun %draw-list-draw-2d-line-list (2d-draw-list ub32-oid ub32-color sf-layer seq-vertices)
+(defun %draw-list-draw-2d-line-list (2d-draw-list ub32-oid ub32-color sf-elevation seq-vertices)
   (declare (type 3d-vertex-draw-list-mixin 2d-draw-list))
   (declare (type sequence seq-vertices))
   (let* ((index-array (draw-list-index-array 2d-draw-list))
@@ -402,14 +402,14 @@
 		   (setq y0 (clampf y0))
 		   (setq x1 (clampf x1))
 		   (setq y1 (clampf y1))
-		   (let ((offset (standard-3d-vertex-array-push-extend vertex-array ub32-oid x0 y0 sf-layer ub32-color)))
+		   (let ((offset (standard-3d-vertex-array-push-extend vertex-array ub32-oid x0 y0 sf-elevation ub32-color)))
 		     (index-array-push-extend index-array offset))
-		   (let ((offset (standard-3d-vertex-array-push-extend vertex-array ub32-oid x1 y1 sf-layer ub32-color)))
+		   (let ((offset (standard-3d-vertex-array-push-extend vertex-array ub32-oid x1 y1 sf-elevation ub32-color)))
 		     (index-array-push-extend index-array offset))
 		   finally (return (values))))))))))
 
 
-(defun %draw-list-add-2d-line-list (2d-draw-list ub32-oid atom-group model-mtx sf-line-thickness ub32-color sf-layer seq-vertices)
+(defun %draw-list-add-2d-line-list (2d-draw-list ub32-oid atom-group model-mtx sf-line-thickness ub32-color sf-elevation seq-vertices)
   (declare (type 3d-vertex-draw-list-mixin 2d-draw-list))
   (declare (type sequence seq-vertices))
   (let* ((index-array (draw-list-index-array 2d-draw-list))
@@ -428,21 +428,21 @@
 		 (setq y0 (clampf y0))
 		 (setq x1 (clampf x1))
 		 (setq y1 (clampf y1))
-		 (standard-3d-vertex-array-push-extend vertex-array ub32-oid x0 y0 sf-layer ub32-color)
+		 (standard-3d-vertex-array-push-extend vertex-array ub32-oid x0 y0 sf-elevation ub32-color)
 		 (index-array-push-extend index-array elem-count)
-		 (standard-3d-vertex-array-push-extend vertex-array ub32-oid x1 y1 sf-layer ub32-color)
+		 (standard-3d-vertex-array-push-extend vertex-array ub32-oid x1 y1 sf-elevation ub32-color)
 		 (index-array-push-extend index-array (1+ elem-count))
                  (incf elem-count 2)))))
 
       (let ((cmd (make-standard-draw-indexed-cmd
 		  2d-draw-list
 		  first-index elem-count vtx-offset
-		  atom-group model-mtx nil *white-texture* nil sf-line-thickness nil sf-layer)))
+		  atom-group model-mtx nil *white-texture* nil sf-line-thickness nil sf-elevation)))
         (vector-push-extend cmd cmd-vector)
         cmd))))
 
 
-(defun %draw-list-draw-2d-circular-arc (2d-draw-list ub32-oid bool-closed? ub32-color sf-layer
+(defun %draw-list-draw-2d-circular-arc (2d-draw-list ub32-oid bool-closed? ub32-color sf-elevation
 					df-center-x df-center-y df-radius df-start-angle df-end-angle
 					fixnum-number-of-segments)
   ;; uses line list instead of line strip
@@ -466,7 +466,7 @@
 						    ub32-oid
 						    (clampf (+ df-center-x (* df-radius (cos df-start-angle))))
 						    (clampf (+ df-center-y (* df-radius (sin df-start-angle))))
-						    sf-layer
+						    sf-elevation
 						    ub32-color))
 	(loop repeat fixnum-number-of-segments
               with theta = df-start-angle
@@ -475,7 +475,7 @@
 			(coord-x (clampf (+ df-center-x (* df-radius (cos angle)))))
 			(coord-y (clampf (+ df-center-y (* df-radius (sin angle))))))
                    (index-array-push-extend index-array offset)
-                   (setq offset (standard-3d-vertex-array-push-extend vertex-array ub32-oid coord-x coord-y sf-layer ub32-color))
+                   (setq offset (standard-3d-vertex-array-push-extend vertex-array ub32-oid coord-x coord-y sf-elevation ub32-color))
                    (index-array-push-extend index-array offset)
                    (incf theta step))
               finally (when bool-closed?
@@ -484,7 +484,7 @@
 
 
 
-(defun %draw-list-add-2d-circular-arc (2d-draw-list ub32-oid atom-group model-mtx bool-closed? sf-line-thickness ub32-color sf-layer
+(defun %draw-list-add-2d-circular-arc (2d-draw-list ub32-oid atom-group model-mtx bool-closed? sf-line-thickness ub32-color sf-elevation
                                        df-center-x df-center-y df-radius df-start-angle df-end-angle
                                        fixnum-number-of-segments
                                        &optional (cmd-constructor #'make-standard-draw-indexed-cmd))
@@ -512,7 +512,7 @@
 				    (+ df-center-x (* df-radius (cos (cl:the double-float theta))))))
                           (coord-y (clampf
 				    (+ df-center-y (* df-radius (sin (cl:the double-float theta)))))))
-		     (standard-3d-vertex-array-push-extend vertex-array ub32-oid coord-x coord-y sf-layer ub32-color)
+		     (standard-3d-vertex-array-push-extend vertex-array ub32-oid coord-x coord-y sf-elevation ub32-color)
 		     (index-array-push-extend index-array i)
 		     (incf (cl:the double-float theta) step))
                 finally (when bool-closed?
@@ -521,12 +521,12 @@
           (let ((cmd (funcall cmd-constructor
                               2d-draw-list
                               first-index (1+ fixnum-number-of-segments) vtx-offset
-                              atom-group model-mtx nil *white-texture* sf-line-thickness nil sf-layer)))
+                              atom-group model-mtx nil *white-texture* sf-line-thickness nil sf-elevation)))
 	    (vector-push-extend cmd (draw-list-cmd-vector 2d-draw-list))
 	    cmd))))))
 
 
-(defun %draw-list-draw-2d-circle (2d-draw-list ub32-oid ub32-color sf-layer
+(defun %draw-list-draw-2d-circle (2d-draw-list ub32-oid ub32-color sf-elevation
 				  df-center-x df-center-y df-radius
 				  fixnum-number-of-segments)
   ;; uses line list instead of line strip
@@ -546,7 +546,7 @@
 						  ub32-oid
 						  (clampf (+ df-center-x (* df-radius #.(cos 0))))
 						  (clampf (+ df-center-y (* df-radius #.(sin 0))))
-						  sf-layer
+						  sf-elevation
 						  ub32-color))
       (loop repeat fixnum-number-of-segments
             with theta = 0.0d0
@@ -555,13 +555,13 @@
 		      (coord-x (clampf (+ df-center-x (* df-radius (cos angle)))))
                       (coord-y (clampf (+ df-center-y (* df-radius (sin angle))))))
                  (index-array-push-extend index-array offset)
-		 (setq offset (standard-3d-vertex-array-push-extend vertex-array ub32-oid coord-x coord-y sf-layer ub32-color))
+		 (setq offset (standard-3d-vertex-array-push-extend vertex-array ub32-oid coord-x coord-y sf-elevation ub32-color))
 		 (index-array-push-extend index-array offset)
 		 (incf theta step))
 	    finally (return (values))))))
 
 
-(defun %draw-list-add-2d-circle (2d-draw-list ub32-oid atom-group model-mtx sf-line-thickness ub32-color sf-layer
+(defun %draw-list-add-2d-circle (2d-draw-list ub32-oid atom-group model-mtx sf-line-thickness ub32-color sf-elevation
                                  df-center-x df-center-y df-radius fixnum-number-of-segments
                                  &optional (cmd-constructor #'make-standard-draw-indexed-cmd))
   (declare (type 3d-vertex-draw-list-mixin 2d-draw-list))
@@ -583,14 +583,14 @@
               with step = (/ 2pi fixnum-number-of-segments)
               do (let* ((coord-x (clampf (+ df-center-x (* df-radius (cos (cl:the double-float theta))))))
                         (coord-y (clampf (+ df-center-y (* df-radius (sin (cl:the double-float theta)))))))
-                   (standard-3d-vertex-array-push-extend vertex-array ub32-oid coord-x coord-y sf-layer ub32-color)
+                   (standard-3d-vertex-array-push-extend vertex-array ub32-oid coord-x coord-y sf-elevation ub32-color)
                    (index-array-push-extend index-array i)
                    (incf theta step))
               finally (index-array-push-extend index-array 0))
         (let ((cmd (funcall cmd-constructor
                             2d-draw-list
                             first-index (1+ fixnum-number-of-segments) vtx-offset
-                            atom-group model-mtx nil sf-line-thickness nil sf-layer)))
+                            atom-group model-mtx nil sf-line-thickness nil sf-elevation)))
           (vector-push-extend cmd (draw-list-cmd-vector 2d-draw-list))
           cmd)))))
 
@@ -766,7 +766,7 @@
         cmd))))
 
 
-(defun %draw-list-draw-filled-2d-triangle-list (2d-draw-list ub32-oid ub32-color sf-layer seq-vertices)
+(defun %draw-list-draw-filled-2d-triangle-list (2d-draw-list ub32-oid ub32-color sf-elevation seq-vertices)
   ;; triangle list
   (declare (type 3d-vertex-draw-list-mixin 2d-draw-list))
   (declare (type (unsigned-byte 32) ub32-oid ub32-color))
@@ -781,12 +781,12 @@
 	 (loop for (x y) on seq-vertices by #'cddr
 	       do (setq x (clampf x))
 	       (setq y (clampf y))
-	       (let ((offset (standard-3d-vertex-array-push-extend vertex-array ub32-oid x y sf-layer ub32-color)))
+	       (let ((offset (standard-3d-vertex-array-push-extend vertex-array ub32-oid x y sf-elevation ub32-color)))
                  (index-array-push-extend index-array offset))
 	       finally (return (values))))))))
 
 
-(defun %draw-list-add-filled-2d-triangle-strip/list (2d-draw-list ub32-oid atom-group model-mtx ub32-color sf-layer seq-vertices)
+(defun %draw-list-add-filled-2d-triangle-strip/list (2d-draw-list ub32-oid atom-group model-mtx ub32-color sf-elevation seq-vertices)
   (declare (type 3d-vertex-draw-list-mixin 2d-draw-list))
   (declare (type (unsigned-byte 32) ub32-oid ub32-color))
   (declare (type sequence seq-vertices))
@@ -803,7 +803,7 @@
 		    for i from 0 below #.most-positive-fixnum
 		    do (setq x (clampf x))
 		    (setq y (clampf y))
-		    (standard-3d-vertex-array-push-extend vertex-array ub32-oid x y sf-layer ub32-color)
+		    (standard-3d-vertex-array-push-extend vertex-array ub32-oid x y sf-elevation ub32-color)
 		    (index-array-push-extend index-array i)
 		    (incf number-of-vertices))))
       (assert (>= number-of-vertices 3))
@@ -811,12 +811,12 @@
 		  2d-draw-list
 		  first-index number-of-vertices vtx-offset
 		  atom-group model-mtx
-		  nil *white-texture* nil nil nil sf-layer)))
+		  nil *white-texture* nil nil nil sf-elevation)))
         (vector-push-extend cmd (draw-list-cmd-vector 2d-draw-list))
         cmd))))
 
 
-(defun %draw-list-draw-filled-2d-rectangle-list (2d-draw-list ub32-oid ub32-color sf-layer seq-vertices)
+(defun %draw-list-draw-filled-2d-rectangle-list (2d-draw-list ub32-oid ub32-color sf-elevation seq-vertices)
   ;; triangle list
   (declare (type 3d-vertex-draw-list-mixin 2d-draw-list))
   (declare (type (unsigned-byte 32) ub32-color))
@@ -838,10 +838,10 @@
 	       (setq y0 (clampf y0))
 	       (setq x1 (clampf x1))
 	       (setq y1 (clampf y1))
-	       (setq offset (standard-3d-vertex-array-push-extend vertex-array ub32-oid x0 y0 sf-layer ub32-color))
-               (standard-3d-vertex-array-push-extend vertex-array ub32-oid x0 y1 sf-layer ub32-color)
-               (standard-3d-vertex-array-push-extend vertex-array ub32-oid x1 y1 sf-layer ub32-color)
-               (standard-3d-vertex-array-push-extend vertex-array ub32-oid x1 y0 sf-layer ub32-color)
+	       (setq offset (standard-3d-vertex-array-push-extend vertex-array ub32-oid x0 y0 sf-elevation ub32-color))
+               (standard-3d-vertex-array-push-extend vertex-array ub32-oid x0 y1 sf-elevation ub32-color)
+               (standard-3d-vertex-array-push-extend vertex-array ub32-oid x1 y1 sf-elevation ub32-color)
+               (standard-3d-vertex-array-push-extend vertex-array ub32-oid x1 y0 sf-elevation ub32-color)
                (index-array-push-extend index-array offset)
                (index-array-push-extend index-array (1+ offset))
                (index-array-push-extend index-array (+ 2 offset))
@@ -853,7 +853,7 @@
 	       (return (values))))))))
 
 
-(defun %draw-list-add-filled-2d-rectangle-list (2d-draw-list ub32-oid atom-group model-mtx ub32-color sf-layer seq-vertices)
+(defun %draw-list-add-filled-2d-rectangle-list (2d-draw-list ub32-oid atom-group model-mtx ub32-color sf-elevation seq-vertices)
   ;; triangle-list
   (declare (type 3d-vertex-draw-list-mixin 2d-draw-list))
   (declare (type (unsigned-byte 32) ub32-oid ub32-color))
@@ -875,10 +875,10 @@
 		    (setq y0 (clampf y0))
 		    (setq x1 (clampf x1))
 		    (setq y1 (clampf y1))
-		    (standard-3d-vertex-array-push-extend vertex-array ub32-oid x0 y0 sf-layer ub32-color)
-		    (standard-3d-vertex-array-push-extend vertex-array ub32-oid x0 y1 sf-layer ub32-color)
-		    (standard-3d-vertex-array-push-extend vertex-array ub32-oid x1 y1 sf-layer ub32-color)
-		    (standard-3d-vertex-array-push-extend vertex-array ub32-oid x1 y0 sf-layer ub32-color)
+		    (standard-3d-vertex-array-push-extend vertex-array ub32-oid x0 y0 sf-elevation ub32-color)
+		    (standard-3d-vertex-array-push-extend vertex-array ub32-oid x0 y1 sf-elevation ub32-color)
+		    (standard-3d-vertex-array-push-extend vertex-array ub32-oid x1 y1 sf-elevation ub32-color)
+		    (standard-3d-vertex-array-push-extend vertex-array ub32-oid x1 y0 sf-elevation ub32-color)
 		    (index-array-push-extend index-array i)
 		    (index-array-push-extend index-array (1+ i))
 		    (index-array-push-extend index-array (+ 2 i))
@@ -890,12 +890,12 @@
 	(let ((cmd (make-standard-draw-indexed-cmd
 		    2d-draw-list
 		    first-index elem-count vtx-offset
-		    atom-group model-mtx nil *white-texture* nil nil nil sf-layer)))
+		    atom-group model-mtx nil *white-texture* nil nil nil sf-elevation)))
           (vector-push-extend cmd (draw-list-cmd-vector 2d-draw-list))
           cmd)))))
 
 
-(defun %draw-list-draw-textured-2d-rectangle-list (2d-draw-list ub32-oid ub32-color sf-layer seq-vertices)
+(defun %draw-list-draw-textured-2d-rectangle-list (2d-draw-list ub32-oid ub32-color sf-elevation seq-vertices)
   ;; used to implement draw-text and group-add-text
   (declare (type 3d-vertex-draw-list-mixin 2d-draw-list))
   (declare (type sequence seq-vertices))
@@ -923,10 +923,10 @@
 		      (setq y1 (clampf y1))
 		      (setq u1 (clampf u1))
 		      (setq v1 (clampf v1))
-		      (setq offset (textured-3d-vertex-array-push-extend vertex-array ub32-oid x0 y0 sf-layer u0 v0 ub32-color))
-		      (textured-3d-vertex-array-push-extend vertex-array ub32-oid x0 y1 sf-layer u0 v1 ub32-color)
-		      (textured-3d-vertex-array-push-extend vertex-array ub32-oid x1 y1 sf-layer u1 v1 ub32-color)
-		      (textured-3d-vertex-array-push-extend vertex-array ub32-oid x1 y0 sf-layer u1 v0 ub32-color)
+		      (setq offset (textured-3d-vertex-array-push-extend vertex-array ub32-oid x0 y0 sf-elevation u0 v0 ub32-color))
+		      (textured-3d-vertex-array-push-extend vertex-array ub32-oid x0 y1 sf-elevation u0 v1 ub32-color)
+		      (textured-3d-vertex-array-push-extend vertex-array ub32-oid x1 y1 sf-elevation u1 v1 ub32-color)
+		      (textured-3d-vertex-array-push-extend vertex-array ub32-oid x1 y0 sf-elevation u1 v0 ub32-color)
 		      (index-array-push-extend index-array offset)
 		      (index-array-push-extend index-array (1+ offset))
 		      (index-array-push-extend index-array (+ 2 offset))
@@ -937,7 +937,7 @@
 			   (return (values))))))))))
 
 
-(defun %draw-list-add-textured-2d-rectangle-list (2d-draw-list ub32-oid atom-group model-mtx texture ub32-color sf-layer seq-vertices 
+(defun %draw-list-add-textured-2d-rectangle-list (2d-draw-list ub32-oid atom-group model-mtx texture ub32-color sf-elevation seq-vertices 
                                                   &optional (cmd-constructor #'make-standard-draw-indexed-cmd))
   ;; used to implement add-text
   (declare (type 3d-vertex-draw-list-mixin 2d-draw-list))
@@ -967,10 +967,10 @@
 		    (setq y1 (clampf y1))
 		    (setq u1 (clampf u1))
 		    (setq v1 (clampf v1))
-		    (textured-3d-vertex-array-push-extend vertex-array ub32-oid x0 y0 sf-layer u0 v0 ub32-color)
-		    (textured-3d-vertex-array-push-extend vertex-array ub32-oid x0 y1 sf-layer u0 v1 ub32-color)
-		    (textured-3d-vertex-array-push-extend vertex-array ub32-oid x1 y1 sf-layer u1 v1 ub32-color)
-		    (textured-3d-vertex-array-push-extend vertex-array ub32-oid x1 y0 sf-layer u1 v0 ub32-color)
+		    (textured-3d-vertex-array-push-extend vertex-array ub32-oid x0 y0 sf-elevation u0 v0 ub32-color)
+		    (textured-3d-vertex-array-push-extend vertex-array ub32-oid x0 y1 sf-elevation u0 v1 ub32-color)
+		    (textured-3d-vertex-array-push-extend vertex-array ub32-oid x1 y1 sf-elevation u1 v1 ub32-color)
+		    (textured-3d-vertex-array-push-extend vertex-array ub32-oid x1 y0 sf-elevation u1 v0 ub32-color)
 		    (index-array-push-extend index-array i)
 		    (index-array-push-extend index-array (1+ i))
 		    (index-array-push-extend index-array (+ 2 i))
@@ -983,12 +983,12 @@
 			    2d-draw-list
 			    first-index elem-count vtx-offset
 			    atom-group model-mtx
-			    nil texture nil nil nil sf-layer)))
+			    nil texture nil nil nil sf-elevation)))
 	  (vector-push-extend cmd (draw-list-cmd-vector 2d-draw-list))
 	  cmd)))))
 
 
-(defun %draw-list-draw-filled-2d-convex-polygon (2d-draw-list ub32-oid ub32-color sf-layer seq-vertices)
+(defun %draw-list-draw-filled-2d-convex-polygon (2d-draw-list ub32-oid ub32-color sf-elevation seq-vertices)
   (declare (type 3d-vertex-draw-list-mixin 2d-draw-list))
   (declare (type (unsigned-byte 32) ub32-oid ub32-color))
   (declare (type sequence seq-vertices))
@@ -1007,7 +1007,7 @@
 	       for i from 0 below #.most-positive-fixnum
 	       do (setq x (clampf x))
 	       (setq y (clampf y))
-	       (setq offset (standard-3d-vertex-array-push-extend vertex-array ub32-oid x y sf-layer ub32-color))
+	       (setq offset (standard-3d-vertex-array-push-extend vertex-array ub32-oid x y sf-elevation ub32-color))
 	       (incf number-of-vertices)
 	       when (>= i 2)
 	       do (index-array-push-extend index-array vtx-offset)
@@ -1017,7 +1017,7 @@
 	       (return (values))))))))
 
 
-(defun %draw-list-add-filled-2d-convex-polygon (2d-draw-list ub32-oid atom-group model-mtx ub32-color sf-layer seq-vertices)
+(defun %draw-list-add-filled-2d-convex-polygon (2d-draw-list ub32-oid atom-group model-mtx ub32-color sf-elevation seq-vertices)
   (declare (type 3d-vertex-draw-list-mixin 2d-draw-list))
   (declare (type (unsigned-byte 32) ub32-oid ub32-color))
   (declare (type sequence seq-vertices))
@@ -1035,7 +1035,7 @@
 	       for (x y) on seq-vertices by #'cddr
 	       do (setq x (clampf x))
 	       (setq y (clampf y))
-	       (standard-3d-vertex-array-push-extend vertex-array ub32-oid x y sf-layer ub32-color)
+	       (standard-3d-vertex-array-push-extend vertex-array ub32-oid x y sf-elevation ub32-color)
 	       (incf number-of-vertices)
 	       when (>= i 2)
 	       do (index-array-push-extend index-array 0)
@@ -1045,7 +1045,7 @@
       (let ((cmd (make-standard-draw-indexed-cmd
 		  2d-draw-list
 		  first-index (* 3 (- number-of-vertices 2)) vtx-offset
-		  atom-group model-mtx nil *white-texture* nil nil nil sf-layer)))
+		  atom-group model-mtx nil *white-texture* nil nil nil sf-elevation)))
         (vector-push-extend cmd (draw-list-cmd-vector 2d-draw-list))
         cmd))))
 

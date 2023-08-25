@@ -876,13 +876,13 @@
 					 (matrix nil)
 					 (group nil)
 					 (object-id 0)
-					 (layer 0)
+					 (elevation 0)
 					 (scene (application-scene *app*)))
   "Retained-mode function, creates a primitive, a filled 2d circle, returns a handle.  Calls scene-add-filled-2d-circle-primitive with color defaulting to *default-color*, number-of-sectors defaulting to 64, matrix defaulting to nil (identity), group defaulting to nil (no group) and scene defaulting to (application-scene *app*).  The required arguments should be real numbers."
   (scene-add-filled-2d-circle-primitive scene
 					group matrix color
 					center-x center-y radius
-					number-of-sectors object-id layer))
+					number-of-sectors object-id elevation))
 
 (defun add-filled-2d-circle (center-x center-y radius
                              &key
@@ -890,12 +890,12 @@
                                (number-of-sectors *default-number-of-segments*)
                                (group :default)
 			       (object-id 0)
-			       (layer 0)
+			       (elevation 0)
 			       (scene (application-scene *app*)))
   "Retained-mode function, creates  a filled 2d circle, returns no values.  Calls scene-add-filled-2d-circle with color defaulting to *default-color*, number-of-sectors defaulting to 64,  group defaulting to :default and scene defaulting to (application-scene *app*).  The required arguments should be real numbers."
   (scene-add-filled-2d-circle scene group color
 			      center-x center-y radius
-			      number-of-sectors object-id layer))
+			      number-of-sectors object-id elevation))
 
 (defun draw-filled-2d-circle (center-x center-y radius
                               &key
@@ -903,10 +903,10 @@
                                 (number-of-sectors *default-number-of-segments*)
                                 (group :default)
 				(object-id 0)
-				(layer 0)
+				(elevation 0)
 				(scene (application-scene *app*)))
   "Immediate-mode function, creates  a filled 2d circle, returns no values.  Calls scene-draw-filled-2d-circle with color defaulting to *default-color*, number-of-sectors defaulting to 64,  group defaulting to :default and scene defaulting to (application-scene *app*).  The required arguments should be real numbers."
-  (scene-draw-filled-2d-circle scene group color center-x center-y radius number-of-sectors object-id layer))
+  (scene-draw-filled-2d-circle scene group color center-x center-y radius number-of-sectors object-id elevation))
 
 
 (defun add-multicolor-3d-polyline-primitive (vertices &key
@@ -975,28 +975,28 @@
                                                          (matrix nil)
 							 (group nil)
 							 (object-id 0)
-							 (layer 0)
+							 (elevation 0)
 							 (scene (application-scene *app*)))
   "Retained-mode function, creates a primitive, a series of filled 2d triangles, returns a handle. Calls scene-add-filled-2d-triangle-list-primitive with color defaulting to *default-color*, matrix defaulting to nil (identity), group defaulting to nil (no group) and scene defaulting to (application-scene *app*).  The required argument, vertices, should be of the form (list x00 y00 x10 y10 x20 y20 x01 y01 x11 y11 x21 y21 ... x0n y0n x1n y1n x2n y2n) where the x and y values represent vertices of a triangle in a series of triangles."
-  (scene-add-filled-2d-triangle-list-primitive scene group matrix color vertices object-id layer))
+  (scene-add-filled-2d-triangle-list-primitive scene group matrix color vertices object-id elevation))
 
 (defun add-filled-2d-triangle-list (vertices &key
 					       (color *default-color*)
 					       (group :default)
 					       (object-id 0)
-					       (layer 0)
+					       (elevation 0)
 					       (scene (application-scene *app*)))
   "Retained-mode function, creates a series of filled 2d triangles, returns a no values.  Calls scene-add-filled-2d-triangle-list with color defaulting to *default-color*, group defaulting to :default and scene defaulting to (application-scene *app*).  The required argument, vertices, should be of the form (list x00 y00 x10 y10 x20 y20 x01 y01 x11 y11 x21 y21 ... x0n y0n x1n y1n x2n y2n) where the x and y values represent vertices of a triangle in a series of triangles."
-  (scene-add-filled-2d-triangle-list scene group color vertices object-id layer))
+  (scene-add-filled-2d-triangle-list scene group color vertices object-id elevation))
 
 (defun draw-filled-2d-triangle-list (vertices &key
 						(color *default-color*)
                                                 (group :default)
 						(object-id 0)
-						(layer 0)
+						(elevation 0)
 						(scene (application-scene *app*)))
   "Immediate-mode function, creates a series of filled 2d triangles, returns a no values.  Calls scene-draw-2d-triangle-list with color defaulting to *default-color*, group defaulting to :default and scene defaulting to (application-scene *app*).  The required argument, vertices, should be of the form (list x00 y00  x10 y10 x20 y20 x01 y01 x11 y11 x21 y21 ... x0n y0n x1n y1 x2n y2n) where the x and y values represent vertices of a triangle in a series of triangles."
-  (scene-draw-filled-2d-triangle-list scene group color vertices object-id layer))
+  (scene-draw-filled-2d-triangle-list scene group color vertices object-id elevation))
 
 
 (defun add-filled-2d-rectangle-list-primitive (vertices &key
@@ -1004,28 +1004,28 @@
                                                           (matrix nil)
 							  (group nil)
 							  (object-id 0)
-							  (layer 0)
+							  (elevation 0)
 							  (scene (application-scene *app*)))
   "Retained-mode function, creates a primitive, a series of filled 2d rectangles, returns a handle.  Calls scene-add-2d-rectangle-list-primitive with color defaulting to *default-color*, matrix defaulting to nil (identity), group defaulting to nil (no group) and scene defaulting to (application-scene *app*).  The required argument, vertices, should be of the form (list x00 y00 x10 y10 x01 y01 x11 y11 ... x0n y0n x1n y1n) where the x0's, and y0's and the x1's and y1's represent the top-left and bottom-right of a series of rectangles."
-  (scene-add-filled-2d-rectangle-list-primitive scene group matrix color vertices object-id layer))
+  (scene-add-filled-2d-rectangle-list-primitive scene group matrix color vertices object-id elevation))
 
 (defun add-filled-2d-rectangle-list (vertices &key
 						(color *default-color*)
 						(group :default)
 						(object-id 0)
-						(layer 0)
+						(elevation 0)
 						(scene (application-scene *app*)))
   "Retained-mode function a series of filled 2d rectangles, returns no values.  Calls scene-add-2d-rectangle-list with color defaulting to *default-color*, group defaulting to :default and scene defaulting to (application-scene *app*).  The required argument, vertices, should be of the form (list x00 y00 x10 y10 x01 y01 x11 y11 ... x0n y0n x1n y1n) where the x0's, and y0's and the x1's and y1's represent the top-left and bottom-right of a series of rectangles."
-  (scene-add-filled-2d-rectangle-list scene group color vertices object-id layer))
+  (scene-add-filled-2d-rectangle-list scene group color vertices object-id elevation))
 
 (defun draw-filled-2d-rectangle-list (vertices &key
 						 (color *default-color*)
 						 (group :default)
 						 (object-id 0)
-						 (layer 0)
+						 (elevation 0)
 						 (scene (application-scene *app*)))
   "Immediate-mode function a series of filled 2d rectangles, returns no values.  Calls scene-draw-2d-rectangle-list with color defaulting to *default-color*, group defaulting to :default and scene defaulting to (application-scene *app*).  The required argument, vertices, should be of the form (list x00 y00 x10 y10 x01 y01 x11 y11 ... x0n y0n x1n y1n) where the x0's, and y0's and the x1's and y1's represent the top-left and bottom-right of a series of rectangles."
-  (scene-draw-filled-2d-rectangle-list scene group color vertices object-id layer))
+  (scene-draw-filled-2d-rectangle-list scene group color vertices object-id elevation))
 
 
 (defun add-textured-2d-rectangle-list-primitive (vertices &key
@@ -1034,58 +1034,58 @@
 							    (matrix nil)
 							    (group nil)
 							    (object-id 0)
-							    (layer 0)
+							    (elevation 0)
 							    (scene (application-scene *app*)))
   "Retained-mode function, creates a primitive, a series of textured 2d rectangles, returns a handle.  Calls scene-add-textured-2d-rectangle-list-primitive with color defaulting to *default-color*, texture defaulting to *white-texture*, matrix defaulting to nil (identity), group defaulting to nil (no group) and scene defaulting to (application-scene *app*).  The required argument, vertices, should be of the form (list x00 y00 u00 v00 x10 y10 u10 v10 x01 y01 u01 v01 x11 y11 u11 v11 ... x0n y0n u0n v0n x1n y1n u1n v1n) where the x0's, and y0's and the x1's and y1's represent the top-left and bottom-right of a series of rectangles and the u0's and v0's are the normalized texture coordinates for the top-left corner and the u1's and v1's are the normalized texture coordinates for the bottom-right corner of each rectangle."
-  (scene-add-textured-2d-rectangle-list-primitive scene group matrix texture color vertices object-id layer))
+  (scene-add-textured-2d-rectangle-list-primitive scene group matrix texture color vertices object-id elevation))
 
 (defun add-textured-2d-rectangle-list (vertices &key
 						  (color *default-color*)
                                                   (texture *white-texture*)
                                                   (group :default)
 						  (object-id 0)
-						  (layer 0)
+						  (elevation 0)
 						  (scene (application-scene *app*)))
   "Retained-mode function, creates  a series of textured 2d rectangles, returns no values.  Calls scene-add-textured-2d-rectangle-list with color defaulting to *default-color*, texture defaulting to *white-texture*, group defaulting to nil (no group) and scene defaulting to (application-scene *app*).  The required argument, vertices, should be of the form (list x00 y00 u00 v00 x10 y10 u10 v10 x01 y01 u01 v01 x11 y11 u11 v11 ... x0n y0n u0n v0n x1n y1n u1n v1n) where the x0's, and y0's and the x1's and y1's represent the top-left and bottom-right of a series of rectangles and the u0's and v0's are the normalized texture coordinates for the top-left corner and the u1's and v1's are the normalized texture coordinates for the bottom-right corner. of each rectangle."
-  (scene-add-textured-2d-rectangle-list scene group texture color vertices object-id layer))
+  (scene-add-textured-2d-rectangle-list scene group texture color vertices object-id elevation))
 
 (defun draw-textured-2d-rectangle-list (vertices &key
 						   (color *default-color*)
                                                    (texture *white-texture*)
                                                    (group :default)
 						   (object-id 0)
-						   (layer 0)
+						   (elevation 0)
 						   (scene (application-scene *app*)))
   "Immediate-mode function, creates  a series of textured 2d rectangles, returns no values.  Calls scene-draw-textured-2d-rectangle-list with color defaulting to *default-color*, texture defaulting to *white-texture*, group defaulting to nil (no group) and scene defaulting to (application-scene *app*).  The required argument, vertices, should be of the form (list x00 y00 u00 v00 x10 y10 u10 v10 x01 y01 u01 v01 x11 y11 u11 v11 ... x0n y0n u0n v0n x1n y1n u1n v1n) where the x0's, and y0's and the x1's and y1's represent the top-left and bottom-right of a series of rectangles and the u0's and v0's are the normalized texture coordinates for the top-left corner and the u1's and v1's are the normalized texture coordinates for the bottom-right corner. of each rectangle."
-  (scene-draw-textured-2d-rectangle-list scene group texture color vertices object-id layer))
+  (scene-draw-textured-2d-rectangle-list scene group texture color vertices object-id elevation))
 
 (defun add-filled-2d-convex-polygon-primitive (vertices &key
 							  (color *default-color*)
 							  (matrix nil)
 							  (group nil)
 							  (object-id 0)
-							  (layer 0)
+							  (elevation 0)
 							  (scene (application-scene *app*)))
   "Retained-mode function, creates a primitive, a filled 2d convex polygon, returns a handle.  Calls scene-add-filled-2d-convex-polygon-primitive with color defaulting to *default-color*, matrix defaulting to nil (identity), group defaulting to nil (no group) and scene defaulting to (application-scene *app*).  The required argument, vertices, should be of the form (list x0 y0 x1 y1 ... xn yn) where the x's, and y's represent a vertex of the polygon."
-  (scene-add-filled-2d-convex-polygon-primitive scene group matrix color vertices object-id layer))
+  (scene-add-filled-2d-convex-polygon-primitive scene group matrix color vertices object-id elevation))
 
 (defun add-filled-2d-convex-polygon (vertices &key
 						(color *default-color*)
                                                 (group :default)
 						(object-id 0)
-						(layer 0)
+						(elevation 0)
 						(scene (application-scene *app*)))
   "Retained-mode function, creates a filled 2d convex polygon, returns a no values.  Calls scene-add-filled-2d-convex-polygon with color defaulting to *default-color*, group defaulting to nil (no group) and scene defaulting to (application-scene *app*).  The required argument, vertices, should be of the form (list x0 y0 x1 y1 ... xn yn) where the x's, and y's represent a vertex of the polygon."
-  (scene-add-filled-2d-convex-polygon scene group color vertices object-id layer))
+  (scene-add-filled-2d-convex-polygon scene group color vertices object-id elevation))
 
 (defun draw-filled-2d-convex-polygon (vertices &key
 						 (color *default-color*)
                                                  (group :default)
 						 (object-id 0)
-						 (layer 0)
+						 (elevation 0)
 						 (scene (application-scene *app*)))
   "Immediate-mode function, creates a filled 2d convex polygon, returns a no values.  Calls scene-draw-filled-2d-convex-polygon with color defaulting to *default-color*, group defaulting to nil (no group) and scene defaulting to (application-scene *app*).  The required argument, vertices, should be of the form (list x0 y0 x1 y1 ... xn yn) where the x's, and y's represent a vertex of the polygon."
-  (scene-draw-filled-2d-convex-polygon scene group color vertices object-id layer))
+  (scene-draw-filled-2d-convex-polygon scene group color vertices object-id elevation))
 
 (defun add-filled-3d-triangle-list-primitive (vertices &key
                                                          (color *default-color*)
@@ -1298,27 +1298,27 @@
 						(matrix nil)
 						(group nil)
 						(object-id 0)
-						(layer 0)
+						(elevation 0)
 						(scene (application-scene *app*)))
   "Retained-mode function, creates a primitive of a text string, returns a handle.  Calls scene-add-text-primitive with color defaulting to *default-color*, font defaulting to (application-default-font *app*), matrix defaulting to nil (identity), group defaulting to nil (no group), and scene defaulting to (application-scene *app*).  The required arguments should be real numbers.  pos-x and pos-y represent the upper left corner of the text."
-  (scene-add-text-primitive scene group matrix font color pos-x pos-y string object-id layer))
+  (scene-add-text-primitive scene group matrix font color pos-x pos-y string object-id elevation))
 
 (defun add-text (string pos-x pos-y &key
 				      (color *default-color*)
                                       (font (application-default-font *app*))
                                       (group :default)
 				      (object-id 0)
-				      (layer 0)
+				      (elevation 0)
 				      (scene (application-scene *app*)))
   "Retained-mode function, creates text, returns a no values.  Calls scene-add-text with color defaulting to *default-color*, font defaulting to (application-default-font *app*), group defaulting to :default, and scene defaulting to (application-scene *app*).  The required arguments should be real numbers.  pos-x and pos-y represent the upper left corner of the text."
-  (scene-add-text scene group font color pos-x pos-y string object-id layer))
+  (scene-add-text scene group font color pos-x pos-y string object-id elevation))
 
 (defun draw-text (string pos-x pos-y &key (color *default-color*)
                                        (font (application-default-font *app*))
                                        (group :default)
 				       (object-id 0)
-				       (layer 0)
+				       (elevation 0)
 				       (scene (application-scene *app*)))
   "Immediate-mode function, creates text, returns a no values.  Calls scene-draw-text with color defaulting to *default-color*, font defaulting to (application-default-font *app*), group defaulting to :default, and scene defaulting to (application-scene *app*).  The required arguments should be real numbers.  pos-x and pos-y represent the upper left corner of the text."
-  (scene-draw-text scene group font color pos-x pos-y string object-id layer))
+  (scene-draw-text scene group font color pos-x pos-y string object-id elevation))
 

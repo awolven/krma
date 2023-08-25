@@ -32,7 +32,7 @@
                 (draw-list first-idx elem-count vtx-offset
                  &optional (group nil) (model-mtx nil) (color-override nil) (texture *white-texture*)
 		   (point-size nil) (line-thickness nil) (material *default-material*)
-		   (layer 0))))
+		   (elevation 0))))
   (group)
   (model-mtx)
   (color-override)
@@ -40,7 +40,7 @@
   (point-size)
   (line-thickness)
   (material)
-  (layer))
+  (elevation))
 
 (defstruct (text-draw-indexed-cmd
 	     (:include standard-draw-indexed-cmd)
@@ -48,7 +48,7 @@
 	     (:constructor make-text-draw-indexed-cmd
 			   (font draw-list first-idx elem-count vtx-offset
 				 &optional (group nil) (model-mtx nil) (color-override nil) (texture *white-texture*)
-				 (point-size nil) (line-thickness nil) (material nil) (layer 0))))
+				 (point-size nil) (line-thickness nil) (material nil) (elevation 0))))
   (font))
 
 (defun %reinstance-cmd-1 (cmd new-draw-list first-idx elem-count vtx-offset
@@ -60,7 +60,7 @@
 			    (material (cmd-material cmd))
 			    (sf-point-size (cmd-point-size cmd))
 			    (sf-line-thickness (cmd-line-thickness cmd))
-			    (layer (cmd-layer cmd)))
+			    (elevation (cmd-elevation cmd)))
   (let ((cmd (apply (etypecase cmd
 		      (text-draw-indexed-cmd #'make-text-draw-indexed-cmd)
 		      (standard-draw-indexed-cmd #'make-standard-draw-indexed-cmd))
@@ -74,6 +74,6 @@
 				  sf-point-size
 				  sf-line-thickness
 				  material
-				  layer)))))
+				  elevation)))))
     (vector-push-extend cmd (draw-list-cmd-vector new-draw-list))
     cmd))

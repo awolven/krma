@@ -733,7 +733,7 @@
 		       :offset (foreign-slot-offset (pipeline-vertex-type pipeline) 'oid))
 	(make-instance 'vertex-input-attribute-description
 		       :location 1
-		       :format VK_FORMAT_R32G32B32_SFLOAT ;; <--updated for layer feature
+		       :format VK_FORMAT_R32G32B32_SFLOAT ;; <--updated for elevation feature
 		       :offset (foreign-slot-offset (pipeline-vertex-type pipeline) 'x))
 	(make-instance 'vertex-input-attribute-description
 		       :location 2
