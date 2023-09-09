@@ -11,3 +11,5 @@ $GLSL_COMPILER -V texture.frag -o submodules/krma-shader-bin/texture.frag.spv
 $GLSL_COMPILER -V msdf-texture.frag -o submodules/krma-shader-bin/msdf-texture.frag.spv
 $GLSL_COMPILER -V notexture.frag -o submodules/krma-shader-bin/notexture.frag.spv
 
+$GLSL_COMPILER -V instanced-line.vert -o submodules/krma-shader-bin/instanced-line.vert.spv
+
