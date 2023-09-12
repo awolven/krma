@@ -33,12 +33,13 @@ layout(set = 1, binding = 1) buffer select_buffer_3d {
 layout(set = 2 , binding = 0) uniform sampler2D texSampler;
 
 layout(push_constant) uniform pushConstant {
-  layout(offset = 80) vec4 selectBox;
-  layout(offset = 96) float pxRange;
-  layout(offset = 100) uint uint_material_ambient;
-  layout(offset = 104) uint uint_material_diffuse;
-  layout(offset = 108) uint uint_material_specular;
-  layout(offset = 112) float material_shininess;
+  layout(offset = 88) float pxRange;
+  layout(offset = 92) uint uint_material_ambient;
+  layout(offset = 96) uint uint_material_diffuse;
+  layout(offset = 100) uint uint_material_specular;
+  layout(offset = 104) float material_shininess;
+  layout(offset = 108) uint unused;
+  layout(offset = 112) vec4 selectBox;
 } pc;
 
 layout(location = 0) flat in uint inObjectId;

@@ -633,6 +633,22 @@
   (let ((draw-data (im-draw-data scene)))
     (%draw-data-draw-multicolor-2d-polyline draw-data object-id group closed? (clampf line-thickness) (clampf elevation) vertices)))
 
+(defun scene-add-multicolor-2d-instanced-line-primitive
+    (scene group model-matrix closed? line-thickness vertices &optional (object-id 0) (elevation 0))
+  "Retained-mode function, returns a handle for a multicolored 2d polyline primitive.  Required arguments: scene must be of type krma-essential-scene-mixin, group must be an atom, possibly nil (meaning not associated with a group), model-matrix must either be a 3d-matrices:mat4 or nil (nil effectively means identity), closed? should be a boolean, which specifies whether to draw a segment between the last vertex and the first vertex, line-thickness should be a positive real number.  vertices should be of the form (list x0 y0 color0 x1 y1 color1 ... xn yn colorn) where the x's and the y's are vertex points of the polyline and must be real numbers, color values can either be a 4 component vector who's elements are real numbers between zero and one, or a 32 bit unsigned integer.   Dispatches actual work to render thread.  To delete the polyline, you must delete the primitive using the handle or delete the entire group, if any."
+  (declare (type krma-essential-scene-mixin scene))
+  (declare (type real line-thickness))
+  (declare (type boolean closed?))
+  (declare (type sequence vertices))
+  (declare (type (or mat4 null) model-matrix))
+  (declare (type (unsigned-byte 32) object-id))
+  (declare (type atom group))
+  (setq line-thickness (clampf line-thickness))
+  (setq elevation (clampf elevation))
+  (rm-dispatch-to-render-thread-with-handle (scene draw-data handle)
+    (%draw-data-add-multicolor-2d-instanced-line-primitive
+     draw-data handle object-id group (when model-matrix (mcopy model-matrix)) closed? line-thickness elevation vertices)))
+
 ;; 2d-circular-arc
 (defun scene-add-2d-circular-arc-primitive (scene group model-matrix closed? line-thickness color
                                             center-x center-y radius start-angle end-angle

@@ -113,6 +113,7 @@
   ;; even in immediate mode, strips must use cmds
   (2d-line-strip-draw-list (make-instance '3d-vertex-draw-list))
   (2d-triangle-strip-draw-list (make-instance '3d-vertex-draw-list))
+  (2d-instanced-line-draw-list (make-instance '3d-vertex-draw-list))
   (3d-line-strip-draw-list (make-instance '3d-vertex-draw-list))
   (3d-triangle-strip-draw-list (make-instance '3d-vertex-draw-list))
   (3d-triangle-strip-with-normals-draw-list (make-instance '3d-vertex-with-normal-draw-list))
@@ -238,7 +239,6 @@
           (%draw-list-add-2d-line draw-list ub32-oid atom-group model-mtx sf-line-thickness ub32-color sf-elevation sf-x0 sf-y0 sf-x1 sf-y1))
     (values)))
 
-
 (defun %draw-data-add-2d-line
     (draw-data ub32-oid atom-group sf-line-thickness ub32-color sf-elevation sf-x0 sf-y0 sf-x1 sf-y1)
   (declare (type retained-mode-draw-data draw-data))
@@ -298,7 +298,6 @@
     (%draw-list-draw-3d-line draw-list ub32-oid ub32-color sf-x0 sf-y0 sf-z0 sf-x1 sf-y1 sf-z1)
     (values)))
 
-
 (defun %draw-data-draw-3d-line (draw-data ub32-oid atom-group sf-line-thickness ub32-color sf-x0 sf-y0 sf-z0 sf-x1 sf-y1 sf-z1)
   (declare (type immediate-mode-draw-data draw-data))
   (let* ((draw-list-table (draw-data-3d-line-list-draw-list-table draw-data))
@@ -353,6 +352,43 @@
     (%draw-list-draw-multicolor-2d-polyline draw-list ub32-oid bool-closed? sf-elevation seq-vertices)
     (values)))
 
+(defun %draw-data-add-multicolor-2d-instanced-line-primitive
+    (draw-data handle ub32-oid atom-group model-mtx bool-closed? sf-line-thickness sf-elevation seq-vertices)
+  (declare (type retained-mode-draw-data draw-data))
+  (let* ((draw-list (draw-data-2d-instanced-line-draw-list draw-data))
+	 (cmd (%draw-list-add-filled-2d-triangle-strip/list draw-list ub32-oid atom-group model-mtx #xffffffff sf-elevation
+							    (list 0.0f0 -0.5f0
+								  1.0f0 -0.5f0
+								  1.0f0  0.5f0
+								  0.0f0 -0.5f0
+								  1.0f0  0.5f0
+								  0.0f0  0.5f0)))
+	 (list (make-instance '2d-polyline-instance-list))
+	 (instance-array (instance-list-array list)))
+    (handler-case 
+      (etypecase seq-vertices
+	(list
+	 (loop for (x1 y1 color1) on (cdddr seq-vertices) by #'cdddr
+	    for (x0 y0 color0) on seq-vertices by #'cdddr
+	    do (setq x0 (clampf x0))
+	      (setq y0 (clampf y0))
+	      (setq color0 (canonicalize-color color0))
+	      (setq x1 (clampf x1))
+	      (setq y1 (clampf y1))
+	      (setq color1 (canonicalize-color color1))
+	      (2d-vertex-instance-array-push-extend instance-array ub32-oid x0 y0 color0)
+	      (2d-vertex-instance-array-push-extend instance-array ub32-oid x1 y1 color1)
+	    finally (when bool-closed?
+		      (2d-vertex-instance-array-push-extend instance-array ub32-oid
+							    (clampf (car seq-vertices))
+							    (clampf (cadr seq-vertices))
+							    (canonicalize-color (caddr seq-vertices)))))))
+      (error () (setq list nil)))
+    (setf (cmd-instance-array cmd) list)
+    (setf (cmd-point-size cmd) sf-line-thickness)
+    (setf (gethash handle (draw-data-handle-hash-table draw-data))
+	  cmd)
+    (values)))
 
 (defun %draw-data-draw-multicolor-2d-polyline
     (draw-data ub32-oid atom-group bool-closed? sf-line-thickness sf-elevation seq-vertices)

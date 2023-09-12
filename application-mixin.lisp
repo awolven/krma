@@ -10,6 +10,7 @@
    (2d-line-strip-pipeline :accessor pipeline-store-2d-line-strip-pipeline)
    (2d-triangle-list-pipeline :accessor pipeline-store-2d-triangle-list-pipeline)
    (2d-triangle-strip-pipeline :accessor pipeline-store-2d-triangle-strip-pipeline)
+   (2d-instanced-line-pipeline :accessor pipeline-store-2d-instanced-line-pipeline)
    (3d-point-list-pipeline :accessor pipeline-store-3d-point-list-pipeline)
    (3d-line-list-pipeline :accessor pipeline-store-3d-line-list-pipeline)
    (3d-line-strip-pipeline :accessor pipeline-store-3d-line-strip-pipeline)
@@ -38,7 +39,8 @@
                2d-line-strip-pipeline
                2d-triangle-list-pipeline
                #+NOMORE msdf-text-pipeline
-               2d-triangle-strip-pipeline)
+               2d-triangle-strip-pipeline
+	       2d-instanced-line-pipeline)
       instance
 
     (setf 2d-point-list-pipeline
@@ -75,6 +77,12 @@
 	  (make-instance '2d-triangle-strip-pipeline
 			 :dpy dpy
 			 :name :2d-triangle-strip-pipeline
+			 :subpass 1)
+
+	  2d-instanced-line-pipeline
+	  (make-instance '2d-instanced-line-pipeline
+			 :dpy dpy
+			 :name :2d-instanced-line-pipeline
 			 :subpass 1)
 
 	  3d-point-list-pipeline

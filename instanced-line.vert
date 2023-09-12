@@ -2,9 +2,16 @@
 #extension GL_ARB_separate_shader_objects : enable
 #extension GL_EXT_buffer_reference2 : require
 #extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+#extension GL_EXT_scalar_block_layout : require
 
-layout(buffer_reference, std430, buffer_reference_align = 8) buffer _pointRef {
+struct vertex_2d {
+  uint oid;
+  uint color;
   vec2 val;
+} ;
+
+layout(buffer_reference, std430, buffer_reference_align = 16) readonly buffer _pointRef {
+  vec4 val;
 };
 
 layout(set = 0, binding = 0) uniform uniformBuffer {
@@ -37,12 +44,12 @@ layout(location = 6) flat out uint outIs2d;
 uint color;
 
 void main () {
-  vec2 pointA = (_pointRef(pc.ref0) + uint(gl_InstanceIndex)).val;
-  vec2 pointB = (_pointRef(pc.ref0) + uint(gl_InstanceIndex) + 1).val;
-  vec2 xBasis = pointB - pointA;
+  vec2 pointA = (_pointRef(pc.ref0) + gl_InstanceIndex).val.zw;
+  vec2 pointB = (_pointRef(pc.ref0) + gl_InstanceIndex + 1).val.zw;
+  vec2 xBasis = pointB- pointA;
   vec2 yBasis = normalize(vec2(-xBasis.y, xBasis.x));
   vec2 point = pointA + xBasis * inPosition.x + yBasis * pc.width * inPosition.y;
-  gl_Position = ub.vproj * pc.model * vec4(point, 0.0, 1.0);
+  gl_Position = ub.vproj * pc.model * vec4(point, inPosition.z, 1.0);
 
   if (bool(pc.override_color_p)) {
     color = pc.override_color;

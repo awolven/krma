@@ -88,6 +88,9 @@
 	(pipeline-store-2d-triangle-strip-pipeline pipeline-store)
 	(draw-data-2d-triangle-strip-draw-list draw-data)
 
+	(pipeline-store-2d-instanced-line-pipeline pipeline-store)
+	(draw-data-2d-instanced-line-draw-list draw-data)
+
 	(pipeline-store-2d-line-strip-pipeline pipeline-store)
 	(draw-data-2d-line-strip-draw-list draw-data)
 

@@ -32,7 +32,7 @@
                 (draw-list first-idx elem-count vtx-offset
                  &optional (group nil) (model-mtx nil) (color-override nil) (texture *white-texture*)
 		   (point-size nil) (line-thickness nil) (material *default-material*)
-		   (elevation 0))))
+		   (elevation 0) (instance-array nil))))
   (group)
   (model-mtx)
   (color-override)
@@ -40,7 +40,8 @@
   (point-size)
   (line-thickness)
   (material)
-  (elevation))
+  (elevation)
+  (instance-array))
 
 (defstruct (text-draw-indexed-cmd
 	     (:include standard-draw-indexed-cmd)
@@ -48,7 +49,7 @@
 	     (:constructor make-text-draw-indexed-cmd
 			   (font draw-list first-idx elem-count vtx-offset
 				 &optional (group nil) (model-mtx nil) (color-override nil) (texture *white-texture*)
-				 (point-size nil) (line-thickness nil) (material nil) (elevation 0))))
+				 (point-size nil) (line-thickness nil) (material nil) (elevation 0) (instance-array nil))))
   (font))
 
 (defun %reinstance-cmd-1 (cmd new-draw-list first-idx elem-count vtx-offset

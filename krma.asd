@@ -23,6 +23,7 @@
    (:file "groups")
    (:file "draw-list-classes")
    (:file "foreign-arrays")
+   (:file "instance-array")
    (:file "cmds")
    (:file "draw-list")
    (:file "compact-draw-list")
