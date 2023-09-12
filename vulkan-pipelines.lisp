@@ -10,6 +10,36 @@
   (unless krma::*debug*
     (declaim (optimize (speed 3) (safety 0) (debug 0)))))
 
+(defcstruct %vk::vkBufferDeviceAddressInfo
+  (%vk::sType %vk::VkStructureType)
+  (%vk::pNext :pointer)
+  (%vk::buffer %vk::VkBuffer))
+
+(defconstant %vk::VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO 1000244001)
+
+(defcfun (%vk::vkGetBufferOpaqueCaptureAddress "vkGetBufferOpaqueCaptureAddress")
+    :uint64
+  (device %vk::VkDevice)
+  (pInfo :pointer))
+
+(defctype %vk::VkDeviceAddress :uint64)
+
+(defcfun (%vk::vkGetBufferDeviceAddress "vkGetBufferDeviceAddress")
+    %vk::VkDeviceAddress
+  (device %vk::VkDevice)
+  (pInfo :pointer))
+    
+
+(defmacro %vk::with-vkBufferDeviceAddressInfo ((var) &body body)
+  `(with-foreign-object (,var '(:struct %vk::vkBufferDeviceAddressInfo))
+     (with-foreign-slots ((%vk::sType
+			   %vk::pNext
+			   %vk::buffer)
+			  ,var (:struct %vk::vkBufferDeviceAddressInfo))
+       (setf %vk::sType %vk::VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO
+	     %vk::pNext (null-pointer))
+       ,@body)))
+
 (defgeneric pipeline-topology (pipeline))
 
 (defgeneric vertex-shader-pathname (pipeline))
@@ -23,18 +53,20 @@
 (defconstant +uber-vertex-shader-primitive-type-offset+ 17)
 (defconstant +uber-vertex-shader-color-override-offset+  18)
 (defconstant +uber-vertex-shader-override-color-p-offset+ 19)
+(defconstant +uber-vertex-shader-instance-array-pointer-offset+ 20)
 
-(defconstant +uber-vertex-shader-pc-size+ 20)
+(defconstant +uber-vertex-shader-pc-size+ 22)
 
-(defconstant +fragment-shader-select-box-min-offset+ 0)
-(defconstant +fragment-shader-select-box-max-offset+ (+ +fragment-shader-select-box-min-offset+ 2))
-(defconstant +text-fragment-shader-px-range-offset+ (+ +fragment-shader-select-box-max-offset+ 2))
+(defconstant +text-fragment-shader-px-range-offset+ 0)
 (defconstant +lighting-fragment-shader-ambient-offset+ (1+ +text-fragment-shader-px-range-offset+))
 (defconstant +lighting-fragment-shader-diffuse-offset+ (1+ +lighting-fragment-shader-ambient-offset+))
 (defconstant +lighting-fragment-shader-specular-offset+ (1+ +lighting-fragment-shader-diffuse-offset+))
 (defconstant +lighting-fragment-shader-shininess-offset+ (1+ +lighting-fragment-shader-specular-offset+))
+(defconstant +lighting-fragment-shader-unused-offset+ (1+ +lighting-fragment-shader-shininess-offset+))
+(defconstant +fragment-shader-select-box-min-offset+ (1+ +lighting-fragment-shader-unused-offset+))
+(defconstant +fragment-shader-select-box-max-offset+ (+ +fragment-shader-select-box-min-offset+ 2))
 							
-(defconstant +fragment-shader-pc-size+ (1+ +lighting-fragment-shader-shininess-offset+))
+(defconstant +fragment-shader-pc-size+ (+ +fragment-shader-select-box-max-offset+ 2))
 
 (defclass pipeline-mixin ()
   ((display :reader pipeline-display :initarg :dpy)
@@ -538,6 +570,7 @@
 	 (table (draw-data-3d-triangle-list-with-normals-draw-list-table draw-data))
 	 (kkk))
     (maphash (lambda (k v)
+	       (declare (ignore k))
 	       (setq kkk v)) table)
     (draw-list-index-array kkk)))
 
@@ -548,6 +581,7 @@
 	 (table (draw-data-3d-triangle-list-with-normals-draw-list-table draw-data))
 	 (kkk))
     (maphash (lambda (k v)
+	       (declare (ignore k))
 	       (setq kkk v)) table)
     (draw-list-index-memory kkk)))
 
@@ -846,6 +880,13 @@
                                            2d-texture-pipeline-mixin)
   ())
 
+(defclass 2d-instanced-line-pipeline (triangle-list-pipeline-mixin
+				      2d-texture-pipeline-mixin)
+  ())
+
+(defmethod vertex-shader-pathname ((pipeline 2d-instanced-line-pipeline))
+  (asdf/system:system-relative-pathname :krma "submodules/krma-shader-bin/instanced-line.vert.spv"))
+
 (defclass 2d-triangle-list-pipeline (2d-triangle-list-pipeline-mixin)
   ())
 
@@ -985,7 +1026,8 @@
 				     (setf (mem-aref pvalues :uint32 +uber-vertex-shader-override-color-p-offset+) 1))
 				   (setf (mem-aref pvalues :uint32 +uber-vertex-shader-override-color-p-offset+) 0)))
 
-			   (cond ((typep pipeline 'point-list-pipeline-mixin)
+			   (cond ((or (typep pipeline 'point-list-pipeline-mixin)
+				      (typep pipeline '2d-instanced-line-pipeline))
 				  (setf (mem-aref pvalues :uint32 +uber-vertex-shader-primitive-type-offset+) 0)
 				  (let ((psize (mem-aptr pvalues :uint32 +uber-vertex-shader-point-size-offset+)))
 				    (let ((cmd-point-size (cmd-point-size cmd)))
@@ -1011,6 +1053,20 @@
 				  
 				 (t (setf (mem-aref pvalues :uint32 +uber-vertex-shader-primitive-type-offset+) 2)))
 
+			   (let ((cmd-instance-array (cmd-instance-array cmd)))
+			     (if cmd-instance-array
+				 (progn
+				   (initialize-instance-list-buffer dpy cmd-instance-array)
+				   ;;(print (foreign-array-bytes (instance-list-array cmd-instance-array)))
+				   (let* ((memory-resource (instance-list-memory cmd-instance-array))
+					  (mrb (vk::memory-resource-buffer memory-resource))
+					  (mro (vk::memory-resource-offset memory-resource)))
+				     (%vk::with-vkBufferDeviceAddressInfo (p-info)
+				       (setf %vk::buffer (h mrb))
+				       (setf (mem-ref pvalues :uint64 (* +uber-vertex-shader-instance-array-pointer-offset+ (foreign-type-size :uint32)))
+					     (+ mro (%vk::vkGetBufferDeviceAddress (h (default-logical-device dpy)) p-info))))))
+				 (setf (mem-ref pvalues :uint64 (* +uber-vertex-shader-instance-array-pointer-offset+ (foreign-type-size :uint32))) 0)))
+			   
 			   (vkCmdPushConstants command-buffer-handle
 					       (h pipeline-layout)
 					       VK_SHADER_STAGE_VERTEX_BIT
@@ -1065,7 +1121,11 @@
 					     pvalues2))
 
 		       (vkCmdDrawIndexed command-buffer-handle
-					 (cmd-elem-count cmd) 1 (cmd-first-idx cmd) (cmd-vtx-offset cmd)
+					 (cmd-elem-count cmd) (if (cmd-instance-array cmd)
+								  (instance-list-count
+								   (cmd-instance-array cmd))
+								  1)
+					 (cmd-first-idx cmd) (cmd-vtx-offset cmd)
 					 0))))
 
 	      (loop for cmd across cmd-vector
