@@ -1,24 +1,24 @@
 [submodule "submodules/3b-bmfont"]
 	path = submodules/3b-bmfont
-	url = git@github.com:awolven/3b-bmfont.git
+	url = https://github.com/awolven/3b-bmfont.git
 [submodule "submodules/binpack"]
 	path = submodules/binpack
-	url = git@github.com:awolven/binpack.git
+	url = https://github.com/awolven/binpack.git
 [submodule "submodules/sdf"]
 	path = submodules/sdf
-	url = git@github.com:awolven/sdf.git
+	url = https://github.com/awolven/sdf.git
 [submodule "submodules/zpb-ttf"]
 	path = submodules/zpb-ttf
-	url = git@github.com:3b/zpb-ttf.git
+	url = https://github.com/3b/zpb-ttf.git
 [submodule "submodules/krma-shader-bin"]
 	path = submodules/krma-shader-bin
-	url = git@github.com:awolven/krma-shader-bin.git
+	url = https://github.com/awolven/krma-shader-bin.git
 [submodule "submodules/krma-fonts"]
 	path = submodules/krma-fonts
-	url = git@github.com:awolven/krma-fonts.git
+	url = https://github.com/awolven/krma-fonts.git
 [submodule "submodules/cl-vulkan"]
 	path = submodules/cl-vulkan
-	url = git@github.com:awolven/cl-vulkan.git
+	url = https://github.com/awolven/cl-vulkan.git
 [submodule "submodules/clui"]
 	path = submodules/clui
 	url = https://bitbucket.org/awolven/clui.git/
