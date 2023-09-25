@@ -8,7 +8,7 @@ KRMA works on SBCL with partial support for CCL and can use MacOS (Cocoa), MS Wi
 
 To install krma, clone the repository:
 
-git clone git@github.com:awolven/krma.git
+git clone https://github.com/awolven/krma
 
 then from a shell:
 
@@ -21,8 +21,7 @@ On Linux you must install the following packages before building:
 libXinerama-devel
 libXrandr-devel
 libXcursor-devel
-
-On MacOS you must install MoltenVK.  I have a patch somewhere for MoltenVK.  Contact <awolven@gmail.com>.
+libX11-xcb-devel
 
 then from lisp:  (assumes SBCL or CCL with quicklisp)
 
@@ -36,5 +35,7 @@ then from lisp:  (assumes SBCL or CCL with quicklisp)
 (krma:add-text "Sample Text" 250 200)
 
 There is slightly out of date documentation in krma/documentation/.
+
+krma currently doesn't work on macOS Ventura, check back for updates.
 
 Good or bad, it's krma.
