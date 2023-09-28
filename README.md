@@ -6,7 +6,7 @@ KRMA supports immediate mode and retained mode methods of rendering.
 
 KRMA works on SBCL with partial support for CCL and can use MacOS (Cocoa), MS Windows (Win32) or Linux (X11).
 
-To install krma, clone the repository:
+To install KRMA, clone the repository:
 
 git clone https://github.com/awolven/krma
 
@@ -36,6 +36,6 @@ then from lisp:  (assumes SBCL or CCL with quicklisp)
 
 There is slightly out of date documentation in krma/documentation/.
 
-krma currently doesn't work on macOS Ventura, check back for updates.
+KRMA currently doesn't work on macOS Ventura, check back for updates.
 
 Good or bad, it's krma.
