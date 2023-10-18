@@ -1399,6 +1399,28 @@
     (%draw-data-add-filled-sphere-primitive
      draw-data handle object-id group (when model-matrix (mcopy model-matrix)) color origin-x origin-y origin-z radius resolution material)))
 
+(defun scene-add-filled-ellipsoid-primitive-diffuse
+    (scene group model-matrix color origin-x origin-y origin-z a b c material
+     resolution &optional (object-id 0))
+  "Retained-mode function, returns a handle for a filled sphere primitive.  Displays with diffuse shading.  scene must be of the type krma-essential-scene-mixin, group must be an atom, possibly nil (meaning not associated with a group), model-matrix must either be a 3d-matrices:mat4 or nil (nil effectively means identity),  color can either be a 4 component vector who's elements are real numbers between zero and one, or a 32 bit unsigned integer, origin-z, origin-y and origin-z must be real numbers, radius must be a positive real number, light-position should either be nil or a 3d-vectors:vec3, resolution should be a positive integer and defaults to 64.  Dispatches actual work to render thread.  To delete the sphere, you must delete the primitive using the handle or delete the entire group, if any."
+  (declare (type krma-essential-scene-mixin scene))
+  (declare (type real origin-x origin-y origin-z))
+  (declare (type (integer 2 #.most-positive-fixnum) resolution))
+  (declare (type (or mat4 null) model-matrix))
+  (declare (type (unsigned-byte 32) object-id))
+  (declare (type atom group))
+  (declare (type (or null material-mixin) material))
+  (setq origin-x (coerce origin-x 'double-float))
+  (setq origin-y (coerce origin-y 'double-float))
+  (setq origin-z (coerce origin-z 'double-float))
+  (setq a (coerce a 'double-float))
+  (setq b (coerce b 'double-float))
+  (setq c (coerce c 'double-float))
+  (setq color (canonicalize-color color))
+  (rm-dispatch-to-render-thread-with-handle (scene draw-data handle)
+    (%draw-data-add-filled-ellipsoid-primitive
+     draw-data handle object-id group (when model-matrix (mcopy model-matrix)) color origin-x origin-y origin-z a b c resolution material)))
+
 (defun scene-add-filled-sphere-diffuse (scene group color origin-x origin-y origin-z radius resolution &optional (object-id 0))
   "Retained-mode function, adds a filled sphere to the draw-lists, returns no values.  Displays with diffuse shading.  scene must be of the type krma-essential-scene-mixin, group must be a non-null atom,  color can either be a 4 component vector who's elements are real numbers between zero and one, or a 32 bit unsigned integer, origin-z, origin-y and origin-z must be real numbers, radius must be a positive real number,  resolution should be a positive integer and defaults to 64.  Dispatches actual work to render thread.  To delete the sphere, you must delete the entire group."
   (declare (type krma-essential-scene-mixin scene))
@@ -1415,7 +1437,7 @@
     (%draw-data-add-filled-sphere
      draw-data object-id group color origin-x origin-y origin-z radius resolution)))
 
-(defun scene-draw-filled-sphere-diffuse (scene color group origin-x origin-y origin-z radius resolution &optional (object-id 0))
+(defun scene-draw-filled-sphere-diffuse (scene group color origin-x origin-y origin-z radius resolution &optional (object-id 0))
   "Immediate-mode function, draws a filled sphere, returns no values.  Displays with diffuse shading.  scene must be of the type krma-essential-scene-mixin, group must be a non-null atom,  color can either be a 4 component vector who's elements are real numbers between zero and one, or a 32 bit unsigned integer, origin-z, origin-y and origin-z must be real numbers, radius must be a positive real number,  resolution should be a positive integer and defaults to 64.  Performs work in current thread, which should be the render thread.  Effects of this function only last for the current frame."
   (declare (type krma-essential-scene-mixin scene))
   (declare (type real origin-x origin-y origin-z))

@@ -613,6 +613,7 @@
       (etypecase seq-vertices
 	(list
 	 (loop for (x0 y0 z0 x1 y1 z1) on seq-vertices by #'cdddr
+	       when (and x1 y1 z1)
                do
                (setq x0 (clampf x0))
                (setq y0 (clampf y0))
@@ -633,18 +634,18 @@
                (incf number-of-vertices)
 
                finally
-               (assert (>= number-of-vertices 2))
-               (when bool-closed?
-                 (index-array-push-extend index-array vtx-offset))
+		  (assert (and (>= number-of-vertices 2)
+			       (evenp number-of-vertices)))
+		  (when bool-closed?
+		    (index-array-push-extend index-array offset)
+		    (index-array-push-extend index-array vtx-offset))
                (return (values))))))))
 
 
 (defun %draw-list-add-3d-polyline (3d-draw-list ub32-oid atom-group model-mtx bool-closed? sf-line-thickness ub32-color
-				   seq-vertices
-				   &optional (cmd-constructor #'make-standard-draw-indexed-cmd))
+				   seq-vertices)
   ;; line-strip
   (declare (type 3d-vertex-draw-list-mixin 3d-draw-list))
-  (declare (type function cmd-constructor))
   (declare (type single-float sf-line-thickness))
   (declare (type boolean bool-closed?))
   (declare (type sequence seq-vertices))
@@ -658,17 +659,28 @@
     (with-draw-list-transaction (%draw-list-add-3d-polyline 3d-draw-list first-index vtx-offset)
       (etypecase seq-vertices
 	(list
-	 (loop for (x y z) on seq-vertices by #'cdddr
-	       do (setq x (clampf x))
-	       (setq y (clampf y))
-	       (setq z (clampf z))
-	       (standard-3d-vertex-array-push-extend vertex-array ub32-oid x y z ub32-color)
-	       (index-array-push-extend index-array elem-count)
-	       (incf elem-count)
+	 (loop for (x y z x1 y1 z1) on seq-vertices by #'cdddr
+	       when (and x1 y1 z1)
+		 do (setq x (clampf x))
+		    (setq y (clampf y))
+		    (setq z (clampf z))
+		    (standard-3d-vertex-array-push-extend vertex-array ub32-oid x y z ub32-color)
+		    (index-array-push-extend index-array elem-count)
+		    (incf elem-count)
+
+	       when (and x1 y1 z1)
+		 do (setq x1 (clampf x1))
+		    (setq y1 (clampf y1))
+		    (setq z1 (clampf z1))
+		    
+		    (standard-3d-vertex-array-push-extend vertex-array ub32-oid x1 y1 z1 ub32-color)
+		    (index-array-push-extend index-array elem-count)
+		    (incf elem-count)
+
 	       finally (assert (>= elem-count 2))
-	       (when bool-closed?
-		 (index-array-push-extend index-array 0)
-		 (incf elem-count))))
+		       (when bool-closed?
+			 (index-array-push-extend index-array 0)
+			 (incf elem-count))))
 	(array
 	 (let ((len-vertices (length seq-vertices)))
 	   (declare (type fixnum len-vertices))
@@ -683,10 +695,10 @@
 		 (when bool-closed?
 		   (index-array-push-extend index-array 0)
 		   (incf elem-count))))))
-      (let ((cmd (funcall cmd-constructor
-                          3d-draw-list
-                          first-index elem-count vtx-offset
-                          atom-group model-mtx nil sf-line-thickness nil)))
+      (let ((cmd (make-standard-draw-indexed-cmd
+                  3d-draw-list
+                  first-index elem-count vtx-offset
+                  atom-group model-mtx nil nil sf-line-thickness nil)))
         (vector-push-extend cmd (draw-list-cmd-vector 3d-draw-list))
         cmd))))
 
@@ -761,7 +773,7 @@
       (let ((cmd (make-standard-draw-indexed-cmd
                   3d-draw-list
                   first-index elem-count vtx-offset
-                  atom-group model-mtx nil sf-line-thickness nil)))
+                  atom-group model-mtx nil nil sf-line-thickness nil)))
         (vector-push-extend cmd (draw-list-cmd-vector 3d-draw-list))
         cmd))))
 
@@ -1898,6 +1910,85 @@
                       (incf elem-count 3)
                       do (incf k1)
 		      (incf k2)))
+
+          (let ((cmd (make-standard-draw-indexed-cmd
+                      3d-draw-list
+                      first-index elem-count vtx-offset
+                      atom-group model-mtx
+                      nil *white-texture* nil nil material)))
+	    (vector-push-extend cmd (draw-list-cmd-vector 3d-draw-list))
+	    cmd))))))
+
+(defun %draw-list-add-filled-ellipsoid (3d-draw-list
+					ub32-oid
+					atom-group
+					model-mtx
+					ub32-color
+					df-origin-x
+					df-origin-y
+					df-origin-z
+					df-a
+					df-b
+					df-c
+					fixnum-resolution
+					material)
+  (declare (type 3d-vertex-with-normal-draw-list-mixin 3d-draw-list))
+  (declare (type (unsigned-byte 32) ub32-color))
+  (declare (type double-float df-origin-x df-origin-y df-origin-z df-a df-b df-c))
+  (declare (type fixnum fixnum-resolution))
+  (let* ((va (draw-list-vertex-array 3d-draw-list))
+         (ia (draw-list-index-array 3d-draw-list))
+         (vtx-offset (foreign-array-fill-pointer va))
+         (first-index (foreign-array-fill-pointer ia)))
+    (with-draw-list-transaction (%draw-list-add-filled-sphere 3d-draw-list first-index vtx-offset)
+      (when (and (> df-a 0.0d0)
+		 (> df-b 0.0d0)
+		 (> df-c 0.0d0))
+	(let* ((sector-count fixnum-resolution)
+               (stack-count (floor fixnum-resolution 2))
+               (sector-step (/ 2pi sector-count))
+               (stack-step (/ pi stack-count))
+               (elem-count 0))
+	  (declare (type fixnum elem-count sector-count stack-count))
+          (loop for i from 0 to stack-count
+                do (let* ((stack-angle (- #.(/ pi 2) (* i stack-step))))
+		     (declare (type double-float stack-angle))
+		     (loop for j from 0 to sector-count
+			     do (let* ((sector-angle (* j sector-step)))
+				  (declare (type double-float sector-angle))
+				  (let ((x (+ (* df-a (cos stack-angle) (cos sector-angle)) df-origin-x))
+					(y (+ (* df-b (cos stack-angle) (sin sector-angle)) df-origin-y))
+					(z (+ (* df-c (sin stack-angle)) df-origin-z)))
+					
+				    (declare (type double-float x y))
+				    (let* ((nx (clampf (* 2.0d0 (/ (- x df-origin-x) (expt df-a 2)))))
+					   (ny (clampf (* 2.0d0 (/ (- y df-origin-y) (expt df-b 2)))))
+					   (nz (clampf (* 2.0d0 (/ (- z df-origin-z) (expt df-c 2)))))
+					   (n (vunit (3dm.f::vec3 nx ny nz))))
+				      ;; todo: make sure these normals are right
+				      
+
+				      (standard-3d-vertex-with-normal-array-push-extend
+				       va ub32-oid (clampf x) (clampf y) (clampf z) (vx n) (vy n) (vz n) ub32-color)))))))
+          (loop for i from 0
+		repeat stack-count
+                with k1 with k2
+                do (setq k1 (* i (1+ sector-count))
+                         k2 (+ k1 sector-count 1))
+
+                   (loop for j from 0 below sector-count
+			 when (not (= i 0))
+			   do (index-array-push-extend ia k1)
+			      (index-array-push-extend ia k2)
+			      (index-array-push-extend ia (1+ k1))
+			      (incf elem-count 3)
+			 when (not (= i (1- stack-count)))
+			   do (index-array-push-extend ia (1+ k1))
+			      (index-array-push-extend ia k2)
+			      (index-array-push-extend ia (1+ k2))
+			      (incf elem-count 3)
+			 do (incf k1)
+			    (incf k2)))
 
           (let ((cmd (make-standard-draw-indexed-cmd
                       3d-draw-list

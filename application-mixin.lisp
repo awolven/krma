@@ -1269,6 +1269,22 @@
 							 origin-x origin-y origin-z radius
 							 light-position resolution object-id))))
 
+(defun add-filled-ellipsoid-primitive (origin-x origin-y origin-z a b c &key
+									  (color *default-color*)
+									  (resolution 64)
+									  (shading-style :diffuse)
+									  (light-position nil)
+									  (matrix nil)
+									  (group nil)
+									  (object-id 0)
+									  (scene (application-scene *app*)))
+  "Retained-mode function, creates a primitive of a filled sphere, returns a handle.  Calls scene-add-filled-sphere-primitive-diffuse when shading style is :diffuse, currently errors with any other shading style, with color defaulting to *default-color*, resolution defaulting to 64, light-position defaulting to nil, matrix defaulting to nil (identity), group defaulting to nil (no group), and scene defaulting to (application-scene *app*).  The required arguments should be real numbers. radius should be positive."
+  (ecase shading-style
+    (:diffuse (scene-add-filled-ellipsoid-primitive-diffuse scene
+							    group matrix color
+							    origin-x origin-y origin-z a b c
+							    light-position resolution object-id))))
+
 (defun add-filled-sphere (origin-x origin-y origin-z radius &key
 							      (color *default-color*)
                                                               (resolution 64)

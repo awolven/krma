@@ -1215,6 +1215,15 @@
     (%draw-list-draw-filled-sphere draw-list ub32-oid ub32-color origin-x origin-y origin-z radius resolution)
     (values)))
 
+(defun %draw-data-add-filled-ellipsoid-primitive
+    (draw-data handle ub32-oid atom-group model-mtx ub32-color origin-x origin-y origin-z a b c resolution material)
+  (declare (type retained-mode-draw-data draw-data))
+  (let ((draw-list (draw-data-3d-triangle-list-with-normals-draw-list draw-data)))
+    (setf (gethash handle (draw-data-handle-hash-table draw-data))
+          (%draw-list-add-filled-ellipsoid
+	   draw-list ub32-oid atom-group model-mtx ub32-color origin-x origin-y origin-z a b c resolution material))
+    (values)))
+
 
 (defun %draw-data-add-text-quad-list-primitive (draw-data handle ub32-oid atom-group model-mtx font ub32-color sf-elevation vertices)
   (declare (type retained-mode-draw-data draw-data))
