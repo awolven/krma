@@ -4,13 +4,8 @@
 #extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
 #extension GL_EXT_scalar_block_layout : require
 
-struct vertex_2d {
-  uint oid;
-  uint color;
-  vec2 val;
-} ;
-
 layout(buffer_reference, std430, buffer_reference_align = 16) readonly buffer _pointRef {
+  // spirv to metal translator has bug where it won't accept a struct here:
   vec4 val;
 };
 
@@ -46,12 +41,21 @@ layout(location = 9) out vec4 outExtents;
 uint color;
 
 void main () {
-  vec2 pointA = (_pointRef(pc.ref0) + gl_InstanceIndex).val.zw;
-  vec2 pointB = (_pointRef(pc.ref0) + gl_InstanceIndex + 1).val.zw;
-  vec2 xBasis = pointB- pointA;
-  vec2 yBasis = normalize(vec2(-xBasis.y, xBasis.x));
-  vec2 point = pointA + xBasis * inPosition.x + yBasis * pc.width * inPosition.y;
-  gl_Position = ub.vproj * pc.model * vec4(point, inPosition.z, 1.0);
+  // https://wwwtyro.net/2019/11/18/instanced-lines.html
+  vec2 resolution = ub.extents.xy;
+  vec3 pointA = (_pointRef(pc.ref0) + gl_InstanceIndex).val.yzw;
+  vec3 pointB = (_pointRef(pc.ref0) + gl_InstanceIndex + 1).val.yzw;
+  vec4 clip0 = ub.vproj * pc.model * vec4(pointA, 1.0);
+  vec4 clip1 = ub.vproj * pc.model * vec4(pointB, 1.0);
+  vec2 screen0 = resolution * (0.5 * clip0.xy/clip0.w + 0.5);
+  vec2 screen1 = resolution * (0.5 * clip1.xy/clip1.w + 0.5);
+  vec2 xBasis = normalize(screen1 - screen0);
+  vec2 yBasis = vec2(-xBasis.y, xBasis.x);
+  vec2 pt0 = screen0 + pc.width * (inPosition.x * xBasis + inPosition.y * yBasis);
+  vec2 pt1 = screen1 + pc.width * (inPosition.x * xBasis + inPosition.y * yBasis);
+  vec2 pt = mix(pt0, pt1, inPosition.z);
+  vec4 clip = mix(clip0, clip1, inPosition.z);
+  gl_Position = vec4(clip.w * ((2.0 * pt) / resolution - 1.0), clip.z, clip.w);
 
   if (bool(pc.override_color_p)) {
     color = pc.override_color;
@@ -65,6 +69,6 @@ void main () {
   outTexCoord = inTexCoord;
   outPrimType  = pc.type;
   outObjectId = inObjectId;
-  outIs2d = 1;
+  outIs2d = 0;
   outExtents = ub.extents;
 }

@@ -12,4 +12,5 @@ $GLSL_COMPILER -V msdf-texture.frag -o submodules/krma-shader-bin/msdf-texture.f
 $GLSL_COMPILER -V notexture.frag -o submodules/krma-shader-bin/notexture.frag.spv
 
 $GLSL_COMPILER -V instanced-line.vert -o submodules/krma-shader-bin/instanced-line.vert.spv
+$GLSL_COMPILER -V instanced-tube.vert -o submodules/krma-shader-bin/instanced-tube.vert.spv
 

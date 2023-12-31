@@ -5,6 +5,7 @@ layout(set = 0, binding = 0) uniform uniformBuffer {
   mat4 view;
   mat4 proj;
   mat4 vproj;
+  vec4 extents;
 } ub;
 
 layout(push_constant) uniform pushConstant {
@@ -26,6 +27,7 @@ layout(location = 2) out vec2 outTexCoord;
 layout(location = 3) flat out uint outPrimType;
 
 layout(location = 6) flat out uint outIs2d;
+layout(location = 9) out vec4 outExtents;
 
 uint color;
 
@@ -46,4 +48,5 @@ void main () {
   outPrimType = pc.type;
   outObjectId = inObjectId;
   outIs2d = 0;
+  outExtents = ub.extents;
 }

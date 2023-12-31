@@ -83,11 +83,15 @@
    (vertex-uniform-buffer :initform nil :accessor pipeline-vertex-uniform-buffer)
    (fragment-uniform-buffer :initform nil :accessor pipeline-fragment-uniform-buffer)))
 
-(defun update-vertex-uniform-buffer (pipeline view proj)
+(defun update-vertex-uniform-buffer (pipeline view proj width height near far)
   (with-foreign-object (p-stage '(:struct vertex-uniform-buffer))
     (copy-matrix-to-foreign view (foreign-slot-pointer p-stage '(:struct vertex-uniform-buffer) 'view))
     (copy-matrix-to-foreign proj (foreign-slot-pointer p-stage '(:struct vertex-uniform-buffer) 'proj))
     (copy-matrix-to-foreign (m* proj view) (foreign-slot-pointer p-stage '(:struct vertex-uniform-buffer) 'vproj))
+    (copy-float-to-foreign width (foreign-slot-pointer p-stage '(:struct vertex-uniform-buffer) 'width))
+    (copy-float-to-foreign height (foreign-slot-pointer p-stage '(:struct vertex-uniform-buffer) 'height))
+    (copy-float-to-foreign near (foreign-slot-pointer p-stage '(:struct vertex-uniform-buffer) 'near))
+    (copy-float-to-foreign far (foreign-slot-pointer p-stage '(:struct vertex-uniform-buffer) 'far))
     (copy-uniform-buffer-memory (default-logical-device pipeline)
 				p-stage
 				(allocated-memory (pipeline-vertex-uniform-buffer pipeline))
@@ -887,6 +891,8 @@
 (defmethod vertex-shader-pathname ((pipeline 2d-instanced-line-pipeline))
   (asdf/system:system-relative-pathname :krma "submodules/krma-shader-bin/instanced-line.vert.spv"))
 
+
+
 (defclass 2d-triangle-list-pipeline (2d-triangle-list-pipeline-mixin)
   ())
 
@@ -897,6 +903,13 @@
 (defclass 3d-triangle-list-pipeline (triangle-list-pipeline-mixin
                                      3d-texture-pipeline-mixin)
   ())
+
+(defclass 3d-instanced-tube-pipeline (triangle-list-pipeline-mixin
+				      3d-texture-pipeline-mixin)
+  ())
+
+(defmethod vertex-shader-pathname ((pipeline 3d-instanced-tube-pipeline))
+  (asdf/system:system-relative-pathname :krma "submodules/krma-shader-bin/instanced-tube.vert.spv"))
 
 (defclass 3d-triangle-list-with-normals-pipeline (triangle-list-pipeline-mixin
 						  3d-texture-with-normals-pipeline-mixin)
@@ -913,7 +926,7 @@
 
 ;;------
 
-(defun ubershader-render-draw-list-cmds (pipeline draw-data draw-list dpy device command-buffer scene view proj x y width height)
+(defun ubershader-render-draw-list-cmds (pipeline draw-data draw-list dpy device command-buffer scene view proj x y width height near far)
   
   (declare (type draw-indexed-pipeline-mixin pipeline))
   (declare (type draw-list-mixin draw-list))
@@ -938,7 +951,7 @@
             (cmd-bind-pipeline command-buffer (device-pipeline pipeline) :bind-point :graphics)
 
 	    ;; apparently, updating uniform buffers have no effect if done before cmd-bind-pipeline
-	    (update-vertex-uniform-buffer pipeline view proj)
+	    (update-vertex-uniform-buffer pipeline view proj width height near far)
 
 	    (update-fragment-uniform-buffer pipeline scene)
 
@@ -1027,7 +1040,8 @@
 				   (setf (mem-aref pvalues :uint32 +uber-vertex-shader-override-color-p-offset+) 0)))
 
 			   (cond ((or (typep pipeline 'point-list-pipeline-mixin)
-				      (typep pipeline '2d-instanced-line-pipeline))
+				      (typep pipeline '2d-instanced-line-pipeline)
+				      (typep pipeline '3d-instanced-tube-pipeline))
 				  (setf (mem-aref pvalues :uint32 +uber-vertex-shader-primitive-type-offset+) 0)
 				  (let ((psize (mem-aptr pvalues :uint32 +uber-vertex-shader-point-size-offset+)))
 				    (let ((cmd-point-size (cmd-point-size cmd)))
@@ -1134,13 +1148,13 @@
               t)))))))
 
 (defmethod render-draw-list-cmds ((pipeline draw-indexed-pipeline-mixin) draw-data draw-list
-				  dpy device command-buffer scene view proj viewport)
+				  dpy device command-buffer scene view proj viewport near far)
 
   (ubershader-render-draw-list-cmds pipeline draw-data draw-list dpy device command-buffer scene view proj
 				    (viewport-x viewport) (viewport-y viewport)
-				    (viewport-width viewport) (viewport-height viewport)))
+				    (viewport-width viewport) (viewport-height viewport) near far))
 
-(defun ubershader-render-draw-list (pipeline draw-data draw-list dpy device command-buffer scene view proj x y width height)
+(defun ubershader-render-draw-list (pipeline draw-data draw-list dpy device command-buffer scene view proj x y width height near far)
   
   (declare (type draw-indexed-pipeline-mixin))
   (declare (type draw-list-mixin draw-list))
@@ -1162,7 +1176,7 @@
 
 	(cmd-bind-pipeline command-buffer (device-pipeline pipeline) :bind-point :graphics)
 
-	(update-vertex-uniform-buffer pipeline view proj)
+	(update-vertex-uniform-buffer pipeline view proj width height near far)
 
 	(update-fragment-uniform-buffer pipeline scene)
 
@@ -1314,10 +1328,10 @@
 			    (foreign-array-fill-pointer index-array)
 			    1 0 0 0))))))
 
-(defmethod render-draw-list ((pipeline draw-indexed-pipeline-mixin) draw-data draw-list dpy device command-buffer scene view proj viewport)
+(defmethod render-draw-list ((pipeline draw-indexed-pipeline-mixin) draw-data draw-list dpy device command-buffer scene view proj viewport near far)
   (ubershader-render-draw-list pipeline draw-data draw-list dpy device command-buffer scene view proj
 			       (viewport-x viewport) (viewport-y viewport)
-			       (viewport-width viewport) (viewport-height viewport)))
+			       (viewport-width viewport) (viewport-height viewport) near far))
 
 (defun read-buffer (buffer lisp-array size memory-resource aligned-size)
   (let ((memory (allocated-memory buffer))

@@ -15,6 +15,7 @@
    (3d-line-list-pipeline :accessor pipeline-store-3d-line-list-pipeline)
    (3d-line-strip-pipeline :accessor pipeline-store-3d-line-strip-pipeline)
    (3d-triangle-list-pipeline :accessor pipeline-store-3d-triangle-list-pipeline)
+   (3d-instanced-tube-pipeline :accessor pipeline-store-3d-instanced-tube-pipeline)
    (3d-triangle-list-with-normals-pipeline :accessor pipeline-store-3d-triangle-list-with-normals-pipeline)
    (3d-triangle-strip-pipeline :accessor pipeline-store-3d-triangle-strip-pipeline)
    (3d-triangle-strip-with-normals-pipeline :accessor pipeline-store-3d-triangle-strip-with-normals-pipeline))
@@ -31,6 +32,7 @@
                3d-line-list-pipeline
                3d-line-strip-pipeline
                3d-triangle-list-pipeline
+	       3d-instanced-tube-pipeline
                3d-triangle-list-with-normals-pipeline
                3d-triangle-strip-with-normals-pipeline	       
                3d-triangle-strip-pipeline
@@ -108,6 +110,12 @@
 			 :dpy dpy
 			 :name :3d-triangle-list-pipeline
 			 :subpass 0)
+
+	  3d-instanced-tube-pipeline
+	  (make-instance '3d-instanced-tube-pipeline
+			 :dpy dpy
+			 :name :3d-instanced-tube-pipeline
+			 :subpass 0)
 	  
           3d-triangle-list-with-normals-pipeline
 	  (make-instance '3d-triangle-list-with-normals-pipeline
@@ -148,7 +156,9 @@
 (defstruct (camera
 	    (:conc-name %CAMERA-))
   (proj-matrix)
-  (view-matrix))
+  (view-matrix)
+  (near)
+  (far))
 
 (defmethod camera-proj-matrix ((camera camera))
   (%camera-proj-matrix camera))
@@ -161,6 +171,12 @@
 
 (defmethod (setf camera-view-matrix) (value (camera camera))
   (setf (%camera-view-matrix camera) value))
+
+(defmethod camera-near ((camera camera))
+  (%camera-near camera))
+
+(defmethod camera-far ((camera camera))
+  (%camera-far camera))
 
 (defmethod set-camera-width-height ((camera camera) new-width new-height camera-type)
   (ecase camera-type
@@ -352,6 +368,20 @@
 	(let ((object (object-from-id hovered)))
 	  object)))))
 
+(defun most-specifically-hovered-3d (3d-select-box x y)
+  (when 3d-select-box
+    (loop for i from 0 to (1- +select-box-3d-depth+)
+	  do (when (not (zerop (aref 3d-select-box x y i)))
+	       (return (aref 3d-select-box x y i)))
+	  finally (return nil))))
+
+(defun most-specifically-hovered-3d-object (3d-select-box x y)
+  (when 3d-select-box
+    (let ((hovered (most-specifically-hovered-3d 3d-select-box x y)))
+      (when hovered
+	(let ((object (object-from-id hovered)))
+	  object)))))
+
 (defun all-hovered-2d (2d-select-box x y)
   (loop for i from 0 below +select-box-2d-depth+
 	with result = ()
@@ -434,8 +464,8 @@
 
   (unless (krma-hovered dpy)
   
-    (let* ((all-hovered (all-hovered-3d (krma-select-box-3d dpy) 0 0)))
-    
+    (let* ((all-hovered (list (most-specifically-hovered-3d (krma-select-box-3d dpy) 0 0))))
+      ;;(print all-hovered)
       (flet ((exit-event (hovered)
 	       (let ((object (object-from-id hovered)))
 		 (when object

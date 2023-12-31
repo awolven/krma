@@ -26,7 +26,6 @@
 		       (cl:the fixnum (load-time-value (ash (foreign-slot-offset '(:struct 2d-vertex) 'oid) -2)))))
 	value))
 
-
 (defun (setf 2d-vertex-col) (value bytes offset)
   (declare (type (unsigned-byte 32) value))
   (declare (type (integer 0 #.(ash most-positive-fixnum -9)) offset))
@@ -43,7 +42,6 @@
 		       (cl:the fixnum (load-time-value (ash (foreign-slot-offset '(:struct 2d-vertex) 'x) -2)))))
 	(float-features:single-float-bits value)))
 
-
 (defun (setf 2d-vertex-y) (value bytes offset)
   (declare (type single-float value))
   (declare (type (integer 0 #.(ash most-positive-fixnum -9)) offset))
@@ -52,12 +50,15 @@
 		       (cl:the fixnum (load-time-value (ash (foreign-slot-offset '(:struct 2d-vertex) 'y) -2)))))
 	(float-features:single-float-bits value)))
 
+
+;; currently the glsl to metal translator has a bug where it will only recognize simple types like vec2, vec3, vec4, float, int etc as a reference type, a struct does not work, so we must make the following fit in a vec4:
 (defcstruct 3d-vertex
   (oid :unsigned-int)
-  (col :unsigned-int)
   (x :float)
   (y :float)
   (z :float))
+
+
 
 (defun (setf 3d-vertex-oid) (value bytes offset)
   (declare (type (unsigned-byte 32) value))
@@ -68,6 +69,7 @@
 	value))
 
 
+#+NIL
 (defun (setf 3d-vertex-col) (value bytes offset)
   (declare (type (unsigned-byte 32) value))
   (declare (type (integer 0 #.(ash most-positive-fixnum -9)) offset))
@@ -159,7 +161,7 @@
 		   (fill-pointer 0)
 		   (bytes (make-array (* (cl:the (integer 0 #.(ash most-positive-fixnum -9)) allocated-count)  (ash (cl:the (integer 0 512) foreign-type-size) -2)) :element-type '(unsigned-byte 32)))))))
 
-(defun 3d-vertex-instance-array-push-extend (3d-vertex-instance-array ub32-oid sf-x sf-y sf-z ub32-color)
+(defun 3d-vertex-instance-array-push-extend (3d-vertex-instance-array ub32-oid sf-x sf-y sf-z)
   "Function for adding 3d-vertex to a 3d-vertex-instance-array."
   (declare (type 3d-vertex-instance-array 3d-vertex-instance-array))
   (declare (type single-float sf-x sf-y sf-z))
@@ -189,7 +191,7 @@
 	      (setf bytes new-array)
 	      (setf allocated-count new-count))))
 	(setf (3d-vertex-oid bytes fp) ub32-oid
-	      (3d-vertex-col bytes fp) ub32-color
+	      ;;(3d-vertex-col bytes fp) ub32-color
 	      (3d-vertex-x bytes fp) sf-x
               (3d-vertex-y bytes fp) sf-y
 	      (3d-vertex-z bytes fp) sf-z)

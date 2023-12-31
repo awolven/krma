@@ -48,6 +48,7 @@ layout(location = 2) in vec2 fragTexCoord;
 layout(location = 3) flat in uint primType;
 
 layout(location = 6) flat in uint is2d;
+layout(location = 9) in vec4 extents;
 
 layout(location = 0) out vec4 outColor;
 
@@ -103,8 +104,8 @@ void main () {
       }
       
     } else {
-      float near = 0.1;
-      float far = 3000.0;
+      float near = extents.z;
+      float far = extents.w;	
       float z = (2.0 * near) / (far + near - gl_FragCoord.z * (far - near));
       
       uint zIndex = uint(z * SELECT_BOX_DEPTH_3D);

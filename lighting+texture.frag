@@ -49,6 +49,7 @@ layout(location = 3) in vec4 world_position;
 layout(location = 4) in vec3 normal;
 layout(location = 5) in mat4 view_inv;
 //layout(location = 6) flat in uint is2d;
+layout(location = 9) in vec4 extents;
 
 layout(location = 0) out vec4 outColor;
 
@@ -154,8 +155,8 @@ void main () {
       gl_FragCoord.y <= pc.selectBox.w) {
 
     // this shader should never be assigned in a 2d pipeline
-    float near = 0.1;
-    float far = 3000.0;
+    float near = extents.z;
+    float far = extents.w;
     float z = (2.0 * near) / (far + near - gl_FragCoord.z * (far - near));
     
     uint zIndex = uint(z * SELECT_BOX_DEPTH_3D);

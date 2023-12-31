@@ -19,6 +19,14 @@
 	(pipeline-store-3d-triangle-strip-pipeline pipeline-store)
 	(draw-data-3d-triangle-strip-draw-list draw-data)
 
+	(or (pipeline-store-3d-instanced-tube-pipeline pipeline-store)
+	    (setf (pipeline-store-3d-instanced-tube-pipeline pipeline-store)
+		  (make-instance '3d-instanced-tube-pipeline
+				 :dpy (clui::window-display (main-window *app*))
+				 :name :3d-instanced-tube-pipeline
+				 :subpass 0)))
+	(draw-data-3d-instanced-tube-draw-list draw-data)
+
 	(pipeline-store-3d-line-strip-pipeline pipeline-store)
 	(draw-data-3d-line-strip-draw-list draw-data)
 	

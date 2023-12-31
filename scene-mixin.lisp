@@ -41,6 +41,12 @@
 			    (clampf (aref array (+ j (* i 4)))))))
     (values)))
 
+(defun copy-float-to-foreign (float p-float)
+  ;; arrays in 3d-math are column major internally
+  ;; matrices in glsl are also column major
+  (setf (mem-aref p-float :float) (clampf float))
+  (values))
+
 #+NIL
 (defun copy-matrix-to-foreign (lisp-matrix p-matrix)
   (let ((array (3dm.f::marr4 lisp-matrix)))
@@ -51,7 +57,11 @@
 (defcstruct vertex-uniform-buffer
   (view (:struct 3DMatrix))
   (proj (:struct 3DMatrix))
-  (vproj (:struct 3DMatrix)))
+  (vproj (:struct 3DMatrix))
+  (width :float)
+  (height :float)
+  (near :float)
+  (far :float))
 
 (defcstruct fragment-uniform-buffer
   (lights (:array (:struct light) 10))
@@ -201,31 +211,31 @@
     (with-slots (x y width height 2d-camera 3d-camera) viewport
 
       (let ((2d-camera-projection-matrix (camera-proj-matrix 2d-camera))
-	    (2d-camera-view-matrix (camera-view-matrix 2d-camera)))
+	    (2d-camera-view-matrix (camera-view-matrix 2d-camera)))    
 
 	(loop for (p dl) on (2d-cmd-oriented-combinations pipeline-store rm-draw-data) by #'cddr
 	      do (render-draw-list-cmds p rm-draw-data dl dpy device command-buffer
 					scene
 					2d-camera-view-matrix 2d-camera-projection-matrix
-					viewport))
+					viewport 0.0f0 +select-box-2d-depth+))
 
 	(loop for (p dl) on (2d-draw-list-oriented-combinations pipeline-store rm-draw-data) by #'cddr
 	      do (render-draw-list p rm-draw-data dl dpy device command-buffer
 				   scene
 				   2d-camera-view-matrix 2d-camera-projection-matrix
-				   viewport))
+				   viewport  0.0f0 +select-box-2d-depth+))
 
 	(loop for (p dl) on (2d-cmd-oriented-combinations pipeline-store im-draw-data) by #'cddr
 	      do (render-draw-list-cmds p im-draw-data dl dpy device command-buffer
 					scene
 					2d-camera-view-matrix 2d-camera-projection-matrix
-					viewport))
+					viewport 0.0f0 +select-box-2d-depth+))
 
 	(loop for (p dl) on (2d-draw-list-oriented-combinations pipeline-store im-draw-data) by #'cddr
 	      do (render-draw-list p im-draw-data dl dpy device command-buffer
 				   scene
 				   2d-camera-view-matrix 2d-camera-projection-matrix
-				   viewport))
+				   viewport 0.0f0 +select-box-2d-depth+))
 	(values)))))
 
 (defmethod render-3d-scene ((scene krma-essential-scene-mixin)
@@ -240,7 +250,9 @@
     (with-slots (x y width height 2d-camera 3d-camera) viewport
 
       (let ((3d-camera-projection-matrix (camera-proj-matrix 3d-camera))
-	    (3d-camera-view-matrix (camera-view-matrix 3d-camera)))
+	    (3d-camera-view-matrix (camera-view-matrix 3d-camera))
+	    (near (camera-near 3d-camera))
+	    (far (camera-far 3d-camera)))
 
 	;;(print 2d-camera-projection-matrix)
 	;;(print 2d-camera-view-matrix)
@@ -249,25 +261,25 @@
 	      do (render-draw-list p rm-draw-data dl dpy device command-buffer
 				   scene
 				   3d-camera-view-matrix 3d-camera-projection-matrix
-				   viewport))
+				   viewport near far))
 	
 	(loop for (p dl) on (3d-cmd-oriented-combinations pipeline-store rm-draw-data) by #'cddr
 	      do (render-draw-list-cmds p rm-draw-data dl dpy device command-buffer
 					scene
 					3d-camera-view-matrix 3d-camera-projection-matrix
-					viewport))
+					viewport near far))
 
 	(loop for (p dl) on (3d-draw-list-oriented-combinations pipeline-store im-draw-data) by #'cddr
 	      do (render-draw-list p im-draw-data dl dpy device command-buffer
 				   scene
 				   3d-camera-view-matrix 3d-camera-projection-matrix
-				   viewport))
+				   viewport near far))
 
 	(loop for (p dl) on (3d-cmd-oriented-combinations pipeline-store im-draw-data) by #'cddr
 	      do (render-draw-list-cmds p im-draw-data dl dpy device command-buffer
 					scene
 					3d-camera-view-matrix 3d-camera-projection-matrix
-					viewport))	
+					viewport near far))	
 
       (values)))))
 
@@ -648,6 +660,22 @@
   (rm-dispatch-to-render-thread-with-handle (scene draw-data handle)
     (%draw-data-add-multicolor-2d-instanced-line-primitive
      draw-data handle object-id group (when model-matrix (mcopy model-matrix)) closed? line-thickness elevation vertices)))
+
+(defun scene-add-filled-3d-instanced-tube-primitive
+    (scene group model-matrix closed? line-thickness color vertices &optional (object-id 0))
+  "Retained-mode function, returns a handle for a multicolored 2d polyline primitive.  Required arguments: scene must be of type krma-essential-scene-mixin, group must be an atom, possibly nil (meaning not associated with a group), model-matrix must either be a 3d-matrices:mat4 or nil (nil effectively means identity), closed? should be a boolean, which specifies whether to draw a segment between the last vertex and the first vertex, line-thickness should be a positive real number.  vertices should be of the form (list x0 y0 color0 x1 y1 color1 ... xn yn colorn) where the x's and the y's are vertex points of the polyline and must be real numbers, color values can either be a 4 component vector who's elements are real numbers between zero and one, or a 32 bit unsigned integer.   Dispatches actual work to render thread.  To delete the polyline, you must delete the primitive using the handle or delete the entire group, if any."
+  (declare (type krma-essential-scene-mixin scene))
+  (declare (type real line-thickness))
+  (declare (type boolean closed?))
+  (declare (type sequence vertices))
+  (declare (type (or mat4 null) model-matrix))
+  (declare (type (unsigned-byte 32) object-id))
+  (declare (type atom group))
+  (setq line-thickness (clampf line-thickness))
+  (setq color (canonicalize-color color))
+  (rm-dispatch-to-render-thread-with-handle (scene draw-data handle)
+    (%draw-data-add-filled-3d-instanced-tube-primitive
+     draw-data handle object-id group (when model-matrix (mcopy model-matrix)) closed? line-thickness color vertices)))
 
 ;; 2d-circular-arc
 (defun scene-add-2d-circular-arc-primitive (scene group model-matrix closed? line-thickness color
@@ -1080,7 +1108,7 @@
     (%draw-data-draw-filled-2d-convex-polygon (im-draw-data scene) object-id group (canonicalize-color color) (clampf elevation) vertices)))
 
 ;; filled-3d-triangle-list-flat
-(defun scene-add-filled-3d-triangle-list-primitive-flat (scene group model-matrix color vertices &optional (object-id 0) (elevation 0))
+(defun scene-add-filled-3d-triangle-list-primitive-flat (scene group model-matrix color vertices &optional (object-id 0))
   "Retained-mode function, returns a handle for a filled 3d triangle list primitive.  Displays with flat shading.  Required arguments: scene must be of type krma-essential-scene-mixin, group must be an atom, possibly nil (meaning not associated with a group), model-matrix must either be a 3d-matrices:mat4 or nil (nil effectively means identity), color can either be a 4 component vector who's elements are real numbers between zero and one, or a 32 bit unsigned integer, vertices must be of the form (list x00 y00 z00 x10 y10 z10 x20 y20 z20 x01 y01 z01 x11 y11 z11 x21 y21 z21... x0n y0n z0n x1n y1n z1n x2n y2n z2n) where the x, y and z values represent vertices of a triangle in a series of triangles and must be real numbers.  There must be at least three sets of x, y and z, and additional vertices come as 3 sets each.  Vertices should be oriented counter clockwise, according to the right-hand-rule, so that the front face is out/up.  Dispatches actual work to render thread.  To delete the triangle list, you must delete the primitive using the handle or delete the entire group, if any."
   (declare (type krma-essential-scene-mixin scene))
   (declare (type sequence vertices))
@@ -1088,10 +1116,9 @@
   (declare (type (unsigned-byte 32) object-id))
   (declare (type atom group))
   (setq color (canonicalize-color color))
-  (setq elevation (clampf elevation))
   (rm-dispatch-to-render-thread-with-handle (scene draw-data handle)
     (%draw-data-add-filled-3d-triangle-list-primitive
-     draw-data handle object-id group (when model-matrix (mcopy model-matrix)) color elevation vertices)))
+     draw-data handle object-id group (when model-matrix (mcopy model-matrix)) color vertices)))
 
 (defun scene-add-filled-3d-triangle-list-flat (scene group color vertices &optional (object-id 0))
   "Retained-mode function, adds a filled 3d triangle list to the draw-lists, returns no values.  Displays with flat shading.  Required arguments: scene must be of type krma-essential-scene-mixin, group must be a non-null atom,    color can either be a 4 component vector who's elements are real numbers between zero and one, or a 32 bit unsigned integer, vertices must be of the form (list x00 y00  z00 x10 y10 z10 x20 y20 z20 x01 y01 z01 x11 y11 z11 x21 y21 z21... x0n y0n z0n x1n y1n z1n x2n y2n z2n) where the x, y and z values represent vertices of a triangle in a series of triangles and must be real numbers.  Vertices should be oriented counter clockwise, according to the right-hand-rule, so that the front face is out/up.  Dispatches actual work to render thread.  To delete the triangle list, you must delete the entire group."

@@ -1041,6 +1041,7 @@
          (number-of-vertices 0))
     (declare (type fixnum number-of-vertices))
     (with-draw-list-transaction (%draw-list-add-filled-2d-convex-polygon 2d-draw-list first-index vtx-offset)
+      
       (etypecase seq-vertices
 	(list
 	 (loop for i from 0 below #.most-positive-fixnum
@@ -1062,7 +1063,8 @@
         cmd))))
 
 
-(defun %draw-list-draw-filled-3d-triangle-strip/list (3d-draw-list ub32-oid ub32-color seq-vertices)
+#+NO
+(defun %draw-list-draw-filled-3d-triangle-strip (3d-draw-list ub32-oid ub32-color seq-vertices)
   (declare (type 3d-vertex-draw-list-mixin 3d-draw-list))
   (declare (type (unsigned-byte 32) ub32-oid ub32-color))
   (declare (type sequence seq-vertices))
@@ -1071,23 +1073,35 @@
          (vertex-array (draw-list-vertex-array 3d-draw-list))
 	 (first-index (foreign-array-fill-pointer index-array))
          (vtx-offset (foreign-array-fill-pointer vertex-array))
-	 (offset -1)
          (number-of-vertices 0))
     (declare (type fixnum offset vtx-offset number-of-vertices))
-    (with-draw-list-transaction (%draw-list-draw-filled-3d-triangle-strip/list 3d-draw-list first-index vtx-offset)
+    (with-draw-list-transaction (%draw-list-draw-filled-3d-triangle-strip 3d-draw-list first-index vtx-offset)
       (etypecase seq-vertices
-	(list (loop for (x y z) on seq-vertices by #'cdddr
-		    do (setq x (clampf x))
+	(list
+	 (progn
+	   (loop for (x y z) on seq-vertices by #'(lambda (list)
+						    (nthcdr 3 list))
+		 for i from 0 below #.most-positive-fixnum
+		 do (setq x (clampf x))
 		    (setq y (clampf y))
 		    (setq z (clampf z))
-		    (setq offset (standard-3d-vertex-array-push-extend vertex-array ub32-oid x y z ub32-color))
-                    (index-array-push-extend index-array offset)
-		    (incf number-of-vertices)
-		    finally (assert (>= number-of-vertices 3))
-		    (return (values))))))))
+		    (standard-3d-vertex-array-push-extend vertex-array ub32-oid x y z ub32-color)
+		    (incf number-of-vertices))
+	   (loop for i from 0 below (- number-of-vertices 2)
+		 do (index-array-push-extend index-array (+ vertex-offset i 0))
+		    (index-array-push-extend index-array (+ vertex-offset i 1))
+		    (index-array-push-extend index-array (+ vertex-offset i 2))))))
+      (let ((cmd (make-standard-draw-indexed-cmd 
+		  3d-draw-list
+		  first-index (* 3 (- number-of-vertices 2)) vtx-offset
+		  atom-group model-mtx
+		  nil *white-texture* nil nil material)))
+        (vector-push-extend cmd (draw-list-cmd-vector 3d-draw-list))
+        cmd)
+      )))
 
 
-(defun %draw-list-add-filled-3d-triangle-strip/list (3d-draw-list ub32-oid atom-group model-mtx ub32-color seq-vertices)
+(defun %draw-list-add-filled-3d-triangle-strip (3d-draw-list ub32-oid atom-group model-mtx ub32-color seq-vertices)
   (declare (type 3d-vertex-draw-list-mixin 3d-draw-list))
   (declare (type (unsigned-byte 32) ub32-oid ub32-color))
   (declare (type sequence seq-vertices))
@@ -1100,25 +1114,30 @@
     (declare (type fixnum number-of-vertices))
     (with-draw-list-transaction (%draw-list-add-filled-3d-triangle-strip/list 3d-draw-list first-index vtx-offset)
       (etypecase seq-vertices
-	(list (loop for (x y z) on seq-vertices by #'cdddr
-		    for i from 0 below #.most-positive-fixnum
-		    do (setq x (clampf x))
+	(list
+	 (progn
+	   (loop for (x y z) on seq-vertices by #'(lambda (list)
+						    (nthcdr 3 list))
+		 for i from 0 below #.most-positive-fixnum
+		 do (setq x (clampf x))
 		    (setq y (clampf y))
 		    (setq z (clampf z))
 		    (standard-3d-vertex-array-push-extend vertex-array ub32-oid x y z ub32-color)
-		    (index-array-push-extend index-array i)
-		    (incf number-of-vertices))))
-      (assert (>= number-of-vertices 3))
-      (let ((cmd (make-standard-draw-indexed-cmd
+		    (incf number-of-vertices))
+	   (loop for i from 0 below (- number-of-vertices 2)
+		 do (index-array-push-extend index-array (+ i 0))
+		    (index-array-push-extend index-array (+ i 1))
+		    (index-array-push-extend index-array (+ i 2))))))
+      (let ((cmd (make-standard-draw-indexed-cmd 
 		  3d-draw-list
-		  first-index number-of-vertices vtx-offset
+		  first-index (* 3 (- number-of-vertices 2)) vtx-offset
 		  atom-group model-mtx
 		  nil *white-texture* nil nil nil)))
         (vector-push-extend cmd (draw-list-cmd-vector 3d-draw-list))
         cmd))))
 
 
-(defun %draw-list-draw-filled-3d-triangle-strip/list-with-normals (3d-draw-list ub32-oid ub32-color seq-vertices)
+(defun %draw-list-draw-filled-3d-triangle-strip-with-normals (3d-draw-list ub32-oid ub32-color seq-vertices)
   (declare (type 3d-vertex-draw-list-mixin 3d-draw-list))
   (declare (type (unsigned-byte 32) ub32-oid ub32-color))
   (declare (type sequence seq-vertices))
@@ -1146,9 +1165,9 @@
 		    (return (values))))))))
 
 
-(defun %draw-list-add-filled-3d-triangle-strip/list-with-normals
+(defun %draw-list-add-filled-3d-triangle-list-with-normals
     (3d-draw-list ub32-oid atom-group model-mtx ub32-color seq-vertices material)
-  (declare (type 3d-vertex-draw-list-mixin 3d-draw-list))
+  (declare (type 3d-vertex-with-normal-draw-list-mixin 3d-draw-list))
   (declare (type (unsigned-byte 32) ub32-oid ub32-color))
   (declare (type sequence seq-vertices))
   ;; must be at least three vertices to succeed
@@ -1158,7 +1177,7 @@
          (first-index (foreign-array-fill-pointer index-array))
          (number-of-vertices 0))
     (declare (type fixnum number-of-vertices))
-    (with-draw-list-transaction (%draw-list-add-filled-3d-triangle-strip/list-with-normals 3d-draw-list first-index vtx-offset)
+    (with-draw-list-transaction (%draw-list-add-filled-3d-triangle-list-with-normals 3d-draw-list first-index vtx-offset)
       (etypecase seq-vertices
 	(list (loop for (x y z nx ny nz) on seq-vertices by #'cdddr
 		    for i from 0 below #.most-positive-fixnum
@@ -1174,6 +1193,45 @@
       (let ((cmd (make-standard-draw-indexed-cmd
 		  3d-draw-list
 		  first-index number-of-vertices vtx-offset
+		  atom-group model-mtx
+		  nil *white-texture* nil nil material)))
+        (vector-push-extend cmd (draw-list-cmd-vector 3d-draw-list))
+        cmd))))
+
+(defun %draw-list-add-filled-3d-triangle-strip-with-normals
+    (3d-draw-list ub32-oid atom-group model-mtx ub32-color seq-vertices material)
+  (declare (type 3d-vertex-with-normal-draw-list-mixin 3d-draw-list))
+  (declare (type (unsigned-byte 32) ub32-oid ub32-color))
+  (declare (type sequence seq-vertices))
+  ;; must be at least three vertices to succeed
+  (let* ((index-array (draw-list-index-array 3d-draw-list))
+         (vertex-array (draw-list-vertex-array 3d-draw-list))
+         (vtx-offset (foreign-array-fill-pointer vertex-array))
+         (first-index (foreign-array-fill-pointer index-array))
+         (number-of-vertices 0))
+    (declare (type fixnum number-of-vertices))
+    (with-draw-list-transaction (%draw-list-add-filled-3d-triangle-strip/list-with-normals 3d-draw-list first-index vtx-offset)
+      (etypecase seq-vertices
+	(list
+	 (progn
+	   (loop for (x y z nx ny nz) on seq-vertices by #'(lambda (list)
+							     (nthcdr 6 list))
+		 for i from 0 below #.most-positive-fixnum
+		 do (setq x (clampf x))
+		    (setq y (clampf y))
+		    (setq z (clampf z))
+		    (setq nx (clampf nx))
+		    (setq ny (clampf ny))
+		    (setq nz (clampf nz))
+		    (standard-3d-vertex-with-normal-array-push-extend vertex-array ub32-oid x y z nx ny nz ub32-color)
+		    (incf number-of-vertices))
+	   (loop for i from 0 below (- number-of-vertices 2)
+		 do (index-array-push-extend index-array (+ i 0))
+		    (index-array-push-extend index-array (+ i 1))
+		    (index-array-push-extend index-array (+ i 2))))))
+      (let ((cmd (make-standard-draw-indexed-cmd 
+		  3d-draw-list
+		  first-index (* 3 (- number-of-vertices 2)) vtx-offset
 		  atom-group model-mtx
 		  nil *white-texture* nil nil material)))
         (vector-push-extend cmd (draw-list-cmd-vector 3d-draw-list))
