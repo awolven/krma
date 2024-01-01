@@ -275,7 +275,7 @@
 
 
 (defclass krma-frame-manager-mixin ()
-  ((application-name :initform "krma" :accessor application-name)
+  ((title :initform "krma" :accessor title)
    (dpy :accessor frame-manager-display)
    (active-scenes :initform nil :accessor active-scenes)
    (main-window :initform nil :initarg :main-window :accessor main-window))
@@ -289,7 +289,7 @@
 (defmethod initialize-instance :after ((self krma-frame-manager-mixin) &rest initargs &key (display (default-display)) &allow-other-keys)
   (declare (ignorable initargs))
   (setf (frame-manager-display self) display)
-  (setf (main-window self) (make-instance 'window :display display :title (application-name self)))
+  (setf (main-window self) (make-instance 'window :display display :title (title self)))
   
   (let* ((main-window (main-window self))
 	 (main-viewport (first (window-viewports main-window)))
