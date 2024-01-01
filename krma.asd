@@ -41,6 +41,7 @@
 (pushnew (asdf/system:system-relative-pathname :krma "submodules/binpack/") asdf:*central-registry* :test #'equalp)
 (pushnew (asdf/system:system-relative-pathname :krma "submodules/3b-bmfont/") asdf:*central-registry* :test #'equalp)
 (pushnew (asdf/system:system-relative-pathname :krma "submodules/zpb-ttf/") asdf:*central-registry* :test #'equalp)
+(pushnew (asdf/system:system-relative-pathname :krma "submodules/clim-protocol/") asdf:*central-registry* :test #'equalp)
 (pushnew (asdf/system:system-relative-pathname :krma "submodules/cl-vulkan/") asdf:*central-registry* :test #'equalp)
 (pushnew (asdf/system:system-relative-pathname :krma "submodules/clui/") asdf:*central-registry* :test #'equalp)
 (pushnew (asdf/system:system-relative-pathname :krma "submodules/3d-math/") asdf:*central-registry* :test #'equalp)

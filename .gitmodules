@@ -25,3 +25,6 @@
 [submodule "submodules/3d-math"]
 	path = submodules/3d-math
 	url = https://bitbucket.org/awolven/3d-math.git/
+[submodule "clim-protocol"]
+	path = clim-protocol
+	url = https://github.com/awolven/clim-protocol.git
