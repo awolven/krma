@@ -567,28 +567,6 @@
 
                 texture-image))))))))
 
-(defun get-my-index-array (&optional (i 1))
-  (let* ((scene (application-scene *app*))
-	 (rm-draw-data-array (rm-draw-data scene))
-	 (draw-data (aref rm-draw-data-array i))
-	 (table (draw-data-3d-triangle-list-with-normals-draw-list-table draw-data))
-	 (kkk))
-    (maphash (lambda (k v)
-	       (declare (ignore k))
-	       (setq kkk v)) table)
-    (draw-list-index-array kkk)))
-
-(defun get-my-index-buffer (&optional (i 1))
-  (let* ((scene (application-scene *app*))
-	 (rm-draw-data-array (rm-draw-data scene))
-	 (draw-data (aref rm-draw-data-array i))
-	 (table (draw-data-3d-triangle-list-with-normals-draw-list-table draw-data))
-	 (kkk))
-    (maphash (lambda (k v)
-	       (declare (ignore k))
-	       (setq kkk v)) table)
-    (draw-list-index-memory kkk)))
-
 (defun initialize-buffers (dpy draw-list)
   (let ((vertex-array (draw-list-vertex-array draw-list))
         (index-array (draw-list-index-array draw-list)))

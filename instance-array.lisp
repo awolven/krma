@@ -165,7 +165,7 @@
   "Function for adding 3d-vertex to a 3d-vertex-instance-array."
   (declare (type 3d-vertex-instance-array 3d-vertex-instance-array))
   (declare (type single-float sf-x sf-y sf-z))
-  (declare (type (unsigned-byte 32) ub32-oid ub32-color))
+  (declare (type (unsigned-byte 32) ub32-oid))
   (let ((vertex-type-size-uint (load-time-value (ash (foreign-type-size '(:struct 3d-vertex)) -2)))
 	(vertex-type-size (load-time-value (foreign-type-size '(:struct 3d-vertex)))))
     (declare (type (integer 0 512) vertex-type-size vertex-type-size-uint))

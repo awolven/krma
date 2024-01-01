@@ -294,12 +294,12 @@
 	 (current-draw-data (car current-draw-data-cons))
 	 (image-indices (make-array 100 :adjustable t :fill-pointer 0 :initial-element nil)))
 
-    ;;(print (clui::window-keys (main-window (first (display-applications dpy)))))
+    ;;(print (clui::window-keys (main-window (first (display-frame-managers dpy)))))
     
     ;; maybe create new descriptor set if select box size has changed
     (maybe-defer-debug (dpy)
       ;; probably going to need a select box per framebuffer
-      (compute-select-boxes-descriptor-set dpy (main-window (first (display-applications dpy)))
+      (compute-select-boxes-descriptor-set dpy (main-window (first (display-frame-managers dpy)))
 					   frame-count (car current-frame-cons)))
 
     #-nvidia(maybe-defer-debug (dpy)
@@ -341,7 +341,7 @@
 	      ;; make sure the previous frame is done being processed before altering it's draw lists
 	      (vk::wait-for-fence swapchain (mod (1- current-frame) (number-of-images swapchain))))
 		  
-	    (loop for app in (display-applications dpy)
+	    (loop for app in (display-frame-managers dpy)
 		  with once = nil
 		  do (loop for scene in (active-scenes app)
 			   do (before-frame-begin dpy scene current-draw-data once)
@@ -390,7 +390,7 @@
 
     ;; first time use of compacting complete semaphore is :count 1
     ;; this needs to be the only thread that modifies current-frame
-    (update-counts (current-frame-cons dpy) (current-draw-data-cons dpy) (number-of-images (swapchain (main-window (first (display-applications dpy))))))
+    (update-counts (current-frame-cons dpy) (current-draw-data-cons dpy) (number-of-images (swapchain (main-window (first (display-frame-managers dpy))))))
     (bt:wait-on-semaphore (compacting-complete-semaphore dpy))
     (bt:signal-semaphore (frame-iteration-complete-semaphore dpy))
 
@@ -415,7 +415,7 @@
   (tagbody
    again
      (let ((active-scenes ()))
-       (loop for app in (display-applications dpy)
+       (loop for app in (display-frame-managers dpy)
 	     do (setf active-scenes (nconc active-scenes (active-scenes app))))
        (compactor-thread-iteration dpy active-scenes))
      ;; todo: make close button on window setf application-exit? to t.
@@ -434,7 +434,7 @@
 (defvar *test* 1290)
 
 #+(and cocoa noglfw)
-(defun krma-application-main (app &rest args &key (show-frame-rate? t) &allow-other-keys)
+(defun krma-main (app &rest args &key (show-frame-rate? t) &allow-other-keys)
   (declare (ignore args))
   (let* ((main-window (main-window app))
 	 (dpy (clui::window-display main-window)))
@@ -461,7 +461,7 @@
       (frame-iteration dpy (number-of-images (swapchain window)) (window-show-frame-rate? window)))))
 
 #-cocoa
-(defun krma-application-main (app &rest args &key (show-frame-rate? t) &allow-other-keys)
+(defun krma-main (app &rest args &key (show-frame-rate? t) &allow-other-keys)
   (declare (ignorable args))
 
   (let* ((main-window (main-window app))
@@ -487,32 +487,10 @@
       (shutdown-run-loop dpy))))
     
 
-(defgeneric main (application &rest args &key &allow-other-keys)
-  (:documentation "Define your own main function for your custom application if necessary."))
+(defgeneric main (frame-manager &rest args &key &allow-other-keys)
+  (:documentation "Define your own main function for your custom frame-manager if necessary."))
 
 
-(defmethod main ((app krma-application-mixin) &rest args &key &allow-other-keys)
-  (apply #'krma-application-main app args))
-
-#+NIL
-(defun run-1 (&rest args &key (class *default-application-class*) (throttle-frame-rate? t) &allow-other-keys)
-  "Function to call from main thread to create and run an application object."
-  ;; #+(and darwin sbcl)(sb-int:set-floating-point-modes :traps nil) ;; this happens in vk:create-instance now.
-  (let ((args (copy-list args)))
-    (remf args :class)
-    (remf args :throttle-frame-rate?)
-    (let ((app (apply #'make-instance class :throttle-frame-rate? throttle-frame-rate? args)))
-      (apply #'main app args)
-      (setq *app* nil)
-      t)))
-#+NIL
-(defun run (&rest args &key (class *default-application-class*) (show-frame-rate? krma::*debug*) &allow-other-keys)
-  "Function which can be called from any thread to create and run an application object."
-  (trivial-main-thread:call-in-main-thread
-   (lambda ()
-     (let ((args (copy-list args)))
-       (remf args :show-frame-rate?)
-       (apply #'run-1 :class class :show-frame-rate? show-frame-rate? args)))))
-
-
+(defmethod main ((frame-manager krma-frame-manager-mixin) &rest args &key &allow-other-keys)
+  (apply #'krma-main frame-manager args))
 

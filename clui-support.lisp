@@ -1,11 +1,11 @@
 (in-package :clui)
 
 #+win32
-(defclass win32:desktop-with-krma-mixin (krma::krma-enabled-display-mixin win32:desktop-mixin)
+(defclass win32:display-with-krma-mixin (krma::krma-enabled-display-mixin win32:display-mixin)
   ())
 
 #+win32
-(defclass win32:desktop-with-krma (win32:desktop-with-krma-mixin)
+(defclass win32:display-with-krma (win32:display-with-krma-mixin)
   ())
 
 #+win32
@@ -17,11 +17,11 @@
   ())
 
 #+cocoa
-(defclass cocoa:desktop-with-krma-mixin (krma::krma-enabled-display-mixin cocoa:desktop-mixin)
+(defclass cocoa:display-with-krma-mixin (krma::krma-enabled-display-mixin cocoa:display-mixin)
   ())
 
 #+cocoa
-(defmethod clui::application-did-finish-launching ((dpy cocoa:desktop-with-krma-mixin) notification)
+(defmethod clui::application-did-finish-launching ((dpy cocoa:display-with-krma-mixin) notification)
   (declare (ignorable notification))
   ;;(abstract-os::post-empty-event application)
   ;;(ns::|stop:| application nil)
@@ -30,7 +30,7 @@
   (values))
 
 #+cocoa
-(defclass cocoa:desktop-with-krma (cocoa:desktop-with-krma-mixin)
+(defclass cocoa:display-with-krma (cocoa:display-with-krma-mixin)
   ())
 
 #+cocoa
@@ -70,11 +70,11 @@
   ())
 
 #+wayland
-(defclass wayland:desktop-with-krma-mixin (krma::krma-enabled-display-mixin wayland:desktop-mixin)
+(defclass wayland:display-with-krma-mixin (krma::krma-enabled-display-mixin wayland:display-mixin)
   ())
 
 #+wayland
-(defclass wayland:desktop-with-krma (wayland:desktop-with-krma-mixin)
+(defclass wayland:display-with-krma (wayland:display-with-krma-mixin)
   ())
 
 #+wayland
@@ -86,11 +86,11 @@
   ())
 
 #+win32
-(defmethod vk::get-required-instance-extensions ((display win32:desktop-with-krma-mixin))
+(defmethod vk::get-required-instance-extensions ((display win32:display-with-krma-mixin))
   (vk::get-win32-required-instance-extensions))
 
 #+cocoa
-(defmethod vk::get-required-instance-extensions ((display cocoa:desktop-with-krma-mixin))
+(defmethod vk::get-required-instance-extensions ((display cocoa:display-with-krma-mixin))
   (vk::get-cocoa-required-instance-extensions))
 
 #+x11
@@ -98,7 +98,7 @@
   (vk::get-x11-required-instance-extensions))
 
 #+wayland
-(defmethod vk::get-required-instance-extensions ((display wayland:desktop-with-krma-mixin))
+(defmethod vk::get-required-instance-extensions ((display wayland:display-with-krma-mixin))
   (get-wayland-required-instance-extensions))
 
 #+win32
@@ -112,7 +112,7 @@
 						    (x11 null)
 						    &rest initargs
 						    &key &allow-other-keys)
-  (list* (find-class 'win32:desktop-with-krma) initargs))
+  (list* (find-class 'win32:display-with-krma) initargs))
 
 #+cocoa
 (defmethod compute-make-display-instance-arguments (protocol
@@ -124,7 +124,7 @@
 						    (win32 null)
 						    (x11 null)
 						    &rest initargs)
-  (list* (find-class 'cocoa:desktop-with-krma) initargs))
+  (list* (find-class 'cocoa:display-with-krma) initargs))
 
 #+cocoa
 (defmethod compute-make-display-instance-arguments (protocol
@@ -137,7 +137,7 @@
 						    (x11 t)
 						    &rest initargs)
   (declare (ignore protocol))
-  (list* (find-class 'cocoa:desktop-with-krma) initargs))
+  (list* (find-class 'cocoa:display-with-krma) initargs))
 
 #+x11
 (defmethod compute-make-display-instance-arguments (protocol
@@ -162,10 +162,10 @@
 						    (win32 null)
 						    (x11 null)
 						    &rest initargs)
-  (list* (find-class 'wayland:desktop-with-krma) initargs))
+  (list* (find-class 'wayland:display-with-krma) initargs))
 
 #+win32
-(defmethod get-a-win32-window-class ((display win32:desktop-with-krma-mixin) errorp &rest initargs
+(defmethod get-a-win32-window-class ((display win32:display-with-krma-mixin) errorp &rest initargs
 				     &key &allow-other-keys)
   (declare (ignore initargs))
   (find-class 'win32:krma-enabled-window errorp))
@@ -187,13 +187,13 @@
   (find-class 'cocoa:krma-enabled-window errorp))
 
 #+win32
-(defmethod create-native-window-surface ((display win32:desktop-mixin)
+(defmethod create-native-window-surface ((display win32:display-mixin)
 					 instance window
 					 &optional (allocator vk::+null-allocator+))
   (vk::create-win32-window-surface instance window allocator))
 
 #+cocoa
-(defmethod create-native-window-surface ((display cocoa:desktop-with-krma-mixin)
+(defmethod create-native-window-surface ((display cocoa:display-with-krma-mixin)
 					 instance window
 					 &optional (allocator vk::+null-allocator+))
   (vk::create-cocoa-window-surface window allocator))
@@ -206,13 +206,13 @@
 
 
 #+wayland
-(defmethod create-native-window-surface ((display wayland:desktop-mixin)
+(defmethod create-native-window-surface ((display wayland:display-mixin)
 					 instance (window wayland:window-mixin)
 					 &optional (allocator vk::+null-allocator+))
   (vk::create-wayland-window-surface instance window allocator))
 
 #+cocoa
-(defmethod initialize-helper-window ((display cocoa:desktop-with-krma-mixin) helper-window)
+(defmethod initialize-helper-window ((display cocoa:display-with-krma-mixin) helper-window)
   (setf (vk::render-surface helper-window)
 	(create-native-window-surface display
 				      (vk::get-vulkan-instance display)
@@ -221,7 +221,7 @@
   helper-window)
 
 #+win32
-(defmethod initialize-helper-window ((display win32:desktop-with-krma-mixin) helper-window)
+(defmethod initialize-helper-window ((display win32:display-with-krma-mixin) helper-window)
   (setf (vk::render-surface helper-window)
 	(create-native-window-surface display
 				      (vk::get-vulkan-instance display)
@@ -239,11 +239,11 @@
   helper-window)
 
 #+win32
-(defmethod helper-window-class ((display win32:desktop-with-krma-mixin))
+(defmethod helper-window-class ((display win32:display-with-krma-mixin))
   'vk::vulkan-helper-window)
 
 #+cocoa
-(defmethod helper-window-class ((display cocoa:desktop-with-krma-mixin))
+(defmethod helper-window-class ((display cocoa:display-with-krma-mixin))
   'cocoa::vulkan-helper-window)
 
 #+x11
