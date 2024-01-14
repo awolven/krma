@@ -6,7 +6,6 @@
 (3dm::define-package :krma :3dm.f
   (:use :cl :cffi :vk :%vk #+glfw :$glfw)
   (:import-from :clui
-
 		#:get-displays
 		#:default-display
 		#:default-screen
@@ -159,7 +158,8 @@
 		#:character-event
 		)
   
-  (:export #:krma-frame-manager-mixin
+  (:export #:default-medium
+	   #:krma-frame-manager-mixin
 	   #:*default-application-class*
 	   #:default-application-class-for-window
 	   #:default-window-class-for-application

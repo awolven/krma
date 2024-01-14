@@ -248,15 +248,6 @@
     (loop for viewport in (window-viewports window)
 	  do (let ((scene (viewport-scene viewport)))
 
-	       #+NIL
-	       (maybe-defer-debug (dpy)
-		 (multiple-value-bind (width height) (window-framebuffer-size window)
-		   (update-2d-camera scene
-				     (mortho-vulkan 0 width height 0 0 1024))))
-	       #+NIL
-	       (maybe-defer-debug (dpy)
-		 (update-3d-camera scene))
-
 	       (maybe-defer-debug (dpy)
 		 (render-scene scene
 			       viewport

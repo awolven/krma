@@ -10,6 +10,11 @@
   (unless krma::*debug*
     (declaim (optimize (speed 3) (safety 0) (debug 0)))))
 
+(defvar *media* nil)
+
+(defun default-medium ()
+  (car *media*))
+
 (defcstruct 3DMatrix
   (m00 :float)
   (m10 :float)
@@ -114,8 +119,7 @@
   (values))
 
 (defclass krma-essential-scene-mixin (clim:medium)
-  ((dpy :accessor medium-display)
-   (im-draw-data :accessor im-draw-data)
+  ((im-draw-data :accessor im-draw-data)
    (rm-draw-data :accessor rm-draw-data)
    (lights :initform (list (make-instance 'directional-light)) :accessor scene-lights)
    
@@ -143,12 +147,11 @@
 (defmethod initialize-instance :after ((instance krma-essential-scene-mixin) &rest initargs &key (display (default-display))
 				       &allow-other-keys)
   (declare (ignore initargs))
-  (setf (medium-display instance) display)
-  (setf (im-draw-data instance) (make-immediate-mode-draw-data "IM Draw Data" (medium-display instance)))
+  (setf (im-draw-data instance) (make-immediate-mode-draw-data "IM Draw Data" display))
   (setf (rm-draw-data instance) (make-array 2 :initial-contents
 					    (list
-					     (make-retained-mode-draw-data "RM Draw Data 0" (medium-display instance))
-					     (make-retained-mode-draw-data "RM Draw Data 1" (medium-display instance)))))
+					     (make-retained-mode-draw-data "RM Draw Data 0" display)
+					     (make-retained-mode-draw-data "RM Draw Data 1" display))))
   (finalize-scene instance)
   (values))
 

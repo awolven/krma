@@ -1114,8 +1114,10 @@
 
 		       (vkCmdDrawIndexed command-buffer-handle
 					 (cmd-elem-count cmd) (if (cmd-instance-array cmd)
-								  (instance-list-count
-								   (cmd-instance-array cmd))
+								  (max
+								   (instance-list-count
+								    (cmd-instance-array cmd))
+								   0)
 								  1)
 					 (cmd-first-idx cmd) (cmd-vtx-offset cmd)
 					 0))))
