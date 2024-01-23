@@ -159,6 +159,8 @@
 		)
   
   (:export #:default-medium
+	   #:window-viewports
+	   #:object-from-id
 	   #:krma-frame-manager-mixin
 	   #:*default-application-class*
 	   #:default-application-class-for-window
