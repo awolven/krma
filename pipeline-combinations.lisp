@@ -1,54 +1,109 @@
 (in-package :krma)
 
-(defmethod 3d-cmd-oriented-combinations ((pipeline-store pipeline-store-mixin) (draw-data retained-mode-draw-data))
-  (rm-standard-3d-cmd-oriented-combinations pipeline-store draw-data))
+(defmethod 3d-cmd-oriented-combinations ((pipeline-store pipeline-store-mixin) (draw-data retained-mode-draw-data) display)
+  (rm-standard-3d-cmd-oriented-combinations pipeline-store draw-data) display)
 
-(defmethod rm-standard-3d-cmd-oriented-combinations (pipeline-store draw-data)
+(defmethod rm-standard-3d-cmd-oriented-combinations (pipeline-store draw-data display)
   (declare (type pipeline-store-mixin pipeline-store))
   (declare (type retained-mode-draw-data draw-data))
   
-  (list (pipeline-store-3d-triangle-list-with-normals-pipeline pipeline-store)
+  (list (or (pipeline-store-3d-triangle-list-with-normals-pipeline pipeline-store)
+	    (setf (pipeline-store-3d-triangle-list-with-normals-pipeline pipeline-store)
+		  (make-instance '3d-triangle-list-with-normals-pipeline
+				 :dpy display
+				 :name :3d-triangle-list-with-normals-pipeline
+				 :subpass 0)))
 	(draw-data-3d-triangle-list-with-normals-draw-list draw-data)
 
-	(pipeline-store-3d-triangle-strip-with-normals-pipeline pipeline-store)
+	(or (pipeline-store-3d-triangle-strip-with-normals-pipeline pipeline-store)
+	    (setf (pipeline-store-3d-triangle-strip-with-normals-pipeline pipeline-store)
+		  (make-instance '3d-triangle-strip-with-normals-pipeline
+				 :dpy display
+				 :name :3d-triangle-strip-with-normals-pipeline
+				 :subpass 0)))
 	(draw-data-3d-triangle-strip-with-normals-draw-list draw-data)
 
-	(pipeline-store-3d-triangle-list-pipeline pipeline-store)
+	(or (pipeline-store-3d-triangle-list-pipeline pipeline-store)
+	    (setf (pipeline-store-3d-triangle-list-pipeline pipeline-store)
+		  (make-instance '3d-triangle-list-pipeline
+				 :dpy display
+				 :name :3d-triangle-list-pipeline
+				 :subpass 0)))
 	(draw-data-3d-triangle-list-draw-list draw-data)
 
-	(pipeline-store-3d-triangle-strip-pipeline pipeline-store)
+	(or (pipeline-store-3d-triangle-strip-pipeline pipeline-store)
+	    (setf (pipeline-store-3d-triangle-strip-pipeline pipeline-store)
+		  (make-instance '3d-triangle-strip-pipeline
+				 :dpy display
+				 :name :3d-triangle-strip-pipeline
+				 :subpass 0)))		  
 	(draw-data-3d-triangle-strip-draw-list draw-data)
 
 	(or (pipeline-store-3d-instanced-tube-pipeline pipeline-store)
 	    (setf (pipeline-store-3d-instanced-tube-pipeline pipeline-store)
 		  (make-instance '3d-instanced-tube-pipeline
-				 :dpy (clui::window-display (main-window *app*))
+				 :dpy display
 				 :name :3d-instanced-tube-pipeline
 				 :subpass 0)))
 	(draw-data-3d-instanced-tube-draw-list draw-data)
 
-	(pipeline-store-3d-line-strip-pipeline pipeline-store)
+	(or (pipeline-store-3d-line-strip-pipeline pipeline-store)
+	    (setf (pipeline-store-3d-line-strip-pipeline pipeline-store)
+		  (make-instance '3d-line-strip-pipeline
+				 :dpy display
+				 :name :3d-line-strip-pipeline
+				 :subpass 0)))
 	(draw-data-3d-line-strip-draw-list draw-data)
 	
-	(pipeline-store-3d-line-list-pipeline pipeline-store)
+	(or (pipeline-store-3d-line-list-pipeline pipeline-store)
+	    (setf (pipeline-store-3d-line-list-pipeline pipeline-store)
+		  (make-instance '3d-line-list-pipeline
+				 :dpy display
+				 :name :3d-line-list-pipeline
+				 :subpass 0)))
 	(draw-data-3d-line-list-draw-list draw-data)
 
-	(pipeline-store-3d-point-list-pipeline pipeline-store)
+	(or (pipeline-store-3d-point-list-pipeline pipeline-store)
+	    (setf (pipeline-store-3d-point-list-pipeline pipeline-store)
+		  (make-instance '3d-point-list-pipeline
+				 :dpy display
+				 :name :3d-point-list-pipeline
+				 :subpass 0)))
 	(draw-data-3d-point-list-draw-list draw-data)))
 
 (defmethod 3d-draw-list-oriented-combinations ((pipeline-store pipeline-store-mixin)
-					       (draw-data retained-mode-draw-data))
-  (rm-standard-3d-draw-list-oriented-combinations pipeline-store draw-data))
+					       (draw-data retained-mode-draw-data) display)
+  (rm-standard-3d-draw-list-oriented-combinations pipeline-store draw-data display))
 
-(defun rm-standard-3d-draw-list-oriented-combinations (pipeline-store draw-data)
+(defun rm-standard-3d-draw-list-oriented-combinations (pipeline-store draw-data display)
   (declare (type pipeline-store-mixin pipeline-store))
   (declare (type retained-mode-draw-data draw-data))
 
   (let ((res ())
-	(point-pipeline (pipeline-store-3d-point-list-pipeline pipeline-store))
-	(line-pipeline (pipeline-store-3d-line-list-pipeline pipeline-store))
-	(triangle-pipeline (pipeline-store-3d-triangle-list-pipeline pipeline-store))
-	(normal-pipeline (pipeline-store-3d-triangle-list-with-normals-pipeline pipeline-store)))
+	(point-pipeline (or (pipeline-store-3d-point-list-pipeline pipeline-store)
+			    (setf (pipeline-store-3d-point-list-pipeline pipeline-store)
+				  (make-instance '3d-point-list-pipeline
+						 :dpy display
+						 :name :3d-point-list-pipeline
+						 :subpass 0))))
+	(line-pipeline (or (pipeline-store-3d-line-list-pipeline pipeline-store)
+			   (setf (pipeline-store-3d-line-list-pipeline pipeline-store)
+				 (make-instance '3d-line-list-pipeline
+						:dpy display
+						:name :3d-line-list-pipeline
+						:subpass 0))))
+	(triangle-pipeline (or (pipeline-store-3d-triangle-list-pipeline pipeline-store)
+			       (setf (pipeline-store-3d-triangle-list-pipeline pipeline-store)
+				     (make-instance '3d-triangle-list-pipeline
+						    :dpy display
+						    :name :3d-triangle-list-pipeline
+						    :subpass 0))))
+	(normal-pipeline (or (pipeline-store-3d-triangle-list-with-normals-pipeline pipeline-store)
+			     (setf (pipeline-store-3d-triangle-list-with-normals-pipeline pipeline-store)
+				   (make-instance '3d-triangle-list-with-normals-pipeline
+						  :dpy display
+						  :name :3d-triangle-list-with-normals-pipeline
+						  :subpass 0)))))
 
     (maphash #'(lambda (k v)
 		 (declare (ignore k))
@@ -75,10 +130,10 @@
 	     (draw-data-3d-triangle-list-with-normals-draw-list-table draw-data))
     res))	
 
-(defmethod 2d-cmd-oriented-combinations ((pipeline-store pipeline-store-mixin) (draw-data retained-mode-draw-data))
-  (rm-standard-2d-cmd-oriented-combinations pipeline-store draw-data))
+(defmethod 2d-cmd-oriented-combinations ((pipeline-store pipeline-store-mixin) (draw-data retained-mode-draw-data) display)
+  (rm-standard-2d-cmd-oriented-combinations pipeline-store draw-data display))
 
-(defun rm-standard-2d-cmd-oriented-combinations (pipeline-store draw-data)
+(defun rm-standard-2d-cmd-oriented-combinations (pipeline-store draw-data display)
   (declare (type pipeline-store-mixin pipeline-store))
   (declare (type retained-mode-draw-data draw-data))
 
@@ -90,39 +145,85 @@
 
   ;; the last listed is the last thing drawn in render operations
   
-  (list (pipeline-store-2d-triangle-list-pipeline pipeline-store)
+  (list (or (pipeline-store-2d-triangle-list-pipeline pipeline-store)
+	    (setf (pipeline-store-2d-triangle-list-pipeline pipeline-store)
+		  (make-instance '2d-triangle-list-pipeline
+				 :dpy display
+				 :name :2d-triangle-list-pipeline
+				 :subpass 1)))
 	(draw-data-2d-triangle-list-draw-list draw-data)
 
-	(pipeline-store-2d-triangle-strip-pipeline pipeline-store)
+	(or (pipeline-store-2d-triangle-strip-pipeline pipeline-store)
+	    (setf (pipeline-store-2d-triangle-strip-pipeline pipeline-store)
+		  (make-instance '2d-triangle-strip-pipeline
+				 :dpy display
+				 :name :2d-triangle-strip-pipeline
+				 :subpass 1)))
 	(draw-data-2d-triangle-strip-draw-list draw-data)
 
-	(pipeline-store-2d-instanced-line-pipeline pipeline-store)
+	(or (pipeline-store-2d-instanced-line-pipeline pipeline-store)
+	    (setf (pipeline-store-2d-instanced-line-pipeline pipeline-store)
+		  (make-instance '2d-instanced-line-pipeline
+				 :dpy display
+				 :name :2d-instanced-line-pipeline
+				 :subpass 1)))				 
 	(draw-data-2d-instanced-line-draw-list draw-data)
 
-	(pipeline-store-2d-line-strip-pipeline pipeline-store)
+	(or (pipeline-store-2d-line-strip-pipeline pipeline-store)
+	    (setf (pipeline-store-2d-line-strip-pipeline pipeline-store)
+		  (make-instance '2d-line-strip-pipeline
+				 :dpy display
+				 :name :2d-line-strip-pipeline
+				 :subpass 1)))
 	(draw-data-2d-line-strip-draw-list draw-data)
 
-	(pipeline-store-2d-line-list-pipeline pipeline-store)
+	(or (pipeline-store-2d-line-list-pipeline pipeline-store)
+	    (setf (pipeline-store-2d-line-list-pipeline pipeline-store)
+		  (make-instance '2d-line-list-pipeline
+				 :dpy display
+				 :name :2d-line-list-pipeline
+				 :subpass 1)))				 
 	(draw-data-2d-line-list-draw-list draw-data)
 
-	(pipeline-store-2d-point-list-pipeline pipeline-store)
+	(or (pipeline-store-2d-point-list-pipeline pipeline-store)
+	    (setf (pipeline-store-2d-point-list-pipeline pipeline-store)
+		  (make-instance '2d-point-list-pipeline
+				 :dpy display
+				 :name :2d-point-list-pipeline
+				 :subpass 1)))
 	(draw-data-2d-point-list-draw-list draw-data)
 
 	#+NOMORE(pipeline-store-msdf-text-pipeline pipeline-store)
 	#+NOMORE(draw-data-2d-triangle-list-draw-list-for-text draw-data)))
 
-(defmethod 2d-draw-list-oriented-combinations ((pipeline-store pipeline-store-mixin)
-					       (draw-data retained-mode-draw-data))
-  (rm-standard-2d-draw-list-oriented-combinations pipeline-store draw-data))
 
-(defun rm-standard-2d-draw-list-oriented-combinations (pipeline-store draw-data)
+(defmethod 2d-draw-list-oriented-combinations ((pipeline-store pipeline-store-mixin)
+					       (draw-data retained-mode-draw-data) display)
+  (rm-standard-2d-draw-list-oriented-combinations pipeline-store draw-data display))
+
+(defun rm-standard-2d-draw-list-oriented-combinations (pipeline-store draw-data display)
   (declare (type pipeline-store-mixin pipeline-store))
   (declare (type retained-mode-draw-data draw-data))
   
   (let ((res ())
-	(point-pipeline (pipeline-store-2d-point-list-pipeline pipeline-store))
-	(line-pipeline (pipeline-store-2d-line-list-pipeline pipeline-store))
-	(triangle-pipeline (pipeline-store-2d-triangle-list-pipeline pipeline-store))
+	(point-pipeline (or (pipeline-store-2d-point-list-pipeline pipeline-store)
+			    (setf (pipeline-store-2d-point-list-pipeline pipeline-store)
+				  (make-instance '2d-point-list-pipeline
+						 :dpy display
+						 :name :2d-point-list-pipeline
+						 :subpass 1))))
+	(line-pipeline (or (pipeline-store-2d-line-list-pipeline pipeline-store)
+			   (setf (pipeline-store-2d-line-list-pipeline pipeline-store)
+				 (make-instance '2d-line-list-pipeline
+						:dpy display
+						:name :2d-line-list-pipeline
+						:subpass 1))))
+	(triangle-pipeline (or (pipeline-store-2d-triangle-list-pipeline pipeline-store)
+			       (setf (pipeline-store-2d-triangle-list-pipeline pipeline-store)
+				     (make-instance '2d-triangle-list-pipeline
+						    :dpy display
+						    :name :2d-triangle-list-pipeline
+						    :subpass 1))))
 	#+NOMORE
 	(text-pipeline (pipeline-store-msdf-text-pipeline pipeline-store)))
 
@@ -162,17 +263,32 @@
     
     res))
 
-(defmethod 3d-cmd-oriented-combinations ((pipeline-store pipeline-store-mixin) (draw-data immediate-mode-draw-data))
-  (im-standard-3d-cmd-oriented-combinations pipeline-store draw-data))
+(defmethod 3d-cmd-oriented-combinations ((pipeline-store pipeline-store-mixin) (draw-data immediate-mode-draw-data) display)
+  (im-standard-3d-cmd-oriented-combinations pipeline-store draw-data display))
 
-(defun im-standard-3d-cmd-oriented-combinations (pipeline-store draw-data)
+(defun im-standard-3d-cmd-oriented-combinations (pipeline-store draw-data display)
   (declare (type pipeline-store-mixin pipeline-store))
   (declare (type immediate-mode-draw-data draw-data))
 
   (let ((res ())
-	(point-pipeline (pipeline-store-3d-point-list-pipeline pipeline-store))
-	(line-pipeline (pipeline-store-3d-line-list-pipeline pipeline-store))
-	(triangle-pipeline (pipeline-store-3d-triangle-list-pipeline pipeline-store)))
+	(point-pipeline (or (pipeline-store-3d-point-list-pipeline pipeline-store)
+			    (setf (pipeline-store-3d-point-list-pipeline pipeline-store)
+				  (make-instance '3d-point-list-pipeline
+						 :dpy display
+						 :name :3d-point-list-pipeline
+						 :subpass 0))))
+	(line-pipeline (or (pipeline-store-3d-line-list-pipeline pipeline-store)
+			   (setf (pipeline-store-3d-line-list-pipeline pipeline-store)
+				 (make-instance '3d-line-list-pipeline
+						:dpy display
+						:name :3d-line-list-pipeline
+						:subpass 0))))
+	(triangle-pipeline (or (pipeline-store-3d-triangle-list-pipeline pipeline-store)
+			       (setf (pipeline-store-3d-triangle-list-pipeline pipeline-store)
+				     (make-instance '3d-triangle-list-pipeline
+						    :dpy display
+						    :name :3d-triangle-list-pipeline
+						    :subpass 0)))))
 
     (maphash #'(lambda (k v)
 		 (declare (ignore k))
@@ -193,28 +309,66 @@
 	     (draw-data-3d-triangle-list-draw-list-table draw-data))
 
     (push (draw-data-3d-line-strip-draw-list draw-data) res)
-    (push (pipeline-store-3d-line-strip-pipeline pipeline-store) res)
+    (push (or (pipeline-store-3d-line-strip-pipeline pipeline-store)
+	      (setf (pipeline-store-3d-line-strip-pipeline pipeline-store)
+		    (make-instance '3d-line-strip-pipeline
+				   :dpy display
+				   :name :3d-line-strip-pipeline
+				   :subpass 0)))
+	  res)
 
     (push (draw-data-3d-triangle-strip-draw-list draw-data) res)
-    (push (pipeline-store-3d-triangle-strip-pipeline pipeline-store) res)
+    (push (or (pipeline-store-3d-triangle-strip-pipeline pipeline-store)
+	      (setf (pipeline-store-3d-triangle-strip-pipeline pipeline-store)
+		    (make-instance '3d-triangle-strip-pipeline
+				   :dpy display
+				   :name :3d-triangle-strip-pipeline
+				   :subpass 0)))
+	  res)
 
     (push (draw-data-3d-triangle-strip-with-normals-draw-list draw-data) res)
-    (push (pipeline-store-3d-triangle-strip-with-normals-pipeline pipeline-store) res)
+    (push (or (pipeline-store-3d-triangle-strip-with-normals-pipeline pipeline-store)
+	      (setf (pipeline-store-3d-triangle-strip-with-normals-pipeline pipeline-store)
+		    (make-instance '3d-triangle-strip-with-normals-pipeline
+				   :dpy display
+				   :name :3d-triangle-strip-with-normals-pipeline
+				   :subpass 0)))
+	  res)
 
     res))
 
-(defmethod 3d-draw-list-oriented-combinations ((pipeline-store pipeline-store-mixin) (draw-data immediate-mode-draw-data))
-  (im-standard-3d-draw-list-oriented-combinations pipeline-store draw-data))
+(defmethod 3d-draw-list-oriented-combinations ((pipeline-store pipeline-store-mixin) (draw-data immediate-mode-draw-data) display)
+  (im-standard-3d-draw-list-oriented-combinations pipeline-store draw-data display))
 
-(defun im-standard-3d-draw-list-oriented-combinations (pipeline-store draw-data)
+(defun im-standard-3d-draw-list-oriented-combinations (pipeline-store draw-data display)
   (declare (type pipeline-store-mixin pipeline-store))
   (declare (type immediate-mode-draw-data draw-data))
   
   (let ((res ())
-	(point-pipeline (pipeline-store-3d-point-list-pipeline pipeline-store))
-	(line-pipeline (pipeline-store-3d-line-list-pipeline pipeline-store))
-	(triangle-pipeline (pipeline-store-3d-triangle-list-pipeline pipeline-store))
-	(normal-pipeline (pipeline-store-3d-triangle-list-with-normals-pipeline pipeline-store)))
+	(point-pipeline (or (pipeline-store-3d-point-list-pipeline pipeline-store)
+			    (setf (pipeline-store-3d-point-list-pipeline pipeline-store)
+				  (make-instance '3d-point-list-pipeline
+						 :dpy display
+						 :name :3d-point-list-pipeline
+						 :subpass 0))))
+	(line-pipeline (or (pipeline-store-3d-line-list-pipeline pipeline-store)
+			   (setf (pipeline-store-3d-line-list-pipeline pipeline-store)
+				 (make-instance '3d-line-list-pipeline
+						:dpy display
+						:name :3d-line-list-pipeline
+						:subpass 0))))
+	(triangle-pipeline (or (pipeline-store-3d-triangle-list-pipeline pipeline-store)
+			       (setf (pipeline-store-3d-triangle-list-pipeline pipeline-store)
+				     (make-instance '3d-triangle-list-pipeline
+						    :dpy display
+						    :name :3d-triangle-list-pipeline
+						    :subpass 0))))
+	(normal-pipeline (or (pipeline-store-3d-triangle-list-with-normals-pipeline pipeline-store)
+			     (setf (pipeline-store-3d-triangle-list-with-normals-pipeline pipeline-store)
+				   (make-instance '3d-triangle-list-with-normals-pipeline
+						  :dpy display
+						  :name :3d-triangle-list-with-normals-pipeline
+						  :subpass 0)))))
 
     (maphash #'(lambda (k v)
 		 (declare (ignore k))
@@ -242,17 +396,32 @@
 
     res))
 
-(defmethod 2d-cmd-oriented-combinations ((pipeline-store pipeline-store-mixin) (draw-data immediate-mode-draw-data))
-  (im-standard-2d-cmd-oriented-combinations pipeline-store draw-data))
+(defmethod 2d-cmd-oriented-combinations ((pipeline-store pipeline-store-mixin) (draw-data immediate-mode-draw-data) display)
+  (im-standard-2d-cmd-oriented-combinations pipeline-store draw-data display))
 
-(defun im-standard-2d-cmd-oriented-combinations (pipeline-store draw-data)
+(defun im-standard-2d-cmd-oriented-combinations (pipeline-store draw-data display)
   (declare (type pipeline-store-mixin pipeline-store))
   (declare (type immediate-mode-draw-data draw-data))
 
   (let ((res ())
-	(point-pipeline (pipeline-store-2d-point-list-pipeline pipeline-store))
-	(line-pipeline (pipeline-store-2d-line-list-pipeline pipeline-store))
-	(triangle-pipeline (pipeline-store-2d-triangle-list-pipeline pipeline-store))
+	(point-pipeline (or (pipeline-store-2d-point-list-pipeline pipeline-store)
+			    (setf (pipeline-store-2d-point-list-pipeline pipeline-store)
+				  (make-instance '2d-point-list-pipeline
+						 :dpy display
+						 :name :2d-point-list-pipeline
+						 :subpass 1))))
+	(line-pipeline (or (pipeline-store-2d-line-list-pipeline pipeline-store)
+			   (setf (pipeline-store-2d-line-list-pipeline pipeline-store)
+				 (make-instance '2d-line-list-pipeline
+						:dpy display
+						:name :2d-line-list-pipeline
+						:subpass 1))))
+	(triangle-pipeline (or (pipeline-store-2d-triangle-list-pipeline pipeline-store)
+			       (setf (pipeline-store-2d-triangle-list-pipeline pipeline-store)
+				     (make-instance '2d-triangle-list-pipeline
+						    :dpy display
+						    :name :2d-triangle-list-pipeline
+						    :subpass 1))))
 	#+NOMORE
 	(text-pipeline (pipeline-store-msdf-text-pipeline pipeline-store)))
 
@@ -274,7 +443,13 @@
 	     (draw-data-2d-point-list-draw-list-table draw-data))
 
     (push (draw-data-3d-line-strip-draw-list draw-data) res)
-    (push (pipeline-store-2d-line-strip-pipeline pipeline-store) res)
+    (push (or (pipeline-store-2d-line-strip-pipeline pipeline-store)
+	      (setf (pipeline-store-2d-line-strip-pipeline pipeline-store)
+		  (make-instance '2d-line-strip-pipeline
+				 :dpy display
+				 :name :2d-line-strip-pipeline
+				 :subpass 1)))
+	  res)
 
     (maphash #'(lambda (k v)
 		 (declare (ignore k))
@@ -283,7 +458,13 @@
 	     (draw-data-2d-line-list-draw-list-table draw-data))
 
     (push (draw-data-2d-triangle-strip-draw-list draw-data) res)
-    (push (pipeline-store-2d-triangle-strip-pipeline pipeline-store) res)    
+    (push (or (pipeline-store-2d-triangle-strip-pipeline pipeline-store)
+	      (setf (pipeline-store-2d-triangle-strip-pipeline pipeline-store)
+		    (make-instance '2d-triangle-strip-pipeline
+				   :dpy display
+				   :name :2d-triangle-strip-pipeline
+				   :subpass 1)))
+	  res)	  
     
     (maphash #'(lambda (k v)
 		 (declare (ignore k))
@@ -292,17 +473,32 @@
 	     (draw-data-2d-triangle-list-draw-list-table draw-data))    
     res))
 
-(defmethod 2d-draw-list-oriented-combinations ((pipeline-store pipeline-store-mixin) (draw-data immediate-mode-draw-data))
-  (im-standard-2d-draw-list-oriented-combinations pipeline-store draw-data))
+(defmethod 2d-draw-list-oriented-combinations ((pipeline-store pipeline-store-mixin) (draw-data immediate-mode-draw-data) display)
+  (im-standard-2d-draw-list-oriented-combinations pipeline-store draw-data display))
 
-(defun im-standard-2d-draw-list-oriented-combinations  (pipeline-store draw-data)
+(defun im-standard-2d-draw-list-oriented-combinations  (pipeline-store draw-data display)
   (declare (type pipeline-store-mixin pipeline-store))
   (declare (type immediate-mode-draw-data draw-data))
   
   (let ((res ())
-	(point-pipeline (pipeline-store-2d-point-list-pipeline pipeline-store))
-	(line-pipeline (pipeline-store-2d-line-list-pipeline pipeline-store))
-	(triangle-pipeline (pipeline-store-2d-triangle-list-pipeline pipeline-store))
+	(point-pipeline (or (pipeline-store-2d-point-list-pipeline pipeline-store)
+			    (setf (pipeline-store-2d-point-list-pipeline pipeline-store)
+				  (make-instance '2d-point-list-pipeline
+						 :dpy display
+						 :name :2d-point-list-pipeline
+						 :subpass 1))))
+	(line-pipeline (or (pipeline-store-2d-line-list-pipeline pipeline-store)
+			   (setf (pipeline-store-2d-line-list-pipeline pipeline-store)
+				 (make-instance '2d-line-list-pipeline
+						:dpy display
+						:name :2d-line-list-pipeline
+						:subpass 1))))
+	(triangle-pipeline (or (pipeline-store-2d-triangle-list-pipeline pipeline-store)
+			       (setf (pipeline-store-2d-triangle-list-pipeline pipeline-store)
+				     (make-instance '2d-triangle-list-pipeline
+						    :dpy display
+						    :name :2d-triangle-list-pipeline
+						    :subpass 1))))
 	#+NOMORE
 	(text-pipeline (pipeline-store-msdf-text-pipeline pipeline-store)))
 

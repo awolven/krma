@@ -904,11 +904,12 @@
 
 ;;------
 
-(defun ubershader-render-draw-list-cmds (pipeline draw-data draw-list dpy device command-buffer scene view proj x y width height near far)
+(defun ubershader-render-draw-list-cmds (pipeline draw-data draw-list dpy device command-buffer scene window view proj x y width height near far)
   
   (declare (type draw-indexed-pipeline-mixin pipeline))
   (declare (type draw-list-mixin draw-list))
   (declare (type standard-draw-data draw-data))
+  (declare (ignorable device))
 
   (let ((index-array (draw-list-index-array draw-list)))
     (declare (type foreign-adjustable-array index-array))
@@ -931,7 +932,7 @@
 	    ;; apparently, updating uniform buffers have no effect if done before cmd-bind-pipeline
 	    (update-vertex-uniform-buffer pipeline view proj width height near far)
 
-	    (update-fragment-uniform-buffer pipeline scene)
+	    (update-fragment-uniform-buffer pipeline scene window (car (current-frame-cons dpy)))
 
 	    (cmd-set-viewport command-buffer :x x :y y :width width :height height
 					     :min-depth 0.0 :max-depth 1.0)
@@ -947,7 +948,7 @@
                                        0 +nullptr+))
 	    
             (with-foreign-objects ((p-descriptor-sets :pointer 1))
-	      (setf (mem-aref p-descriptor-sets :pointer 0) (h (aref (krma-select-boxes-descriptor-sets dpy) (car (current-frame-cons dpy)))))
+	      (setf (mem-aref p-descriptor-sets :pointer 0) (h (aref (krma-select-boxes-descriptor-sets window) (car (current-frame-cons dpy)))))
               (vkCmdBindDescriptorSets (h command-buffer)
                                        VK_PIPELINE_BIND_POINT_GRAPHICS
                                        (h pipeline-layout)
@@ -1076,12 +1077,11 @@
 				 (if px-range
 				     (setf (mem-aref pvalues2 :float +text-fragment-shader-px-range-offset+) (clampf px-range))
 				     (setf (mem-aref pvalues2 :float +text-fragment-shader-px-range-offset+) 32.0f0))))))
-			 
-			 (let ((select-box-coords (krma-select-box-coords dpy)))
-			   (setf (mem-aref pvalues2 :float +fragment-shader-select-box-min-offset+) (clampf (vx select-box-coords))
-				 (mem-aref pvalues2 :float (1+ +fragment-shader-select-box-min-offset+)) (clampf (vy select-box-coords))
-				 (mem-aref pvalues2 :float +fragment-shader-select-box-max-offset+) (clampf (vz select-box-coords))
-				 (mem-aref pvalues2 :float (1+ +fragment-shader-select-box-max-offset+)) (clampf (vw select-box-coords))))
+
+			 (setf (mem-aref pvalues2 :float +fragment-shader-select-box-min-offset+) (clampf (krma-select-box-x0 window))
+			       (mem-aref pvalues2 :float (1+ +fragment-shader-select-box-min-offset+)) (clampf (krma-select-box-y0 window))
+			       (mem-aref pvalues2 :float +fragment-shader-select-box-max-offset+) (clampf (krma-select-box-x1 window))
+			       (mem-aref pvalues2 :float (1+ +fragment-shader-select-box-max-offset+)) (clampf (krma-select-box-y1 window)))
 
 			 (when (typep pipeline '3d-texture-with-normals-pipeline-mixin)
 			   (let* ((cmd-material (cmd-material cmd))
@@ -1128,17 +1128,18 @@
               t)))))))
 
 (defmethod render-draw-list-cmds ((pipeline draw-indexed-pipeline-mixin) draw-data draw-list
-				  dpy device command-buffer scene view proj viewport near far)
+				  dpy device command-buffer scene window view proj viewport near far)
 
-  (ubershader-render-draw-list-cmds pipeline draw-data draw-list dpy device command-buffer scene view proj
+  (ubershader-render-draw-list-cmds pipeline draw-data draw-list dpy device command-buffer scene window view proj
 				    (viewport-x viewport) (viewport-y viewport)
 				    (viewport-width viewport) (viewport-height viewport) near far))
 
-(defun ubershader-render-draw-list (pipeline draw-data draw-list dpy device command-buffer scene view proj x y width height near far)
+(defun ubershader-render-draw-list (pipeline draw-data draw-list dpy device command-buffer scene window view proj x y width height near far)
   
   (declare (type draw-indexed-pipeline-mixin))
   (declare (type draw-list-mixin draw-list))
   (declare (ignore draw-data))
+  (declare (ignorable device))
 
   (let ((index-array (draw-list-index-array draw-list)))
     (declare (type foreign-adjustable-array index-array))
@@ -1158,7 +1159,7 @@
 
 	(update-vertex-uniform-buffer pipeline view proj width height near far)
 
-	(update-fragment-uniform-buffer pipeline scene)
+	(update-fragment-uniform-buffer pipeline scene window (car (current-frame-cons dpy)))
 
 	(cmd-set-viewport command-buffer :x x :y y :width width :height height
 					 :min-depth 0.0 :max-depth 1.0)
@@ -1175,7 +1176,7 @@
                                    0 +nullptr+))
 
 	(with-foreign-objects ((p-descriptor-sets :pointer 1))
-          (setf (mem-aref p-descriptor-sets :pointer 0) (h (aref (krma-select-boxes-descriptor-sets dpy) (car (current-frame-cons dpy)))))
+          (setf (mem-aref p-descriptor-sets :pointer 0) (h (aref (krma-select-boxes-descriptor-sets window) (car (current-frame-cons dpy)))))
           (vkCmdBindDescriptorSets (h command-buffer)
                                    VK_PIPELINE_BIND_POINT_GRAPHICS
                                    (h pipeline-layout)
@@ -1270,12 +1271,12 @@
 		  (if px-range
 		      (setf (mem-aref pvalues2 :float +text-fragment-shader-px-range-offset+) (clampf px-range))
 		      (setf (mem-aref pvalues2 :float +text-fragment-shader-px-range-offset+) 32.0f0)))))
+
+	    (setf (mem-aref pvalues2 :float +fragment-shader-select-box-min-offset+) (clampf (krma-select-box-x0 window))
+		  (mem-aref pvalues2 :float (1+ +fragment-shader-select-box-min-offset+)) (clampf (krma-select-box-y0 window))
+		  (mem-aref pvalues2 :float +fragment-shader-select-box-max-offset+) (clampf (krma-select-box-x1 window))
+		  (mem-aref pvalues2 :float (1+ +fragment-shader-select-box-max-offset+)) (clampf (krma-select-box-y1 window)))
 	    
-	    (let ((select-box-coords (krma-select-box-coords dpy)))
-	      (setf (mem-aref pvalues2 :float +fragment-shader-select-box-min-offset+) (clampf (vx select-box-coords))
-		    (mem-aref pvalues2 :float (1+ +fragment-shader-select-box-min-offset+)) (clampf (vy select-box-coords))
-		    (mem-aref pvalues2 :float +fragment-shader-select-box-max-offset+) (clampf (vz select-box-coords))
-		    (mem-aref pvalues2 :float (1+ +fragment-shader-select-box-max-offset+)) (clampf (vw select-box-coords))))
 
 	    (when (typep pipeline '3d-texture-with-normals-pipeline-mixin)
 	      (let* ((material (if group (group-material group) (make-material "default")))
@@ -1308,8 +1309,8 @@
 			    (foreign-array-fill-pointer index-array)
 			    1 0 0 0))))))
 
-(defmethod render-draw-list ((pipeline draw-indexed-pipeline-mixin) draw-data draw-list dpy device command-buffer scene view proj viewport near far)
-  (ubershader-render-draw-list pipeline draw-data draw-list dpy device command-buffer scene view proj
+(defmethod render-draw-list ((pipeline draw-indexed-pipeline-mixin) draw-data draw-list dpy device command-buffer scene window view proj viewport near far)
+  (ubershader-render-draw-list pipeline draw-data draw-list dpy device command-buffer scene window view proj
 			       (viewport-x viewport) (viewport-y viewport)
 			       (viewport-width viewport) (viewport-height viewport) near far))
 
@@ -1351,42 +1352,5 @@
 	
       (values))))
 
-(defun read-select-boxes (dpy frame-to-read)
-  (let* ((coords (krma-select-box-coords dpy))
-	 (cols (floor (- (vz coords) (vx coords))))
-	 (rows (floor (- (vw coords) (vy coords)))))
-    
-    (when (aref (krma-select-box-2d-memory-resources dpy) frame-to-read)
-    
-      (let* ((size (* cols rows +select-box-2d-depth+))
-	     (size-in-bytes (* size (foreign-type-size :unsigned-int)))
-	     (aligned-size (aligned-size size-in-bytes)))
 
-	(read-buffer (vk::memory-resource-buffer
-		      (aref (krma-select-box-2d-memory-resources dpy) frame-to-read))
-		     (array-displacement (krma-select-box-2d dpy)) size-in-bytes
-		     (aref (krma-select-box-2d-memory-resources dpy) frame-to-read)
-		     aligned-size)
-      
-	(clear-buffer (vk::memory-resource-buffer
-		       (aref (krma-select-box-2d-memory-resources dpy) frame-to-read))
-		      0 aligned-size
-		      (aref (krma-select-box-2d-memory-resources dpy) frame-to-read))))
-
-    (when (aref (krma-select-box-3d-memory-resources dpy) frame-to-read)
-
-      (let* ((size (* cols rows +select-box-3d-depth+))
-	     (size-in-bytes (* size (foreign-type-size :unsigned-int)))
-	     (aligned-size (aligned-size size-in-bytes)))
-	
-	(read-buffer (vk::memory-resource-buffer
-		      (aref (krma-select-box-3d-memory-resources dpy) frame-to-read))
-		     (array-displacement (krma-select-box-3d dpy)) size-in-bytes
-		     (aref (krma-select-box-3d-memory-resources dpy) frame-to-read)
-		     aligned-size)
-
-	(clear-buffer (vk::memory-resource-buffer
-		       (aref (krma-select-box-3d-memory-resources dpy) frame-to-read))
-		      0 aligned-size
-		      (aref (krma-select-box-3d-memory-resources dpy) frame-to-read))))))
       

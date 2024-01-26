@@ -72,10 +72,14 @@
   (lights (:array (:struct light) 10))
   (num-lights :unsigned-int)
   (scene-ambient :unsigned-int)
-  (padding1 :unsigned-int)
-  (padding2 :unsigned-int))
+  (bucket-capacity :unsigned-int)
+  (table-capacity :unsigned-int)
+  (bucket-pointer :uint64)
+  (table-pointer :uint64)
+  (bucket-counter :uint64))
+  
 
-(defun update-fragment-uniform-buffer (pipeline scene)
+(defun update-fragment-uniform-buffer (pipeline scene window current-frame)
   (let ((lights (scene-lights scene)))
     (with-foreign-object (p-stage '(:struct fragment-uniform-buffer))
       (let ((p-lights (foreign-slot-pointer p-stage '(:struct fragment-uniform-buffer) 'lights)))
@@ -112,6 +116,17 @@
 	       finally (setf (foreign-slot-value p-stage '(:struct fragment-uniform-buffer) 'num-lights) i)
 		       (setf (foreign-slot-value p-stage '(:struct fragment-uniform-buffer) 'scene-ambient) (canonicalize-color
 													     (scene-ambient scene)))
+	     (setf (foreign-slot-value p-stage '(:struct fragment-uniform-buffer) 'bucket-capacity) 1024)
+	     (setf (foreign-slot-value p-stage '(:struct fragment-uniform-buffer) 'table-capacity) 1024)
+	     (setf (foreign-slot-value p-stage '(:struct fragment-uniform-buffer) 'bucket-pointer)
+		   (aref (krma-selection-set-buckets-pointers window) current-frame))
+	     (setf (foreign-slot-value p-stage '(:struct fragment-uniform-buffer) 'table-pointer)
+		   (aref (krma-selection-set-table-pointers window) current-frame))
+	     (setf (foreign-slot-value p-stage '(:struct fragment-uniform-buffer) 'bucket-counter)
+		   (aref (krma-selection-set-counter-pointers window) current-frame))
+	     
+			     
+	     
 		       (copy-uniform-buffer-memory (default-logical-device pipeline)
 						   p-stage
 						   (allocated-memory (pipeline-fragment-uniform-buffer pipeline))
@@ -161,14 +176,14 @@
 
 
 (defmethod render-scene ((scene krma-essential-scene-mixin)
-			 viewport dpy command-buffer rm-draw-data im-draw-data)
-  (render-3d-scene scene viewport dpy command-buffer rm-draw-data im-draw-data)
+			 window viewport dpy command-buffer rm-draw-data im-draw-data)
+  (render-3d-scene scene window viewport dpy command-buffer rm-draw-data im-draw-data)
   (vkCmdNextSubpass (h command-buffer) VK_SUBPASS_CONTENTS_INLINE)
-  (render-2d-scene scene viewport dpy command-buffer rm-draw-data im-draw-data)
+  (render-2d-scene scene window viewport dpy command-buffer rm-draw-data im-draw-data)
   (values))
 
 (defmethod render-2d-scene ((scene krma-essential-scene-mixin)
-			    viewport dpy command-buffer rm-draw-data im-draw-data)
+			    window viewport dpy command-buffer rm-draw-data im-draw-data)
   "The default method to render krma scenes.  You can define your own methods for your own scene classes and call-next-method if you like."
 
   ;; todo: think about having separate clos objects for 3d-scene and 2d-scene
@@ -184,30 +199,34 @@
 	(loop for (p dl) on (2d-cmd-oriented-combinations pipeline-store rm-draw-data) by #'cddr
 	      do (render-draw-list-cmds p rm-draw-data dl dpy device command-buffer
 					scene
+					window
 					2d-camera-view-matrix 2d-camera-projection-matrix
 					viewport 0.0f0 +select-box-2d-depth+))
 
 	(loop for (p dl) on (2d-draw-list-oriented-combinations pipeline-store rm-draw-data) by #'cddr
 	      do (render-draw-list p rm-draw-data dl dpy device command-buffer
 				   scene
+				   window
 				   2d-camera-view-matrix 2d-camera-projection-matrix
 				   viewport  0.0f0 +select-box-2d-depth+))
 
 	(loop for (p dl) on (2d-cmd-oriented-combinations pipeline-store im-draw-data) by #'cddr
 	      do (render-draw-list-cmds p im-draw-data dl dpy device command-buffer
 					scene
+					window
 					2d-camera-view-matrix 2d-camera-projection-matrix
 					viewport 0.0f0 +select-box-2d-depth+))
 
 	(loop for (p dl) on (2d-draw-list-oriented-combinations pipeline-store im-draw-data) by #'cddr
 	      do (render-draw-list p im-draw-data dl dpy device command-buffer
 				   scene
+				   window
 				   2d-camera-view-matrix 2d-camera-projection-matrix
 				   viewport 0.0f0 +select-box-2d-depth+))
 	(values)))))
 
 (defmethod render-3d-scene ((scene krma-essential-scene-mixin)
-			    viewport dpy command-buffer rm-draw-data im-draw-data)
+			    window viewport dpy command-buffer rm-draw-data im-draw-data)
   "The default method to render krma scenes.  You can define your own methods for your own scene classes and call-next-method if you like."
 
   ;; todo: think about having separate clos objects for 3d-scene and 2d-scene
@@ -225,27 +244,31 @@
 	;;(print 2d-camera-projection-matrix)
 	;;(print 2d-camera-view-matrix)
 
-	(loop for (p dl) on (3d-draw-list-oriented-combinations pipeline-store rm-draw-data) by #'cddr
+	(loop for (p dl) on (3d-draw-list-oriented-combinations pipeline-store rm-draw-data dpy) by #'cddr
 	      do (render-draw-list p rm-draw-data dl dpy device command-buffer
 				   scene
+				   window
 				   3d-camera-view-matrix 3d-camera-projection-matrix
 				   viewport near far))
 	
-	(loop for (p dl) on (3d-cmd-oriented-combinations pipeline-store rm-draw-data) by #'cddr
+	(loop for (p dl) on (3d-cmd-oriented-combinations pipeline-store rm-draw-data dpy) by #'cddr
 	      do (render-draw-list-cmds p rm-draw-data dl dpy device command-buffer
 					scene
+					window
 					3d-camera-view-matrix 3d-camera-projection-matrix
 					viewport near far))
 
-	(loop for (p dl) on (3d-draw-list-oriented-combinations pipeline-store im-draw-data) by #'cddr
+	(loop for (p dl) on (3d-draw-list-oriented-combinations pipeline-store im-draw-data dpy) by #'cddr
 	      do (render-draw-list p im-draw-data dl dpy device command-buffer
 				   scene
+				   window
 				   3d-camera-view-matrix 3d-camera-projection-matrix
 				   viewport near far))
 
-	(loop for (p dl) on (3d-cmd-oriented-combinations pipeline-store im-draw-data) by #'cddr
+	(loop for (p dl) on (3d-cmd-oriented-combinations pipeline-store im-draw-data dpy) by #'cddr
 	      do (render-draw-list-cmds p im-draw-data dl dpy device command-buffer
 					scene
+					window
 					3d-camera-view-matrix 3d-camera-projection-matrix
 					viewport near far))	
 

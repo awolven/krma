@@ -25,6 +25,7 @@
   ()
   (:documentation "An concrete class based on pipeline-store-mixin used in krma-test-frame-manager."))
 
+
 (defmethod initialize-instance :after ((instance pipeline-store-mixin) &rest initargs &key dpy)
   "Define your own method for initialize-instance for pipeline store to instantiate your own custom pipelines."
   (declare (ignore initargs))
@@ -194,7 +195,28 @@
 (defclass krma-window-mixin (window-frame-rate-mixin vk:vulkan-window-mixin)
   ((queue :accessor window-queue)
    (command-pool :accessor window-command-pool)
-   (viewports :accessor window-viewports)))
+   (viewports :accessor window-viewports)
+
+   (select-box-x0 :initform 0 :accessor krma-select-box-x0)
+   (select-box-y0 :initform 0 :accessor krma-select-box-y0)
+   (select-box-x1 :initform 1 :accessor krma-select-box-x1)
+   (select-box-y1 :initform 1 :accessor krma-select-box-y1)
+   (select-boxes-descriptor-sets :initform nil :accessor krma-select-boxes-descriptor-sets)
+   (select-box-2d-memory-resources :initform nil :accessor krma-select-box-2d-memory-resources)
+   (select-box-3d-memory-resources :initform nil :accessor krma-select-box-3d-memory-resources)
+   (last-select-box-width :initform 0 :accessor last-select-box-width)
+   (last-select-box-height :initform 0 :accessor last-select-box-height)
+   (select-box-size :initform -1 :accessor krma-select-box-size)
+   (select-box-2d :initform nil :accessor krma-select-box-2d)
+   (select-box-3d :initform nil :accessor krma-select-box-3d)
+
+   (selection-set-buckets :initform nil :accessor krma-selection-set-buckets)
+   (selection-set-buckets-pointers :initform nil :accessor krma-selection-set-buckets-pointers)
+   (selection-set-table-pointers :initform nil :accessor krma-selection-set-table-pointers)
+   (selection-set-counter-memory-resource :initform nil :accessor krma-selection-set-counter-memory-resource)
+   (selection-set-counter-pointers :initform nil :accessor krma-selection-set-counter-pointers)
+   (selection-set-buckets-memory-resources :initform nil :accessor krma-selection-set-buckets-memory-resources)
+   (selection-set-table-memory-resources :initform nil :accessor krma-selection-set-table-memory-resources)))
 
 ;; this is a callback which happens after the native platfrom window has been created but before events start to happen
 (defmethod clui::initialize-window-devices ((window vulkan-window-mixin) &rest args &key width height &allow-other-keys)
@@ -324,18 +346,10 @@
    (immediate-mode-work-function-1 :initform nil :accessor immediate-mode-work-function-1)
    (immediate-mode-work-function-2 :initform nil :accessor immediate-mode-work-function-2)
    (immediate-mode-work-function-3 :initform nil :accessor immediate-mode-work-function-3)
+   (immediate-mode-work-function-4 :initform nil :accessor immediate-mode-work-function-4)
    (backtrace :initform nil :accessor system-backtrace)
    (error-msg :initform nil :accessor system-error-msg)
-   (select-box-coords :initform (vec4 -1 -1 -1 -1) :accessor krma-select-box-coords)
-   (last-select-box-width :initform 0 :accessor last-select-box-width)
-   (last-select-box-height :initform 0 :accessor last-select-box-height)
-   (select-box-size :initform -1 :accessor krma-select-box-size)
    (select-boxes-descriptor-set-layout :initform nil :accessor krma-select-boxes-descriptor-set-layout)
-   (select-boxes-descriptor-sets :initform nil :accessor krma-select-boxes-descriptor-sets)
-   (select-box-2d-memory-resources :initform nil :accessor krma-select-box-2d-memory-resources)
-   (select-box-3d-memory-resources :initform nil :accessor krma-select-box-3d-memory-resources)
-   (select-box-2d :initform nil :accessor krma-select-box-2d)
-   (select-box-3d :initform nil :accessor krma-select-box-3d)
    (ubershader-per-instance-descriptor-set-layout :initform nil :accessor krma-ubershader-per-instance-descriptor-set-layout)
    (ubershader-per-instance-descriptor-set :initform nil :accessor krma-ubershader-per-instance-descriptor-set)
    (cc-semaphore :initform (bt:make-semaphore :name "compacting-complete" :count 1)
@@ -343,169 +357,41 @@
    (fic-semaphore :initform (bt:make-semaphore :name "frame-iteration-complete")
 		  :accessor frame-iteration-complete-semaphore)
    (font :initform nil :accessor default-system-font)
-   (stock-render-pass :initform nil :accessor display-stock-render-pass)
-   (hovered :initform () :accessor krma-hovered)
-   (hovered-3d :initform () :accessor krma-hovered-3d))
+   (stock-render-pass :initform nil :accessor display-stock-render-pass))
   (:default-initargs :enable-fragment-stores-and-atomics t))
 
 (defmethod shutdown-run-loop ((dpy krma-enabled-display-mixin))
   (vk::shutdown-display dpy)
   (values))
 
-(defun most-specifically-hovered-2d (2d-select-box x y)
-  (when 2d-select-box
-    (loop for i from (1- +select-box-2d-depth+) downto 0
-	  do (when (not (zerop (aref 2d-select-box x y i)))
-	       (return (aref 2d-select-box x y i)))
-	  finally (return nil))))
+(defun force-shader-reload-1 (pipeline-store)
+  (setf (pipeline-store-3d-triangle-list-with-normals-pipeline pipeline-store) nil)
+  (setf (pipeline-store-3d-triangle-strip-with-normals-pipeline pipeline-store) nil)
+  (setf (pipeline-store-3d-triangle-list-pipeline pipeline-store) nil)
+  (setf (pipeline-store-3d-triangle-strip-pipeline pipeline-store) nil)
+  (setf (pipeline-store-3d-instanced-tube-pipeline pipeline-store) nil)
+  (setf (pipeline-store-3d-line-strip-pipeline pipeline-store) nil)
+  (setf (pipeline-store-3d-line-list-pipeline pipeline-store) nil)
+  (setf (pipeline-store-3d-point-list-pipeline pipeline-store) nil)
+  (setf (pipeline-store-2d-triangle-list-pipeline pipeline-store) nil)
+  (setf (pipeline-store-2d-triangle-strip-pipeline pipeline-store) nil)
+  (setf (pipeline-store-2d-instanced-line-pipeline pipeline-store) nil)
+  (setf (pipeline-store-2d-line-strip-pipeline pipeline-store) nil)
+  (setf (pipeline-store-2d-line-list-pipeline pipeline-store) nil)
+  (setf (pipeline-store-2d-point-list-pipeline pipeline-store) nil)
+  t)
 
-#+NIL
-(defun object-from-id (id)
-  (declare (ignore id))
-  nil)
-
-(defun most-specifically-hovered-2d-object (2d-select-box x y)
-  (when 2d-select-box
-    (let ((hovered (most-specifically-hovered-2d 2d-select-box x y)))
-      (when hovered
-	(let ((object (object-from-id hovered)))
-	  object)))))
-
-(defun most-specifically-hovered-3d (3d-select-box x y)
-  (when 3d-select-box
-    (loop for i from 0 to (1- +select-box-3d-depth+)
-	  do (when (not (zerop (aref 3d-select-box x y i)))
-	       (return (aref 3d-select-box x y i)))
-	  finally (return nil))))
-
-(defun most-specifically-hovered-3d-object (3d-select-box x y)
-  (when 3d-select-box
-    (let ((hovered (most-specifically-hovered-3d 3d-select-box x y)))
-      (when hovered
-	(let ((object (object-from-id hovered)))
-	  object)))))
-
-(defun all-hovered-2d (2d-select-box x y)
-  (loop for i from 0 below +select-box-2d-depth+
-	with result = ()
-	unless (zerop (aref 2d-select-box x y i))
-	do (push (aref 2d-select-box x y i) result)
-	finally (return result)))
-
-(defun all-hovered-3d (3d-select-box x y)
-  (loop for i from 0 below +select-box-3d-depth+
-	with result = ()
-	unless (zerop (aref 3d-select-box x y i))
-	do (push (aref 3d-select-box x y i) result)
-     finally (return result)))
+(defun force-shader-reload (&optional (display (clui:default-display)))
+  (force-shader-reload-1 (krma-pipeline-store display)))
 
 
-(defun focused-hovered-2d (2d-select-box x y)
-  (first (remove-if #'(lambda (list)
-			(every #'zerop list))
-		    (loop for i from (1- +select-box-2d-depth+) downto (1- +view-depth+) by +view-depth+
-		       collect (loop for j from i downto 0 repeat +view-depth+
-				  unless (zerop (aref 2d-select-box x y j))
-				  collect (aref 2d-select-box x y j))))))
 
-#+NIL
-(defun focused-hovered-2d (2d-select-box x y)
-  (let ((i (loop for i from (1- +select-box-2d-depth+) downto 0
-	      when (and (zerop (mod (1+ i) +view-depth+))
-			(not (zerop (aref 2d-select-box x y i))))
-	      do (return i)
-	      finally (return 0))))
-    (loop for j from i
-       repeat +view-depth+
-       with result = ()
-       unless (zerop (aref 2d-select-box x y j))
-       do (push (aref 2d-select-box x y j) result)
-       finally (return (nreverse result)))))
+
+
+
   
 
-(defun monitor-select-boxes (dpy)
-  ;; note: could put this logic in pointer-motion-event on krma-window-mixin
-  (let* ((all-hovered (all-hovered-2d (krma-select-box-2d dpy) 0 0)))
-    
-    (flet ((exit-event (hovered)
-	     (let ((object (object-from-id hovered)))
-	       (when object
-		 (if (clui::window-p object)
-		     (multiple-value-bind (x y) (window-cursor-position object)
-		       (clim:handle-event object (make-instance 'pointer-exit-event
-								:window object
-								:timestamp (get-internal-real-time)
-								:x x :y y)))
-		     (clim:handle-event object (make-instance 'pointer-exit-event
-							      :window object
-							      :timestamp (get-internal-real-time)))))))
-	   (enter-event (hovered)
-	     (let ((object (object-from-id hovered)))
-	       (when object
-		 (if (clui::window-p object)
-		     (multiple-value-bind (x y) (window-cursor-position object)
-		       (clim:handle-event object (make-instance 'pointer-enter-event
-								:window object
-								:timestamp (get-internal-real-time)
-								:x x :y y)))
-		   (clim:handle-event object (make-instance 'pointer-enter-event
-							    :window object
-							    :timestamp (get-internal-real-time))))))))
 
-      ;;(print (krma-select-box-2d dpy))
-
-      (let ((difference (set-difference (krma-hovered dpy) all-hovered)))
-	;;(format t "~%0: ~S" difference)
-	(mapcar #'exit-event difference))
-
-      (let ((difference (set-difference all-hovered (krma-hovered dpy))))
-	;;(format t "~%1: ~S" difference)
-	(mapcar #'enter-event difference))
-
-      ;;(format t "~%2: ~S" all-hovered)
-      (setf (krma-hovered dpy) all-hovered)))
-
-  (unless (krma-hovered dpy)
-  
-    (let* ((all-hovered (list (most-specifically-hovered-3d (krma-select-box-3d dpy) 0 0))))
-      ;;(print all-hovered)
-      (flet ((exit-event (hovered)
-	       (let ((object (object-from-id hovered)))
-		 (when object
-		   (if (clui::window-p object)
-		       (multiple-value-bind (x y) (window-cursor-position object)
-			 (clim:handle-event object (make-instance 'pointer-exit-event
-							     :window object
-							     :timestamp (get-internal-real-time)
-							     :x x :y y)))
-		       (clim:handle-event object (make-instance 'pointer-exit-event
-							   :window object
-							   :timestamp (get-internal-real-time)))))))
-	     (enter-event (hovered)
-	       (let ((object (object-from-id hovered)))
-		 (when object
-		   (if (clui::window-p object)
-		       (multiple-value-bind (x y) (window-cursor-position object)
-			 (clim:handle-event object (make-instance 'pointer-enter-event
-							     :window object
-							     :timestamp (get-internal-real-time)
-							     :x x :y y)))
-		       (clim:handle-event object (make-instance 'pointer-enter-event
-							   :window object
-							   :timestamp (get-internal-real-time))))))))
-
-	;;(print (krma-select-box-2d dpy))
-
-	(let ((difference (set-difference (krma-hovered-3d dpy) all-hovered)))
-	  ;;(format t "~%0: ~S" difference)
-	  (mapcar #'exit-event difference))
-
-	(let ((difference (set-difference all-hovered (krma-hovered-3d dpy))))
-	  ;;(format t "~%1: ~S" difference)
-	  (mapcar #'enter-event difference))
-
-	;;(format t "~%2: ~S" all-hovered)
-	(setf (krma-hovered-3d dpy) all-hovered)))))
 	      
 
 (defun make-select-boxes-descriptor-set-layout-bindings (dpy)

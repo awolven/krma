@@ -58,121 +58,234 @@
 
 	(vkUnmapMemory (h device) (h memory))))))
 
-(defun compute-select-boxes-descriptor-set (dpy window frame-count current-frame)
-  (multiple-value-bind (mouse-x mouse-y) (window-cursor-position window)
-    (let* ((new-coords (vec4 (- mouse-x 1/2) (- mouse-y 1/2)
-			     (+ mouse-x 1/2) (+ mouse-y 1/2)))
-	   (width (round (- (vz new-coords) (vx new-coords)))) ;; should be 1.0 atm, in the future it might not be
-	   (height (round (- (vw new-coords) (vy new-coords)))) ;; should be 1.0 atm
-	   (new-2d-size (* width height +select-box-2d-depth+ (load-time-value (foreign-type-size :unsigned-int))))
-	   (new-3d-size (* width height +select-box-3d-depth+ (load-time-value (foreign-type-size :unsigned-int)))))
+(defun allocate-selection-set-tables (window frame-count current-frame)
+  (let ((display (clui:window-display window)))
+
+    (unless (krma-selection-set-buckets window)
+      (setf (krma-selection-set-buckets window) (make-array (* 32 1024) :element-type '(unsigned-byte 32))))
+    
+    (unless (krma-selection-set-buckets-pointers window)
+      (setf (krma-selection-set-buckets-pointers window) (make-array frame-count :initial-element nil)))
+
+    (unless (krma-selection-set-table-pointers window)
+      (setf (krma-selection-set-table-pointers window) (make-array frame-count :initial-element nil)))
+
+    (unless (krma-selection-set-counter-pointers window)
+      (setf (krma-selection-set-counter-pointers window) (make-array frame-count :initial-element nil)))
+
+    (unless (krma-selection-set-counter-memory-resource window)
+      ;; minimum aligned size for 8 bytes X num-frames
+      (setf (krma-selection-set-counter-memory-resource window) (vk::acquire-storage-memory-sized display 256 :host-visible)))
+
+    (unless (aref (krma-selection-set-counter-pointers window) current-frame)
+      (setf (aref (krma-selection-set-counter-pointers window) current-frame)
+	    (let ((mr (krma-selection-set-counter-memory-resource window)))
+	      (%vk::with-vkBufferDeviceAddressInfo (p-info)
+		(setf %vk::buffer (h (vk::memory-resource-buffer mr)))
+		(+ (* 8 current-frame)
+		   (vk::memory-resource-offset mr) (%vk::vkGetBufferDeviceAddress (h (default-logical-device display)) p-info))))))
+    
+    (unless (krma-selection-set-buckets-memory-resources window)
+      (setf (krma-selection-set-buckets-memory-resources window) (make-array frame-count :initial-element nil)))
+
+    (unless (aref (krma-selection-set-buckets-memory-resources window) current-frame)
+      (setf (aref (krma-selection-set-buckets-memory-resources window) current-frame)
+	    (vk::acquire-storage-memory-sized display (* 4 32 1024) :host-visible)))
+
+    (unless (aref (krma-selection-set-buckets-pointers window) current-frame)
+      (setf (aref (krma-selection-set-buckets-pointers window) current-frame)
+	    (let ((mr (aref (krma-selection-set-buckets-memory-resources window) current-frame)))
+	      (%vk::with-vkBufferDeviceAddressInfo (p-info)
+		(setf %vk::buffer (h (vk::memory-resource-buffer mr)))
+		(+ (vk::memory-resource-offset mr) (%vk::vkGetBufferDeviceAddress (h (default-logical-device display)) p-info))))))
+        
+    (unless (krma-selection-set-table-memory-resources window)
+      (setf (krma-selection-set-table-memory-resources window) (make-array frame-count :initial-element nil)))
+
+    (unless (aref (krma-selection-set-table-memory-resources window) current-frame)
+      (setf (aref (krma-selection-set-table-memory-resources window) current-frame)
+	    (vk::acquire-storage-memory-sized display (* 4 1024) :host-visible)))
+
+    (unless (aref (krma-selection-set-table-pointers window) current-frame)
+      (setf (aref (krma-selection-set-table-pointers window) current-frame)
+	    (let ((mr (aref (krma-selection-set-table-memory-resources window) current-frame)))
+	      (%vk::with-vkBufferDeviceAddressInfo (p-info)
+		(setf %vk::buffer (h (vk::memory-resource-buffer mr)))
+		(+ (vk::memory-resource-offset mr) (%vk::vkGetBufferDeviceAddress (h (default-logical-device display)) p-info))))))
+
+    (clear-buffer (vk::memory-resource-buffer
+		   (aref (krma-selection-set-buckets-memory-resources window) current-frame))
+		  0 (* 4 32 1024)
+		  (aref (krma-selection-set-buckets-memory-resources window) current-frame))
+
+    (clear-buffer (vk::memory-resource-buffer
+		   (aref (krma-selection-set-table-memory-resources window) current-frame))
+		  0 (* 4 1024)
+		  (aref (krma-selection-set-table-memory-resources window) current-frame))
+
+    (clear-buffer (vk::memory-resource-buffer
+		   (krma-selection-set-counter-memory-resource window))
+		  0 256
+		  (krma-selection-set-counter-memory-resource window))
+
+    (values)))
 
       
 
-      (when (or (/= width (last-select-box-width dpy))
-		(/= height (last-select-box-height dpy))
-		(not (krma-select-box-2d dpy))
-		(not (krma-select-box-3d dpy)))
+    
+    
+  
+
+
+(defun compute-select-boxes-descriptor-set (window frame-count current-frame)
+  (let* (#+NOMORE(width (abs (round (- (krma-select-box-x1 window) (krma-select-box-x0 window)))))
+	 #+NOMORE(height (abs (round (- (krma-select-box-y1 window) (krma-select-box-y0 window)))))
+	 (width 1)
+	 (height 1)
+	 (new-2d-size (* width height +select-box-2d-depth+ (load-time-value (foreign-type-size :unsigned-int))))
+	 (new-3d-size (* width height +select-box-3d-depth+ (load-time-value (foreign-type-size :unsigned-int))))
+	 (display (clui:window-display window)))
+
+    (when (or (/= width (last-select-box-width window))
+	      (/= height (last-select-box-height window))
+	      (not (krma-select-box-2d window))
+	      (not (krma-select-box-3d window)))
 	
-	(let ((2d-array (make-array (* width height +select-box-2d-depth+) :element-type '(unsigned-byte 32)))
-	      (3d-array (make-array (* width height +select-box-3d-depth+) :element-type '(unsigned-byte 32))))
+      (let ((2d-array (make-array (* width height +select-box-2d-depth+) :element-type '(unsigned-byte 32)))
+	    (3d-array (make-array (* width height +select-box-3d-depth+) :element-type '(unsigned-byte 32))))
 	  
-	  (setf (krma-select-box-2d dpy) (make-array (list width height +select-box-2d-depth+)
-						     :element-type '(unsigned-byte 32)
-						     :displaced-to 2d-array :displaced-index-offset 0))
+	(setf (krma-select-box-2d window) (make-array (list width height +select-box-2d-depth+)
+						   :element-type '(unsigned-byte 32)
+						   :displaced-to 2d-array :displaced-index-offset 0))
 	  
-	  (setf (krma-select-box-3d dpy) (make-array (list width height +select-box-3d-depth+)
-						     :element-type '(unsigned-byte 32)
-						     :displaced-to 3d-array :displaced-index-offset 0))
+	(setf (krma-select-box-3d window) (make-array (list width height +select-box-3d-depth+)
+						   :element-type '(unsigned-byte 32)
+						   :displaced-to 3d-array :displaced-index-offset 0))
 	  
-	  (setf (last-select-box-width dpy) width
-		(last-select-box-height dpy) height)))
-      
-      (setf (krma-select-box-coords dpy) new-coords)
+	(setf (last-select-box-width window) width
+	      (last-select-box-height window) height)))
 
-      (unless (krma-select-boxes-descriptor-sets dpy)
-	(setf (krma-select-boxes-descriptor-sets dpy) (make-array frame-count :initial-element nil)))
+    (unless (krma-select-boxes-descriptor-sets window)
+      (setf (krma-select-boxes-descriptor-sets window) (make-array frame-count :initial-element nil)))
 
-      (unless (krma-select-box-2d-memory-resources dpy)
-	(setf (krma-select-box-2d-memory-resources dpy) (make-array frame-count :initial-element nil)))
+    (unless (krma-select-box-2d-memory-resources window)
+      (setf (krma-select-box-2d-memory-resources window) (make-array frame-count :initial-element nil)))
 
-      (unless (krma-select-box-3d-memory-resources dpy)
-	(setf (krma-select-box-3d-memory-resources dpy) (make-array frame-count :initial-element nil)))
+    (unless (krma-select-box-3d-memory-resources window)
+      (setf (krma-select-box-3d-memory-resources window) (make-array frame-count :initial-element nil)))
 
-      (let ((aligned-size-2d (aligned-size new-2d-size))
-	    (aligned-size-3d (aligned-size new-3d-size))
-	    (old-descriptor-set (aref (krma-select-boxes-descriptor-sets dpy) current-frame))
-	    (old-2d-memory-resource (aref (krma-select-box-2d-memory-resources dpy) current-frame))
-	    (old-3d-memory-resource (aref (krma-select-box-3d-memory-resources dpy) current-frame))
-	    (new-2d-memory-resource)
-	    (new-3d-memory-resource)
-	    (memory-resource-changed-p nil))
+    (let ((aligned-size-2d (aligned-size new-2d-size))
+	  (aligned-size-3d (aligned-size new-3d-size))
+	  (old-descriptor-set (aref (krma-select-boxes-descriptor-sets window) current-frame))
+	  (old-2d-memory-resource (aref (krma-select-box-2d-memory-resources window) current-frame))
+	  (old-3d-memory-resource (aref (krma-select-box-3d-memory-resources window) current-frame))
+	  (new-2d-memory-resource)
+	  (new-3d-memory-resource)
+	  (memory-resource-changed-p nil))
 
-	(if old-2d-memory-resource
+      (if old-2d-memory-resource
 	      
-	    (if (<= aligned-size-2d (vk::memory-resource-size old-2d-memory-resource))
+	  (if (<= aligned-size-2d (vk::memory-resource-size old-2d-memory-resource))
 		  
-		(setq new-2d-memory-resource old-2d-memory-resource) ;; keep resource the same
+	      (setq new-2d-memory-resource old-2d-memory-resource) ;; keep resource the same
 		  
-		(progn
-		  (vk::release-storage-memory dpy old-2d-memory-resource)
-		  (setq new-2d-memory-resource (vk::acquire-storage-memory-sized dpy aligned-size-2d :host-visible))
-		  (setq memory-resource-changed-p t)))
-	      
-	    (progn
-	      (setq new-2d-memory-resource (vk::acquire-storage-memory-sized dpy aligned-size-2d :host-visible))
-	      (setq memory-resource-changed-p t)))
-
-	(if old-3d-memory-resource
-	      
-	    (if (<= aligned-size-3d (vk::memory-resource-size old-3d-memory-resource))
-		  
-		(setq new-3d-memory-resource old-3d-memory-resource) ;; keep resource the same
-		  
-		(progn
-		  (vk::release-storage-memory dpy old-3d-memory-resource)
-		  (setq new-3d-memory-resource (vk::acquire-storage-memory-sized dpy aligned-size-3d :host-visible))
-		  (setq memory-resource-changed-p t)))
-	      
-	    (progn
-	      (setq new-3d-memory-resource (vk::acquire-storage-memory-sized dpy aligned-size-3d :host-visible))
-	      (setq memory-resource-changed-p t)))
-
-	(let ((buffer-2d (vk::memory-resource-buffer new-2d-memory-resource))
-	      (buffer-3d (vk::memory-resource-buffer new-3d-memory-resource)))
-	  
-	  (if memory-resource-changed-p
-		
 	      (progn
-		(clear-buffer buffer-2d 0 aligned-size-2d new-2d-memory-resource)
-		(clear-buffer buffer-3d 0 aligned-size-3d new-3d-memory-resource)
-		  
-		(when old-descriptor-set
-		  (vk::free-descriptor-sets (list old-descriptor-set) (default-descriptor-pool dpy)))
-		  
-		(setf (aref (krma-select-box-2d-memory-resources dpy) current-frame)
-		      new-2d-memory-resource)
-		(setf (aref (krma-select-box-3d-memory-resources dpy) current-frame)
-		      new-3d-memory-resource)
-		  
-		;; create a new descriptor set for new memory resource, offset and range have changed
-		(setf (aref (krma-select-boxes-descriptor-sets dpy) current-frame)
-		      (create-descriptor-set
-		       (default-logical-device dpy)
-		       (list (krma-select-boxes-descriptor-set-layout dpy))
-		       (default-descriptor-pool dpy)
-		       :descriptor-buffer-info (list (make-instance 'descriptor-storage-buffer-info
-								    :buffer buffer-2d
-								    :offset (vk::memory-resource-offset new-2d-memory-resource)
-								    :range new-2d-size)
-						     (make-instance 'descriptor-storage-buffer-info
-								    :buffer buffer-3d
-								    :offset (vk::memory-resource-offset new-3d-memory-resource)
-								    :range new-3d-size)))))
+		(vk::release-storage-memory display old-2d-memory-resource)
+		(setq new-2d-memory-resource (vk::acquire-storage-memory-sized display aligned-size-2d :host-visible))
+		(setq memory-resource-changed-p t)))
+	      
+	  (progn
+	    (setq new-2d-memory-resource (vk::acquire-storage-memory-sized display aligned-size-2d :host-visible))
+	    (setq memory-resource-changed-p t)))
 
-	      ;; otherwise return existing descriptor set
-	      ;; if the mouse doesn't move the descriptor set doesn't change
-	      (aref (krma-select-boxes-descriptor-sets dpy) current-frame)))))))
+      (if old-3d-memory-resource
+	      
+	  (if (<= aligned-size-3d (vk::memory-resource-size old-3d-memory-resource))
+		  
+	      (setq new-3d-memory-resource old-3d-memory-resource) ;; keep resource the same
+		  
+	      (progn
+		(vk::release-storage-memory display old-3d-memory-resource)
+		(setq new-3d-memory-resource (vk::acquire-storage-memory-sized display aligned-size-3d :host-visible))
+		(setq memory-resource-changed-p t)))
+	      
+	  (progn
+	    (setq new-3d-memory-resource (vk::acquire-storage-memory-sized display aligned-size-3d :host-visible))
+	    (setq memory-resource-changed-p t)))
+
+      (let ((buffer-2d (vk::memory-resource-buffer new-2d-memory-resource))
+	    (buffer-3d (vk::memory-resource-buffer new-3d-memory-resource)))
+	  
+	(if memory-resource-changed-p
+		
+	    (progn
+	      (clear-buffer buffer-2d 0 aligned-size-2d new-2d-memory-resource)
+	      (clear-buffer buffer-3d 0 aligned-size-3d new-3d-memory-resource)
+		  
+	      (when old-descriptor-set
+		(vk::free-descriptor-sets (list old-descriptor-set) (default-descriptor-pool display)))
+		  
+	      (setf (aref (krma-select-box-2d-memory-resources window) current-frame)
+		    new-2d-memory-resource)
+	      (setf (aref (krma-select-box-3d-memory-resources window) current-frame)
+		    new-3d-memory-resource)
+		  
+	      ;; create a new descriptor set for new memory resource, offset and range have changed
+	      (setf (aref (krma-select-boxes-descriptor-sets window) current-frame)
+		    (create-descriptor-set
+		     (default-logical-device display)
+		     (list (krma-select-boxes-descriptor-set-layout display))
+		     (default-descriptor-pool display)
+		     :descriptor-buffer-info (list (make-instance 'descriptor-storage-buffer-info
+								  :buffer buffer-2d
+								  :offset (vk::memory-resource-offset new-2d-memory-resource)
+								  :range new-2d-size)
+						   (make-instance 'descriptor-storage-buffer-info
+								  :buffer buffer-3d
+								  :offset (vk::memory-resource-offset new-3d-memory-resource)
+								  :range new-3d-size)))))
+
+	    ;; otherwise return existing descriptor set
+	    ;; if the mouse doesn't move the descriptor set doesn't change
+	    (aref (krma-select-boxes-descriptor-sets window) current-frame))))))
+
+(defun read-select-boxes (window frame-to-read)
+  (let* ((cols (floor (- (krma-select-box-x1 window) (krma-select-box-x0 window))))
+	 (rows (floor (- (krma-select-box-y1 window) (krma-select-box-y0 window)))))
+    
+    (when (aref (krma-select-box-2d-memory-resources window) frame-to-read)
+    
+      (let* ((size (* cols rows +select-box-2d-depth+))
+	     (size-in-bytes (* size (foreign-type-size :unsigned-int)))
+	     (aligned-size (aligned-size size-in-bytes)))
+
+	(read-buffer (vk::memory-resource-buffer
+		      (aref (krma-select-box-2d-memory-resources window) frame-to-read))
+		     (array-displacement (krma-select-box-2d window)) size-in-bytes
+		     (aref (krma-select-box-2d-memory-resources window) frame-to-read)
+		     aligned-size)
+      
+	(clear-buffer (vk::memory-resource-buffer
+		       (aref (krma-select-box-2d-memory-resources window) frame-to-read))
+		      0 aligned-size
+		      (aref (krma-select-box-2d-memory-resources window) frame-to-read))))
+
+    (when (aref (krma-select-box-3d-memory-resources window) frame-to-read)
+
+      (let* ((size (* cols rows +select-box-3d-depth+))
+	     (size-in-bytes (* size (foreign-type-size :unsigned-int)))
+	     (aligned-size (aligned-size size-in-bytes)))
+	
+	(read-buffer (vk::memory-resource-buffer
+		      (aref (krma-select-box-3d-memory-resources window) frame-to-read))
+		     (array-displacement (krma-select-box-3d window)) size-in-bytes
+		     (aref (krma-select-box-3d-memory-resources window) frame-to-read)
+		     aligned-size)
+
+	(clear-buffer (vk::memory-resource-buffer
+		       (aref (krma-select-box-3d-memory-resources window) frame-to-read))
+		      0 aligned-size
+		      (aref (krma-select-box-3d-memory-resources window) frame-to-read))))))
 
 (defun erase-draw-list (draw-list)
   (declare (type draw-list-mixin draw-list))
@@ -202,6 +315,8 @@
       (values))))
 
 (defun call-immediate-mode-work-functions (dpy)
+  (let ((f (immediate-mode-work-function-4 dpy)))
+    (when f (funcall f)))
   (let ((f (immediate-mode-work-function-3 dpy)))
     (when f (funcall f)))
   (let ((f (immediate-mode-work-function-2 dpy)))
@@ -250,11 +365,13 @@
 
 	       (maybe-defer-debug (dpy)
 		 (render-scene scene
+			       window
 			       viewport
 			       dpy command-buffer
 			       (aref (rm-draw-data scene) current-draw-data-index)
 			       (im-draw-data scene)))))
- 
+
+     
     
     (values)))
 
@@ -290,14 +407,14 @@
     ;; maybe create new descriptor set if select box size has changed
     (maybe-defer-debug (dpy)
       ;; probably going to need a select box per framebuffer
-      (compute-select-boxes-descriptor-set dpy (main-window (first (display-frame-managers dpy)))
-					   frame-count (car current-frame-cons)))
+      (do ((window (clui::display-window-list-head dpy) (clui::window-next window)))
+	  ((null window))
+	(allocate-selection-set-tables window frame-count (car current-frame-cons))
+	(compute-select-boxes-descriptor-set window frame-count (car current-frame-cons))))
 
-    #-nvidia(maybe-defer-debug (dpy)
-	      (read-select-boxes dpy (car (current-frame-cons dpy))))
+
     
-    #-nvidia(maybe-defer-debug (dpy)
-	      (monitor-select-boxes dpy))
+    
 
     ;;(print (krma-select-box-2d dpy))
     
@@ -328,9 +445,14 @@
 
 	  (unless once
 	    
-	    (let ((swapchain (swapchain window)))
+	    (let* ((swapchain (swapchain window))
+		   (previous-frame-number (mod (1- current-frame) (number-of-images swapchain))))
 	      ;; make sure the previous frame is done being processed before altering it's draw lists
-	      (vk::wait-for-fence swapchain (mod (1- current-frame) (number-of-images swapchain))))
+	      (vk::wait-for-fence swapchain previous-frame-number)
+
+	      (maybe-defer-debug (dpy)
+		(when (clui::window-focused? window)
+		  (read-select-boxes window previous-frame-number))))
 		  
 	    (loop for app in (display-frame-managers dpy)
 		  with once = nil
@@ -352,9 +474,6 @@
 			  command-pool)
 	     image-indices)
 
-	    #+nvidia(maybe-defer-debug (dpy)
-		      (read-select-boxes dpy (car (current-frame-cons dpy))))
-
 	    (during-frame dpy window command-buffer current-draw-data show-frame-rate?)))))
     
     ;; frame-present must occur in this thread, so no parallelization here
@@ -373,11 +492,6 @@
 	  (frame-end swapchain queue current-frame)
 	  
 	  (frame-present swapchain queue current-frame image-index window))))
-
-    
-
-    #+nvidia(maybe-defer-debug (dpy)
-	      (monitor-select-boxes dpy))
 
     ;; first time use of compacting complete semaphore is :count 1
     ;; this needs to be the only thread that modifies current-frame
