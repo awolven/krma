@@ -58,11 +58,37 @@
 
 	(vkUnmapMemory (h device) (h memory))))))
 
+(defun read-selection-set (window frame-count frame-to-read)
+  (read-buffer (vk::memory-resource-buffer
+		(aref (krma-selection-set-table-memory-resources window) frame-to-read))
+	       (krma-selection-set-table window) (* 4 1024)
+	       (aref (krma-selection-set-table-memory-resources window) frame-to-read)
+	       (* 4 1024))
+  #+NIL
+  (read-buffer (vk::memory-resource-buffer
+		(aref (krma-selection-set-buckets-memory-resources window) frame-to-read))
+	       (krma-selection-set-buckets window) (* 4 32 1024)
+	       (aref (krma-selection-set-buckets-memory-resources window) frame-to-read)
+	       (* 4 32 1024))
+  #+NIL
+  (read-buffer (vk::memory-resource-buffer
+		(krma-selection-set-counter-memory-resource window))
+	       (krma-selection-set-counters window) (* frame-count 4)
+	       (krma-selection-set-counter-memory-resource window) 512))
+  
+
 (defun allocate-selection-set-tables (window frame-count current-frame)
   (let ((display (clui:window-display window)))
 
+    (unless (krma-selection-set-counters window)
+      (setf (krma-selection-set-counters window)
+	    (make-array frame-count :element-type '(unsigned-byte 32))))
+
     (unless (krma-selection-set-buckets window)
       (setf (krma-selection-set-buckets window) (make-array (* 32 1024) :element-type '(unsigned-byte 32))))
+
+    (unless (krma-selection-set-table window)
+      (setf (krma-selection-set-table window) (make-array 1024 :element-type '(unsigned-byte 32))))
     
     (unless (krma-selection-set-buckets-pointers window)
       (setf (krma-selection-set-buckets-pointers window) (make-array frame-count :initial-element nil)))
@@ -75,7 +101,8 @@
 
     (unless (krma-selection-set-counter-memory-resource window)
       ;; minimum aligned size for 8 bytes X num-frames
-      (setf (krma-selection-set-counter-memory-resource window) (vk::acquire-storage-memory-sized display 256 :host-visible)))
+      (setf (krma-selection-set-counter-memory-resource window)
+	    (vk::acquire-storage-memory-sized display 512 :host-visible)))
 
     (unless (aref (krma-selection-set-counter-pointers window) current-frame)
       (setf (aref (krma-selection-set-counter-pointers window) current-frame)
@@ -125,7 +152,7 @@
 
     (clear-buffer (vk::memory-resource-buffer
 		   (krma-selection-set-counter-memory-resource window))
-		  0 256
+		  0 512
 		  (krma-selection-set-counter-memory-resource window))
 
     (values)))
@@ -250,8 +277,8 @@
 	    (aref (krma-select-boxes-descriptor-sets window) current-frame))))))
 
 (defun read-select-boxes (window frame-to-read)
-  (let* ((cols (floor (- (krma-select-box-x1 window) (krma-select-box-x0 window))))
-	 (rows (floor (- (krma-select-box-y1 window) (krma-select-box-y0 window)))))
+  (let* ((cols 1 #+NOMORE(floor (- (krma-select-box-x1 window) (krma-select-box-x0 window))))
+	 (rows 1 #+NOMORE(floor (- (krma-select-box-y1 window) (krma-select-box-y0 window)))))
     
     (when (aref (krma-select-box-2d-memory-resources window) frame-to-read)
     
@@ -295,10 +322,10 @@
 
 (defun erase-immediate-mode-draw-data (dpy scene)
   (let* ((draw-data (im-draw-data scene)))
-    (let ((combinations-1 (3d-cmd-oriented-combinations (krma-pipeline-store dpy) draw-data))
-	  (combinations-2 (3d-draw-list-oriented-combinations (krma-pipeline-store dpy) draw-data))
-	  (combinations-3 (2d-cmd-oriented-combinations (krma-pipeline-store dpy) draw-data))
-	  (combinations-4 (2d-draw-list-oriented-combinations (krma-pipeline-store dpy) draw-data)))
+    (let ((combinations-1 (3d-cmd-oriented-combinations (krma-pipeline-store dpy) draw-data dpy))
+	  (combinations-2 (3d-draw-list-oriented-combinations (krma-pipeline-store dpy) draw-data dpy))
+	  (combinations-3 (2d-cmd-oriented-combinations (krma-pipeline-store dpy) draw-data dpy))
+	  (combinations-4 (2d-draw-list-oriented-combinations (krma-pipeline-store dpy) draw-data dpy)))
 
       (loop for (x draw-list) on combinations-1 by #'cddr
 	    do (erase-draw-list draw-list))
@@ -315,6 +342,8 @@
       (values))))
 
 (defun call-immediate-mode-work-functions (dpy)
+  (let ((f (immediate-mode-work-function-5 dpy)))
+    (when f (funcall f)))
   (let ((f (immediate-mode-work-function-4 dpy)))
     (when f (funcall f)))
   (let ((f (immediate-mode-work-function-3 dpy)))
@@ -324,7 +353,7 @@
   (let ((f (immediate-mode-work-function-1 dpy)))
     (when f (funcall f))))
 
-(defun before-frame-begin (dpy scene current-draw-data-index once)
+(defun before-frame-begin (dpy scene current-draw-data-index)
   (let ((work-queue))
 
     (maybe-defer-debug (dpy)
@@ -338,10 +367,6 @@
 	    while (setq work (and (lparallel.queue:peek-queue work-queue)
 				  (lparallel.queue:pop-queue work-queue)))
 	    do (funcall work)))
-
-    (unless once
-      (maybe-defer-debug (dpy)
-	(call-immediate-mode-work-functions dpy)))
 
     (sort-2d-draw-lists (aref (rm-draw-data scene) current-draw-data-index))    
     
@@ -434,7 +459,7 @@
     (let ((once nil))
       (do ((window (clui::display-window-list-head dpy) (clui::window-next window)))
 	  ((null window))
-      
+	
 	(recreate-swapchain-when-necessary window)
       
 	(with-slots (queue command-pool) window
@@ -443,26 +468,28 @@
 	  ;; and call it here instead of queuewaitidle.  it won't then be necessary in frame begin, but could just
 	  ;; leave it there since it is harmless, but needed when wait-for-fences is otherwise not called
 
-	  (unless once
+	  (let* ((swapchain (swapchain window))
+		 (previous-frame-number (mod (1- current-frame) (number-of-images swapchain))))
+	    ;; make sure the previous frame is done being processed before altering it's draw lists
+	    (vk::wait-for-fence swapchain previous-frame-number)
 	    
-	    (let* ((swapchain (swapchain window))
-		   (previous-frame-number (mod (1- current-frame) (number-of-images swapchain))))
-	      ;; make sure the previous frame is done being processed before altering it's draw lists
-	      (vk::wait-for-fence swapchain previous-frame-number)
-
-	      (maybe-defer-debug (dpy)
-		(when (clui::window-focused? window)
-		  (read-select-boxes window previous-frame-number))))
-		  
-	    (loop for app in (display-frame-managers dpy)
-		  with once = nil
-		  do (loop for scene in (active-scenes app)
-			   do (before-frame-begin dpy scene current-draw-data once)
-			      (setq once t)))
-	  
 	    (maybe-defer-debug (dpy)
-	      (call-immediate-mode-work-functions dpy))
-	    (setq once t))
+	      (read-select-boxes window previous-frame-number))
+	    
+	    (maybe-defer-debug (dpy)
+	      (read-selection-set window (number-of-images swapchain) previous-frame-number))
+	    
+	    )
+
+	  ;;(print (krma-selection-set-table window))
+	  ;;(print (krma-selection-set-buckets window))
+		  
+	  (loop for app in (display-frame-managers dpy)
+		do (loop for scene in (active-scenes app)
+			 do (before-frame-begin dpy scene current-draw-data)))
+	  
+	  (maybe-defer-debug (dpy)
+	    (call-immediate-mode-work-functions dpy))
 	
 	  (let* ((swapchain (swapchain window))
 		 (frame-resource (elt (frame-resources swapchain) current-frame))

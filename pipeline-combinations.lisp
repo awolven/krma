@@ -1,7 +1,7 @@
 (in-package :krma)
 
 (defmethod 3d-cmd-oriented-combinations ((pipeline-store pipeline-store-mixin) (draw-data retained-mode-draw-data) display)
-  (rm-standard-3d-cmd-oriented-combinations pipeline-store draw-data) display)
+  (rm-standard-3d-cmd-oriented-combinations pipeline-store draw-data display))
 
 (defmethod rm-standard-3d-cmd-oriented-combinations (pipeline-store draw-data display)
   (declare (type pipeline-store-mixin pipeline-store))
@@ -476,7 +476,7 @@
 (defmethod 2d-draw-list-oriented-combinations ((pipeline-store pipeline-store-mixin) (draw-data immediate-mode-draw-data) display)
   (im-standard-2d-draw-list-oriented-combinations pipeline-store draw-data display))
 
-(defun im-standard-2d-draw-list-oriented-combinations  (pipeline-store draw-data display)
+(defun im-standard-2d-draw-list-oriented-combinations (pipeline-store draw-data display)
   (declare (type pipeline-store-mixin pipeline-store))
   (declare (type immediate-mode-draw-data draw-data))
   

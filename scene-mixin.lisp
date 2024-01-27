@@ -72,11 +72,10 @@
   (lights (:array (:struct light) 10))
   (num-lights :unsigned-int)
   (scene-ambient :unsigned-int)
-  (bucket-capacity :unsigned-int)
-  (table-capacity :unsigned-int)
-  (bucket-pointer :uint64)
+  (pointer-pos-x :float)
+  (pointer-pos-y :float)
   (table-pointer :uint64)
-  (bucket-counter :uint64))
+  (table-capacity :unsigned-int))
   
 
 (defun update-fragment-uniform-buffer (pipeline scene window current-frame)
@@ -116,15 +115,20 @@
 	       finally (setf (foreign-slot-value p-stage '(:struct fragment-uniform-buffer) 'num-lights) i)
 		       (setf (foreign-slot-value p-stage '(:struct fragment-uniform-buffer) 'scene-ambient) (canonicalize-color
 													     (scene-ambient scene)))
-	     (setf (foreign-slot-value p-stage '(:struct fragment-uniform-buffer) 'bucket-capacity) 1024)
-	     (setf (foreign-slot-value p-stage '(:struct fragment-uniform-buffer) 'table-capacity) 1024)
-	     (setf (foreign-slot-value p-stage '(:struct fragment-uniform-buffer) 'bucket-pointer)
-		   (aref (krma-selection-set-buckets-pointers window) current-frame))
-	     (setf (foreign-slot-value p-stage '(:struct fragment-uniform-buffer) 'table-pointer)
-		   (aref (krma-selection-set-table-pointers window) current-frame))
-	     (setf (foreign-slot-value p-stage '(:struct fragment-uniform-buffer) 'bucket-counter)
-		   (aref (krma-selection-set-counter-pointers window) current-frame))
-	     
+		       (setf (foreign-slot-value p-stage '(:struct fragment-uniform-buffer) 'table-pointer)
+			     (aref (krma-selection-set-table-pointers window) current-frame))
+		       (setf (foreign-slot-value p-stage '(:struct fragment-uniform-buffer) 'table-capacity) 1024)
+		       (multiple-value-bind (x y) (window-cursor-position window)
+			 (setf (foreign-slot-value p-stage '(:struct fragment-uniform-buffer) 'pointer-pos-x)
+			       (clampf x))
+
+			 ;;(print x)
+			 ;;(print y)
+			 
+			 
+			 (setf (foreign-slot-value p-stage '(:struct fragment-uniform-buffer) 'pointer-pos-y)
+			       (clampf y)))
+			     
 			     
 	     
 		       (copy-uniform-buffer-memory (default-logical-device pipeline)
@@ -196,28 +200,28 @@
       (let ((2d-camera-projection-matrix (camera-proj-matrix 2d-camera))
 	    (2d-camera-view-matrix (camera-view-matrix 2d-camera)))    
 
-	(loop for (p dl) on (2d-cmd-oriented-combinations pipeline-store rm-draw-data) by #'cddr
+	(loop for (p dl) on (2d-cmd-oriented-combinations pipeline-store rm-draw-data dpy) by #'cddr
 	      do (render-draw-list-cmds p rm-draw-data dl dpy device command-buffer
 					scene
 					window
 					2d-camera-view-matrix 2d-camera-projection-matrix
 					viewport 0.0f0 +select-box-2d-depth+))
 
-	(loop for (p dl) on (2d-draw-list-oriented-combinations pipeline-store rm-draw-data) by #'cddr
+	(loop for (p dl) on (2d-draw-list-oriented-combinations pipeline-store rm-draw-data dpy) by #'cddr
 	      do (render-draw-list p rm-draw-data dl dpy device command-buffer
 				   scene
 				   window
 				   2d-camera-view-matrix 2d-camera-projection-matrix
 				   viewport  0.0f0 +select-box-2d-depth+))
 
-	(loop for (p dl) on (2d-cmd-oriented-combinations pipeline-store im-draw-data) by #'cddr
+	(loop for (p dl) on (2d-cmd-oriented-combinations pipeline-store im-draw-data dpy) by #'cddr
 	      do (render-draw-list-cmds p im-draw-data dl dpy device command-buffer
 					scene
 					window
 					2d-camera-view-matrix 2d-camera-projection-matrix
 					viewport 0.0f0 +select-box-2d-depth+))
 
-	(loop for (p dl) on (2d-draw-list-oriented-combinations pipeline-store im-draw-data) by #'cddr
+	(loop for (p dl) on (2d-draw-list-oriented-combinations pipeline-store im-draw-data dpy) by #'cddr
 	      do (render-draw-list p im-draw-data dl dpy device command-buffer
 				   scene
 				   window

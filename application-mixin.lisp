@@ -211,12 +211,14 @@
    (select-box-3d :initform nil :accessor krma-select-box-3d)
 
    (selection-set-buckets :initform nil :accessor krma-selection-set-buckets)
+   (selection-set-table :initform nil :accessor krma-selection-set-table)
    (selection-set-buckets-pointers :initform nil :accessor krma-selection-set-buckets-pointers)
    (selection-set-table-pointers :initform nil :accessor krma-selection-set-table-pointers)
    (selection-set-counter-memory-resource :initform nil :accessor krma-selection-set-counter-memory-resource)
    (selection-set-counter-pointers :initform nil :accessor krma-selection-set-counter-pointers)
    (selection-set-buckets-memory-resources :initform nil :accessor krma-selection-set-buckets-memory-resources)
-   (selection-set-table-memory-resources :initform nil :accessor krma-selection-set-table-memory-resources)))
+   (selection-set-table-memory-resources :initform nil :accessor krma-selection-set-table-memory-resources)
+   (selection-set-counters :initform nil :accessor krma-selection-set-counters)))
 
 ;; this is a callback which happens after the native platfrom window has been created but before events start to happen
 (defmethod clui::initialize-window-devices ((window vulkan-window-mixin) &rest args &key width height &allow-other-keys)
@@ -347,6 +349,7 @@
    (immediate-mode-work-function-2 :initform nil :accessor immediate-mode-work-function-2)
    (immediate-mode-work-function-3 :initform nil :accessor immediate-mode-work-function-3)
    (immediate-mode-work-function-4 :initform nil :accessor immediate-mode-work-function-4)
+   (immediate-mode-work-function-5 :initform nil :accessor immediate-mode-work-function-5)
    (backtrace :initform nil :accessor system-backtrace)
    (error-msg :initform nil :accessor system-error-msg)
    (select-boxes-descriptor-set-layout :initform nil :accessor krma-select-boxes-descriptor-set-layout)
