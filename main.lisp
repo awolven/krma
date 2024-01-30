@@ -400,6 +400,8 @@
     
     (values)))
 
+(defvar *frame-initialized* nil)
+
 (defun update-counts (current-frame-cons current-draw-data-cons frame-count)
   #+sbcl(sb-ext:atomic-update (car current-frame-cons)
 			      #'(lambda (cf) (mod (1+ cf) frame-count)))
@@ -456,8 +458,7 @@
     ;; in the context of a window.
     ;; Todo: if the scene does not appear in the window, by means of comparing clip coordinates,
     ;; then it is not processed for that window
-    (let ((once nil))
-      (do ((window (clui::display-window-list-head dpy) (clui::window-next window)))
+    (do ((window (clui::display-window-list-head dpy) (clui::window-next window)))
 	  ((null window))
 	
 	(recreate-swapchain-when-necessary window)
@@ -468,18 +469,17 @@
 	  ;; and call it here instead of queuewaitidle.  it won't then be necessary in frame begin, but could just
 	  ;; leave it there since it is harmless, but needed when wait-for-fences is otherwise not called
 
-	  (let* ((swapchain (swapchain window))
-		 (previous-frame-number (mod (1- current-frame) (number-of-images swapchain))))
-	    ;; make sure the previous frame is done being processed before altering it's draw lists
-	    (vk::wait-for-fence swapchain previous-frame-number)
+	  (when *frame-initialized*
+	    (let* ((swapchain (swapchain window))
+		   (previous-frame-number (mod (1- current-frame) (number-of-images swapchain))))
+	      ;; make sure the previous frame is done being processed before altering it's draw lists
+	      (vk::wait-for-fence swapchain previous-frame-number)
+	      
+	      (maybe-defer-debug (dpy)
+		(read-select-boxes window previous-frame-number))
 	    
-	    (maybe-defer-debug (dpy)
-	      (read-select-boxes window previous-frame-number))
-	    
-	    (maybe-defer-debug (dpy)
-	      (read-selection-set window (number-of-images swapchain) previous-frame-number))
-	    
-	    )
+	      (maybe-defer-debug (dpy)
+		(read-selection-set window (number-of-images swapchain) previous-frame-number))))
 
 	  ;;(print (krma-selection-set-table window))
 	  ;;(print (krma-selection-set-buckets window))
@@ -501,7 +501,7 @@
 			  command-pool)
 	     image-indices)
 
-	    (during-frame dpy window command-buffer current-draw-data show-frame-rate?)))))
+	    (during-frame dpy window command-buffer current-draw-data show-frame-rate?))))
     
     ;; frame-present must occur in this thread, so no parallelization here
     (do* ((window (clui::display-window-list-head dpy) (clui::window-next window))
@@ -522,6 +522,7 @@
 
     ;; first time use of compacting complete semaphore is :count 1
     ;; this needs to be the only thread that modifies current-frame
+    (setq *frame-initialized* t)
     (update-counts (current-frame-cons dpy) (current-draw-data-cons dpy) (number-of-images (swapchain (main-window (first (display-frame-managers dpy))))))
     (bt:wait-on-semaphore (compacting-complete-semaphore dpy))
     (bt:signal-semaphore (frame-iteration-complete-semaphore dpy))
