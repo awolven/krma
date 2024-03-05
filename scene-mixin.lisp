@@ -1860,8 +1860,13 @@
               (loop for entry across cmd-vector
 		 for i from 0
 		 when (and entry (eq cmd entry))
-		 do (setf (aref cmd-vector i) nil)
-		   (remhash handle ht)
+		   do (setf (aref cmd-vector i) nil)
+		      (remhash handle ht)
+		      (when (cmd-instance-array cmd)
+			(let ((memory (instance-list-memory (cmd-instance-array cmd))))
+			  (when memory
+			    (let ((pool (vk::memory-resource-memory-pool memory)))
+			    (vk::release-memory-resource-2 pool memory)))))
 		   (return (values))))))
     (error (c)
       (warn (concatenate 'string "while in %delete-primitive-1 ..." (princ-to-string c)))
