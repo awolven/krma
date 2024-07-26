@@ -45,7 +45,7 @@
 
 (defstruct (text-draw-indexed-cmd
 	     (:include standard-draw-indexed-cmd)
-	     (:conc-name "CMD-")
+	     (:conc-name "TEXT-CMD-")
 	     (:constructor make-text-draw-indexed-cmd
 			   (font draw-list first-idx elem-count vtx-offset
 				 &optional (group nil) (model-mtx nil) (color-override nil) (texture *white-texture*)
@@ -66,7 +66,7 @@
 		      (text-draw-indexed-cmd #'make-text-draw-indexed-cmd)
 		      (standard-draw-indexed-cmd #'make-standard-draw-indexed-cmd))
 		    (append (when (typep cmd 'text-draw-indexed-cmd)
-			      (list (cmd-font cmd)))
+			      (list (text-cmd-font cmd)))
 			    (list new-draw-list
 				  first-idx elem-count vtx-offset
 				  group (when model-mtx (mcopy model-mtx))

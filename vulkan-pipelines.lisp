@@ -167,6 +167,12 @@
 (defmethod pipeline-default-font ((pipeline pipeline-mixin))
   nil)
 
+(defmethod pipeline-sample-shading-enable ((pipeline pipeline-mixin))
+  VK_FALSE)
+
+(defmethod pipeline-rasterization-samples ((pipeline pipeline-mixin))
+  (vk::max-usable-sample-count (default-logical-device pipeline)))
+
 (defmethod create-device-objects ((pipeline pipeline-mixin) device render-pass)
   (create-standard-pipeline-device-objects pipeline device render-pass (slot-value pipeline 'subpass)))
 
@@ -193,12 +199,16 @@
 	      (create-render-pass device format-enum
 				  :color-attachments (list (make-instance 'color-attachment
 									  :name :the-color-attachment
-									  :format format-enum))
+									  :samples (vk::max-usable-sample-count device)
+									  :format format-enum
+									  :final-layout VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL))
 				  :depth-attachments (list (make-instance 'depth-attachment
 									  :name :3d-depth-attachment
+									  :samples (vk::max-usable-sample-count device)
 									  :format depth-format)
 							   (make-instance 'depth-attachment
 									  :name :2d-depth-attachment
+									  :samples (vk::max-usable-sample-count device)
 									  :format depth-format))
 				  :subpasses (list (make-instance 'subpass
 								  :name :3d-subpass
@@ -446,18 +456,24 @@
             (vkBindBufferMemory (h device) (h upload-buffer) (h upload-buffer-memory) 0)
 
             ;; upload to buffer
-            (with-foreign-object (p-map :pointer)
+            (with-foreign-object (pp-map :pointer)
 
               (check-vk-result
-               (vkMapMemory (h device) (h upload-buffer-memory) 0 upload-size-aligned 0 p-map))
+               (vkMapMemory (h device) (h upload-buffer-memory) 0 upload-size-aligned 0 pp-map))
 
-              (if (typep bitmap 'vector)
-		  #+CCL
-		  (ccl::%copy-ivector-to-ptr bitmap 0 (mem-aref p-map :pointer) 0 upload-size)
-		  #+sbcl
-                  (sb-sys:with-pinned-objects (bitmap)
-                    (vk::memcpy (mem-aref p-map :pointer) (sb-sys:vector-sap bitmap) upload-size))
-                  (vk::memcpy (mem-aref p-map :pointer) bitmap upload-size))
+	      (let ((p-map (mem-aref pp-map :pointer)))
+
+		(if (typep bitmap 'vector)
+		    #+CCL
+		    (ccl::%copy-ivector-to-ptr bitmap 0 p-map 0 upload-size)
+		    #+sbcl
+		    (sb-sys:with-pinned-objects (bitmap)
+		      (vk::memcpy p-map (sb-sys:vector-sap bitmap) upload-size))
+		    #+ALLEGRO
+		    (loop for i from 0 below upload-size
+			  do (setf (mem-aref p-map :unsigned-char i) (aref bitmap i)))
+		  
+		    (vk::memcpy p-map bitmap upload-size)))
 
               (with-vk-struct (p-range VkMappedMemoryRange)
                 (with-foreign-slots ((%vk::memory
@@ -576,7 +592,7 @@
           (vertex-size (* (foreign-array-fill-pointer vertex-array)
                           (foreign-array-foreign-type-size vertex-array))))
 
-      (flet ((mmap-buffer (buffer lisp-array size memory-resource aligned-size)
+      (flet ((mmap-buffer (buffer lisp-array size memory-resource aligned-size type argxxx)
 	       (unless (zerop size)
 		 (let ((memory (allocated-memory buffer))
                        (offset (vk::memory-resource-offset memory-resource))
@@ -590,6 +606,15 @@
 			    #+sbcl
 			    (sb-sys:with-pinned-objects (lisp-array)
 			      (vk::memcpy p-dst (sb-sys:vector-sap lisp-array) size))
+			    #+allegro
+			    (excl:with-underlying-simple-vector (lisp-array underlying)
+			      (vk::memcpy p-dst (ff:fslot-address-typed :unsigned-char :lisp underlying) size))
+
+			    #+NIL
+			    (loop for i from 0 below (/ size argxxx)
+				  do (setf (mem-aref p-dst type i)
+					   
+					   (aref lisp-array i)))
 			    #+ccl
 			    (ccl::%copy-ivector-to-ptr lisp-array 0 p-dst 0 size)
 			    
@@ -641,7 +666,9 @@
 	    
             (mmap-buffer (vk::memory-resource-buffer memory-resource)
                          (foreign-array-bytes vertex-array) vertex-size memory-resource
-                         new-size-aligned))))
+                         new-size-aligned
+			 :unsigned-int
+			 4))))
 
 	(let ((new-size-aligned (vk::aligned-size index-size)))
 	  
@@ -672,7 +699,9 @@
 	      
 	      (mmap-buffer (vk::memory-resource-buffer memory-resource)
                            (foreign-array-bytes index-array) index-size memory-resource
-                           new-size-aligned)))))))
+                           new-size-aligned
+			   :unsigned-short
+			   2)))))))
   
   (values))
 
@@ -698,7 +727,11 @@
 						  (stippled-line-enable nil)
 						  (additional-pipeline-creation-args nil)
 						  (cull-mode (pipeline-cull-mode pipeline))
-						  (front-face (pipeline-front-face-orientation pipeline)))
+						  (front-face (pipeline-front-face-orientation pipeline))
+						  (sample-shading-enable
+						   (pipeline-sample-shading-enable pipeline))
+						  (rasterization-samples
+						   (pipeline-rasterization-samples pipeline)))
   (let ()
     (let ((vtx-shader (create-shader-module-from-file device (vertex-shader-pathname pipeline)))
 	  (frg-shader (create-shader-module-from-file device (fragment-shader-pathname pipeline))))
@@ -734,6 +767,8 @@
 		   :src-alpha-blend-factor src-alpha-blend-factor
 		   :stippled-line-enable (if stippled-line-enable
 					     VK_TRUE VK_FALSE)
+		   :sample-shading-enable sample-shading-enable
+		   :rasterization-samples rasterization-samples 
 		   :allocator (allocator pipeline)
 		   additional-pipeline-creation-args))
 
@@ -1071,7 +1106,7 @@
 
 		       (with-foreign-object (pvalues2 :float +fragment-shader-pc-size+)
 			 (when (typep cmd 'text-draw-indexed-cmd)
-			   (let ((font (or (cmd-font cmd) pipeline-default-font)))
+			   (let ((font (or (text-cmd-font cmd) pipeline-default-font)))
 			     (when font
 			       (let ((px-range (font-px-range font)))
 				 (if px-range
@@ -1344,7 +1379,9 @@
 	#+sbcl
 	(sb-sys:with-pinned-objects (lisp-array)
 	  (vk::memcpy (sb-sys:vector-sap lisp-array) p-src size))
-	
+	#+ALLEGRO
+	(loop for i from 0 below (ash size -2)
+	      do (setf (aref lisp-array i) (mem-aref p-src :unsigned-int i)))
 	#+ccl
 	(ccl::%copy-ptr-to-ivector p-src 0 lisp-array 0 size))
 	

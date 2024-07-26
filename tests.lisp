@@ -1,8 +1,8 @@
 (in-package :krma)
 
 (defun test ()
-  (let* ((scene (application-scene *app*))
-	 (font (application-default-font *app*))
+  (let* ((scene (krma::default-medium))
+	 (font (frame-manager-default-font clim:*default-frame-manager*))
          (data (font-data font))
          (w (3b-bmfont-common:scale-w data))
          (h (3b-bmfont-common:scale-h data)))

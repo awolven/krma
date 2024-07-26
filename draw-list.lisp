@@ -909,7 +909,7 @@
 
 (defun %draw-list-draw-textured-2d-rectangle-list (2d-draw-list ub32-oid ub32-color sf-elevation seq-vertices)
   ;; used to implement draw-text and group-add-text
-  (declare (type 3d-vertex-draw-list-mixin 2d-draw-list))
+  ;;(declare (type 3d-vertex-draw-list-mixin 2d-draw-list))
   (declare (type sequence seq-vertices))
   (declare (type (unsigned-byte 32) ub32-oid ub32-color))
   ;; must be at least 2 vertices to succeed
@@ -2090,6 +2090,11 @@ you can use prim-reserve when seq-vertices is an array."
 			       (vk::memcpy new-lisp-array-ptr old-lisp-array-ptr
 					   (cl:the fixnum (* (cl:the (integer 0 #.(ash most-positive-fixnum -9)) fill-pointer)
 							     (cl:the (integer 0 512) vertex-type-size))))))
+		     #+ALLEGRO
+		     (loop for i from 0 below (* fill-pointer vertex-type-size-in-uints)
+			   do (setf (aref new-lisp-array i) (aref old-lisp-array i)))
+		     
+		     
 		     #+CCL
 		     (ccl::%copy-ivector-to-ivector old-lisp-array 0 new-lisp-array 0
 						    (cl:the fixnum (* (cl:the (integer 0 #.(ash most-positive-fixnum -9)) fill-pointer)
@@ -2122,6 +2127,10 @@ you can use prim-reserve when seq-vertices is an array."
 			     (vk::memcpy new-lisp-array-ptr old-lisp-array-ptr
 					 (cl:the fixnum (* (cl:the (integer 0 #.(ash most-positive-fixnum -2)) fill-pointer)
 							   index-type-size)))))
+		   #+ALLEGRO
+		     (loop for i from 0 below fill-pointer
+			   do (setf (aref new-lisp-array i) (aref old-lisp-array i)))
+		   
 		   #+CCL
 		   (ccl::%copy-ivector-to-ivector old-lisp-array 0 new-lisp-array 0
 						  (cl:the fixnum (* (cl:the (integer 0 #.(ash most-positive-fixnum -2)) fill-pointer)

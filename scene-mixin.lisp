@@ -160,7 +160,7 @@
                          (%purge-im-groups-1 draw-data))
                      :dont-save t)))
 
-#+ccl
+#+(OR ccl ALLEGRO)     
 (defun finalize-scene (scene))
 
 (defmethod initialize-instance :after ((instance krma-essential-scene-mixin) &rest initargs &key (display (default-display))
@@ -1675,7 +1675,7 @@
 (defun primitive-set-color-1 (draw-data handle color)
   "Retained-mode function.  Returns no values.  Sets the color override of the primitive, normally renderer uses the vertex color.  Performs work in current thread, which should be the render thread."
   (declare (type retained-mode-draw-data draw-data))
-  (let ((ht (draw-data-handle-hash-table draw-data)))
+  (let ((ht (rm-draw-data-handle-hash-table draw-data)))
     (%primitive-set-color-1 ht handle (canonicalize-color color))))
 
 ;; need to be able to modify existing primitives
@@ -1683,12 +1683,13 @@
   "Retained-mode function. Returns no values.  To be run in a thread outside of the render thread.  Sets the color override of the primitive, normally renderer uses the vertex color.  To be run in a thread outside of the render thread.  Dispatches actual work to render thread."
   (declare (type krma-essential-scene-mixin medium))
   (let ((draw-data (rm-draw-data medium)))
-    (setq color (canonicalize-color color))
+    (when color
+      (setq color (canonicalize-color color)))
     (let ((dd0 (svref draw-data 0))
           (dd1 (svref draw-data 1)))
       (declare (type retained-mode-draw-data dd0 dd1))
-      (let ((ht0 (draw-data-handle-hash-table dd0))
-            (ht1 (draw-data-handle-hash-table dd1))
+      (let ((ht0 (rm-draw-data-handle-hash-table dd0))
+            (ht1 (rm-draw-data-handle-hash-table dd1))
             (wq0 (draw-data-work-queue dd0))
             (wq1 (draw-data-work-queue dd1)))
         (lparallel.queue:push-queue #'(lambda () (%primitive-set-color-1 ht0 handle color)) wq0)
@@ -1706,7 +1707,7 @@
 (defun primitive-set-light-position-1 (draw-data handle pos)
   "Retained-mode function.  Returns no values.  Sets the light position of the primitive, normally renderer uses the medium light position, unless group light position is set.  Performs work in current thread, which should be the render thread."
   (declare (type retained-mode-draw-data draw-data))
-  (let ((ht (draw-data-handle-hash-table draw-data)))
+  (let ((ht (rm-draw-data-handle-hash-table draw-data)))
     (%primitive-set-light-position-1 ht handle pos)))
 
 (defun primitive-set-light-position (medium handle pos)
@@ -1716,8 +1717,8 @@
     (let ((dd0 (svref draw-data 0))
           (dd1 (svref draw-data 1)))
       (declare (type retained-mode-draw-data dd0 dd1))
-      (let ((ht0 (draw-data-handle-hash-table dd0))
-            (ht1 (draw-data-handle-hash-table dd1))
+      (let ((ht0 (rm-draw-data-handle-hash-table dd0))
+            (ht1 (rm-draw-data-handle-hash-table dd1))
             (wq0 (draw-data-work-queue dd0))
             (wq1 (draw-data-work-queue dd1)))
         (lparallel.queue:push-queue #'(lambda () (%primitive-set-light-position-1 ht0 handle pos)) wq0)
@@ -1735,7 +1736,7 @@
 (defun primitive-set-transform-1 (draw-data handle matrix)
   "Retained-mode function.  Returns no values.  Sets the model-matrix of the primitive, renderer composes the primitive model matrix with the group model matrix.  Performs work in current thread, which should be the render thread."
   (declare (type retained-mode-draw-data draw-data))
-  (let ((ht (draw-data-handle-hash-table draw-data)))
+  (let ((ht (rm-draw-data-handle-hash-table draw-data)))
     (%primitive-set-transform-1 ht handle matrix)))
 
 ;; replaces model-mtx in cmd by this matrix
@@ -1747,8 +1748,8 @@
     (let ((dd0 (svref draw-data 0))
           (dd1 (svref draw-data 1)))
       (declare (type retained-mode-draw-data dd0 dd1))
-      (let ((ht0 (draw-data-handle-hash-table dd0))
-            (ht1 (draw-data-handle-hash-table dd1))
+      (let ((ht0 (rm-draw-data-handle-hash-table dd0))
+            (ht1 (rm-draw-data-handle-hash-table dd1))
             (wq0 (draw-data-work-queue dd0))
             (wq1 (draw-data-work-queue dd1)))
         (lparallel.queue:push-queue #'(lambda () (%primitive-set-transform-1 ht0 handle matrix)) wq0)
@@ -1770,7 +1771,7 @@
   "Retained-mode function.  Returns no values.  Applies the matrix to the existing model-matrix of the primitive, renderer composes the primitive model matrix with the group model matrix.  Performs work in current thread, which should be the render thread."
   (declare (type retained-mode-draw-data draw-data))
   (declare (type mat4 matrix))
-  (let ((ht (draw-data-handle-hash-table draw-data)))
+  (let ((ht (rm-draw-data-handle-hash-table draw-data)))
     (%primitive-apply-transform-1 ht handle matrix)))
 
 ;; multiplies new matrix against old matrix and replaces model-mtx in cmd
@@ -1782,8 +1783,8 @@
     (let ((dd0 (svref draw-data 0))
           (dd1 (svref draw-data 1)))
       (declare (type retained-mode-draw-data dd0 dd1))
-      (let ((ht0 (draw-data-handle-hash-table dd0))
-            (ht1 (draw-data-handle-hash-table dd1))
+      (let ((ht0 (rm-draw-data-handle-hash-table dd0))
+            (ht1 (rm-draw-data-handle-hash-table dd1))
             (wq0 (draw-data-work-queue dd0))
             (wq1 (draw-data-work-queue dd1)))
         (lparallel.queue:push-queue #'(lambda () (%primitive-apply-transform-1 ht0 handle matrix)) wq0)
@@ -1802,7 +1803,7 @@
 
 (defun primitive-set-line-thickness-1 (draw-data handle thickness)
   (declare (type retained-mode-draw-data draw-data))
-  (let ((ht (draw-data-handle-hash-table draw-data)))
+  (let ((ht (rm-draw-data-handle-hash-table draw-data)))
     (%primitive-set-line-thickness-1 ht handle (clampf thickness))))
 
 (defun primitive-set-line-thickness (medium handle thickness)
@@ -1813,8 +1814,8 @@
     (let ((dd0 (svref draw-data 0))
           (dd1 (svref draw-data 1)))
       (declare (type retained-mode-draw-data dd0 dd1))
-      (let ((ht0 (draw-data-handle-hash-table dd0))
-            (ht1 (draw-data-handle-hash-table dd1))
+      (let ((ht0 (rm-draw-data-handle-hash-table dd0))
+            (ht1 (rm-draw-data-handle-hash-table dd1))
             (wq0 (draw-data-work-queue dd0))
             (wq1 (draw-data-work-queue dd1)))
         #+notyet(sb-concurrency:enqueue #'(lambda () (%primitive-set-line-thickness-1 ht0 handle thickness)) wq0)
@@ -1873,7 +1874,7 @@
       (values))))
 
 (defun delete-primitive-1 (draw-data handle)
-  (let ((ht (draw-data-handle-hash-table draw-data)))
+  (let ((ht (rm-draw-data-handle-hash-table draw-data)))
     (%delete-primitive-1 ht handle)))
 
 (defun delete-primitives (medium list-of-handles)
@@ -1884,8 +1885,8 @@
       (declare (type retained-mode-draw-data dd0 dd1))
       (let ((wq0 (draw-data-work-queue dd0))
             (wq1 (draw-data-work-queue dd1))
-            (ht0 (draw-data-handle-hash-table dd0))
-            (ht1 (draw-data-handle-hash-table dd1)))
+            (ht0 (rm-draw-data-handle-hash-table dd0))
+            (ht1 (rm-draw-data-handle-hash-table dd1)))
         (lparallel.queue:push-queue
 	 #'(lambda ()
 	     (loop for handle in list-of-handles
@@ -2224,8 +2225,8 @@
 	       
 (defun delete-all-from-medium (medium)
   (rm-dispatch-to-render-thread (medium draw-data)
-    (let ((dl1 (draw-data-2d-triangle-list-draw-list draw-data))
-	  (dl2 (draw-data-2d-line-list-draw-list draw-data)))
+    (let ((dl1 (rm-draw-data-2d-triangle-list-draw-list draw-data))
+	  (dl2 (rm-draw-data-2d-line-list-draw-list draw-data)))
       (flet ((d (d)
 	       (setf (draw-list-needs-compaction? d) nil)
 	       (setf (fill-pointer (draw-list-cmd-vector d)) 0)

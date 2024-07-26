@@ -322,7 +322,7 @@
 
 (defun erase-immediate-mode-draw-data (dpy scene)
   (let* ((draw-data (im-draw-data scene)))
-    (let ((combinations-1 (3d-cmd-oriented-combinations (krma-pipeline-store dpy) draw-data dpy))
+    (let ((combinations-1 (im-standard-3d-cmd-oriented-combinations (krma-pipeline-store dpy) draw-data dpy))
 	  (combinations-2 (3d-draw-list-oriented-combinations (krma-pipeline-store dpy) draw-data dpy))
 	  (combinations-3 (2d-cmd-oriented-combinations (krma-pipeline-store dpy) draw-data dpy))
 	  (combinations-4 (2d-draw-list-oriented-combinations (krma-pipeline-store dpy) draw-data dpy)))

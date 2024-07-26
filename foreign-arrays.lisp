@@ -118,6 +118,10 @@
 			(memcpy new-ptr old-ptr
 				(* (cl:the (integer 0 #.(ash most-positive-fixnum -2)) fill-pointer)
 				   (cl:the (integer 0 4) foreign-type-size))))))
+
+		  #+ALLEGRO
+		  (loop for i from 0 below fill-pointer
+			do (setf (aref new-array i) (aref old-array i)))
 		  #+CCL
 		  (ccl::%copy-ivector-to-ivector old-array 0 new-array 0
 						 (* (cl:the (integer 0 #.(ash most-positive-fixnum -2)) fill-pointer)
@@ -239,6 +243,7 @@
   (let ((vertex-type-size-uint (load-time-value (ash (foreign-type-size '(:struct textured-2d-vertex)) -2)))
 	(vertex-type-size (load-time-value (foreign-type-size '(:struct textured-2d-vertex)))))
     (declare (type (integer 0 512) vertex-type-size-uint vertex-type-size))
+    (declare (ignorable vertex-type-size))
     (with-slots (bytes fill-pointer allocated-count) textured-2d-vertex-array
       (let ((fp fill-pointer)
 	    (alloc-count allocated-count))
@@ -254,6 +259,11 @@
 			(sb-sys:vector-sap old-array)
 			(* (cl:the (integer 0 #.(ash most-positive-fixnum -9)) fill-pointer)
 			   (cl:the (integer 0 512) vertex-type-size))))
+	      
+	      #+ALLEGRO
+	      (loop for i from 0 below (* fill-pointer vertex-type-size-uint)
+			do (setf (aref new-array i) (aref old-array i)))
+	      
 	      #+CCL
 	      (ccl::%copy-ivector-to-ivector old-array 0 new-array 0
 					     (* (cl:the (integer 0 #.(ash most-positive-fixnum -9)) fill-pointer)
@@ -388,6 +398,7 @@
   (let ((vertex-type-size-uint (load-time-value (ash (foreign-type-size '(:struct textured-3d-vertex)) -2)))
 	(vertex-type-size (load-time-value (foreign-type-size '(:struct textured-3d-vertex)))))
     (declare (type (integer 0 512) vertex-type-size vertex-type-size-uint))
+    (declare (ignorable vertex-type-size))
     (with-slots (bytes fill-pointer allocated-count) textured-3d-vertex-array
       (let ((fp fill-pointer)
 	    (alloc-count allocated-count))
@@ -403,6 +414,11 @@
 			(sb-sys:vector-sap old-array)
 			(* (cl:the (integer 0 #.(ash most-positive-fixnum -9)) fill-pointer)
 			   (cl:the (integer 0 512) vertex-type-size))))
+
+	      #+ALLEGRO
+	      (loop for i from 0 below (* fill-pointer vertex-type-size-uint)
+		    do (setf (aref new-array i) (aref old-array i)))
+	      
 	      #+CCL
 	      (ccl::%copy-ivector-to-ivector old-array 0 new-array 0
 					     (* (cl:the (integer 0 #.(ash most-positive-fixnum -9)) fill-pointer)
@@ -539,6 +555,7 @@
   (let ((vertex-type-size-uint (load-time-value (ash (foreign-type-size '(:struct textured-3d-vertex-with-normal)) -2)))
 	(vertex-type-size (load-time-value (foreign-type-size '(:struct textured-3d-vertex-with-normal)))))
     (declare (type (integer 0 512) vertex-type-size vertex-type-size-uint))
+    (declare (ignorable vertex-type-size))
     (with-slots (bytes fill-pointer allocated-count) textured-3d-vertex-with-normal-array
       (let ((fp fill-pointer)
 	    (alloc-count allocated-count))
@@ -554,6 +571,11 @@
 			      (sb-sys:vector-sap old-array)
 			      (* (cl:the (integer 0 #.(ash most-positive-fixnum -9)) fill-pointer)
 				 (cl:the (integer 0 512) vertex-type-size))))
+
+	      #+allegro
+	      (loop for i from 0 below (* fill-pointer vertex-type-size-uint)
+		    do (setf (aref new-array i) (aref old-array i)))
+	      
 	      #+CCL
 	      (ccl::%copy-ivector-to-ivector old-array 0 new-array 0
 					     (* (cl:the (integer 0 #.(ash most-positive-fixnum -9)) fill-pointer)

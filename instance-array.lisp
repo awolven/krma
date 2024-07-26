@@ -136,6 +136,11 @@
 			(sb-sys:vector-sap old-array)
 			(* (cl:the (integer 0 #.(ash most-positive-fixnum -9)) fill-pointer)
 			   (cl:the (integer 0 512) vertex-type-size))))
+
+	      #+ALLEGRO
+	      (loop for i from 0 below (* fill-pointer vertex-type-size-uint)
+		    do (setf (aref new-array i) (aref old-array i)))
+	      
 	      #+CCL
 	      (ccl::%copy-ivector-to-ivector old-array 0 new-array 0
 					     (* (cl:the (integer 0 #.(ash most-positive-fixnum -9)) fill-pointer)
@@ -184,6 +189,11 @@
 			(sb-sys:vector-sap old-array)
 			(* (cl:the (integer 0 #.(ash most-positive-fixnum -9)) fill-pointer)
 			   (cl:the (integer 0 512) vertex-type-size))))
+
+	      #+ALLEGRO
+	      (loop for i from 0 below (* fill-pointer vertex-type-size-uint)
+		    do (setf (aref new-array i) (aref old-array i)))
+	      
 	      #+CCL
 	      (ccl::%copy-ivector-to-ivector old-array 0 new-array 0
 					     (* (cl:the (integer 0 #.(ash most-positive-fixnum -9)) fill-pointer)
@@ -242,6 +252,10 @@
 			    #+sbcl
 			    (sb-sys:with-pinned-objects (lisp-array)
 			      (vk::memcpy p-dst (sb-sys:vector-sap lisp-array) size))
+			    #+allegro
+			    (loop for i from 0 below (/ size 4)
+				  do (setf (mem-aref p-dst :unsigned-int i)
+					   (aref lisp-array i)))
 			    #+ccl
 			    (ccl::%copy-ivector-to-ptr lisp-array 0 p-dst 0 size)
 			    
