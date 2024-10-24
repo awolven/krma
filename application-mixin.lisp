@@ -447,15 +447,14 @@
     (reset-command-pool device command-pool)
     
     ;; one time commands here.
-    (unless (probe-file (asdf/system:system-relative-pathname :krma "submodules/krma-fonts/rm16cache.json"))
+    (unless (probe-file (submodule-file "krma-fonts/rm16cache.json"))
       (sdf-bmfont:create-bmfont
-       (asdf/system:system-relative-pathname
-	:krma "submodules/krma-fonts/Roboto_Mono/static/RobotoMono-Medium.ttf")
-       (asdf/system:system-relative-pathname :krma "submodules/krma-fonts/rm16cache.json")
+       (submodule-file "krma-fonts/Roboto_Mono/static/RobotoMono-Medium.ttf")
+       (submodule-file "krma-fonts/rm16cache.json")
        :size 16 :mode :msdf+a :type :json :spread 8))
     
     (uiop/filesystem:with-current-directory
-	((asdf/system:system-relative-pathname :krma "submodules/krma-fonts/"))
+	((submodule-file "krma-fonts/"))
       (setf (default-system-font dpy)
 	    (vulkan-make-font
 	     device queue sampler texture-dsl descriptor-pool command-buffer

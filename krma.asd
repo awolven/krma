@@ -36,12 +36,26 @@
    (:file "text")
    (:file "main")))
 
+(setf (logical-pathname-translations "SUBMODULES")
+      (list (list "**;*"
+		  (merge-pathnames (make-pathname
+				    :directory '(:relative :wild-inferiors)
+				    :name :wild
+				    :type :wild
+				    :version :wild)
+				   (asdf/system:system-relative-pathname :krma "submodules/")))))
+
 (pushnew :krma *features*)
-(pushnew (asdf/system:system-relative-pathname :krma "submodules/sdf/") asdf:*central-registry* :test #'equalp)
-(pushnew (asdf/system:system-relative-pathname :krma "submodules/binpack/") asdf:*central-registry* :test #'equalp)
-(pushnew (asdf/system:system-relative-pathname :krma "submodules/3b-bmfont/") asdf:*central-registry* :test #'equalp)
-(pushnew (asdf/system:system-relative-pathname :krma "submodules/zpb-ttf/") asdf:*central-registry* :test #'equalp)
-(pushnew (asdf/system:system-relative-pathname :krma "submodules/clim-protocol/") asdf:*central-registry* :test #'equalp)
-(pushnew (asdf/system:system-relative-pathname :krma "submodules/cl-vulkan/") asdf:*central-registry* :test #'equalp)
-(pushnew (asdf/system:system-relative-pathname :krma "submodules/clui/") asdf:*central-registry* :test #'equalp)
-(pushnew (asdf/system:system-relative-pathname :krma "submodules/3d-math/") asdf:*central-registry* :test #'equalp)
+
+(let ((directories (list #p"submodules:sdf;"
+			 #p"submodules:binpack;"
+			 #p"submodules:3b-bmfont;"
+			 #p"submodules:zpb-ttf;"
+			 #p"submodules:clim-protocol;"
+			 #p"submodules:cl-vulkan;"
+			 #p"submodules:clui;"
+			 #p"submodules:3d-math;")))
+  (loop for directory in directories
+	do (pushnew (translate-logical-pathname directory) asdf:*central-registry*)))
+
+

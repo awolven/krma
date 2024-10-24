@@ -19,7 +19,7 @@
                          command-buffer &key (cache-file "rm16cache.json")
                                           (bpp 4))
   (uiop/filesystem:with-current-directory
-      ((asdf/system:system-relative-pathname :krma "submodules/krma-fonts/"))
+      ((submodule-file "krma-fonts/"))
     (with-open-file (stream cache-file :external-format #+ccl :utf-8 #-ccl :utf8)
       (let ((font (make-instance 'font :data (3b-bmfont-json:read-bmfont-json stream)
                                        :cache-file cache-file)))

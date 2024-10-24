@@ -337,7 +337,7 @@
   ())
 
 (defmethod fragment-shader-pathname ((pipeline texture-pipeline-mixin))
-  (asdf/system:system-relative-pathname :krma "submodules/krma-shader-bin/texture.frag.spv"))
+  (submodule-file "krma-shader-bin/texture.frag.spv"))
 
 (defmethod pipeline-min-sample-shading ((pipeline texture-pipeline-mixin))
   0.0f0)
@@ -354,7 +354,7 @@
   ())
 
 (defmethod vertex-shader-pathname ((pipeline 2d-pipeline-mixin))
-  (asdf/system:system-relative-pathname :krma "submodules/krma-shader-bin/standard-2d.vert.spv"))
+  (submodule-file "krma-shader-bin/standard-2d.vert.spv"))
 
 (defclass 2d-texture-pipeline-mixin (2d-pipeline-mixin texture-pipeline-mixin)
   ())
@@ -382,7 +382,7 @@
   ())
 
 (defmethod vertex-shader-pathname ((pipeline 3d-pipeline-mixin))
-  (asdf/system:system-relative-pathname :krma "submodules/krma-shader-bin/standard-3d.vert.spv"))
+  (submodule-file "krma-shader-bin/standard-3d.vert.spv"))
 
 (defclass 3d-texture-pipeline-mixin (3d-pipeline-mixin texture-pipeline-mixin)
   ())
@@ -401,10 +401,10 @@
   '(:struct textured-3d-vertex-with-normal))
 
 (defmethod fragment-shader-pathname ((pipeline 3d-texture-with-normals-pipeline-mixin))
-  (asdf/system:system-relative-pathname :krma "submodules/krma-shader-bin/lighting+texture.frag.spv"))
+  (submodule-file "krma-shader-bin/lighting+texture.frag.spv"))
 
 (defmethod vertex-shader-pathname ((pipeline 3d-texture-with-normals-pipeline-mixin))
-  (asdf/system:system-relative-pathname :krma "submodules/krma-shader-bin/3d-with-normal.vert.spv"))
+  (submodule-file "krma-shader-bin/3d-with-normal.vert.spv"))
 
 (defclass texture-image (vk::image)
   ((descriptor-set :accessor texture-image-descriptor-set)))
@@ -902,7 +902,7 @@
   ())
 
 (defmethod vertex-shader-pathname ((pipeline 2d-instanced-line-pipeline))
-  (asdf/system:system-relative-pathname :krma "submodules/krma-shader-bin/instanced-line.vert.spv"))
+  (submodule-file "krma-shader-bin/instanced-line.vert.spv"))
 
 
 
@@ -922,7 +922,7 @@
   ())
 
 (defmethod vertex-shader-pathname ((pipeline 3d-instanced-tube-pipeline))
-  (asdf/system:system-relative-pathname :krma "submodules/krma-shader-bin/instanced-tube.vert.spv"))
+  (submodule-file "krma-shader-bin/instanced-tube.vert.spv"))
 
 (defclass 3d-triangle-list-with-normals-pipeline (triangle-list-pipeline-mixin
 						  3d-texture-with-normals-pipeline-mixin)

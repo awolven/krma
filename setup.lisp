@@ -4,6 +4,9 @@
   (defvar *debug* vk::*debug*)
   (defvar *muffle-compilation-notes* t))
 
+(defun submodule-file (name)
+  (pathname (concatenate 'string (namestring (translate-logical-pathname "submodules:")) name)))
+
 (defvar *app*)
 
 (defvar *default-application-class* 'krma-test-application)
@@ -37,7 +40,7 @@
 (defvar *default-point-size* 4.0f0)
 (defvar *default-line-thickness* 2.0f0)
 (defvar *default-number-of-segments* 64)
-(defvar *default-light-position* (vec3 10000 10000 10000))
+(defvar *default-light-position* (vec3 8000 12000 10000))
 (defvar *default-diffuse-color* #xffffffff)
 (defvar *default-specular-color* #xffffffff)
 (defvar *default-constant-attenuation* 0.0f0)
