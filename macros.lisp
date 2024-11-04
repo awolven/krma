@@ -56,6 +56,18 @@
             (draw-data-work-queue ,dd1-sym)))
 	 (values)))))
 
+(defmacro rm-dispatch-to-render-thread-once-only ((resource) &body body)
+  (let ((dd0-sym (gensym))
+        (ddvec-sym (gensym)))
+    `(let* ((,ddvec-sym (rm-draw-data ,resource)))
+       (declare (type vector ,ddvec-sym))
+       (let ((,dd0-sym (svref ,ddvec-sym 0)))
+         (declare (type retained-mode-draw-data ,dd0-sym))
+	 (lparallel.queue:push-queue
+          #'(lambda () ,@body)
+          (draw-data-work-queue ,dd0-sym))
+	 (values)))))
+
 (defmacro with-graphics-queue-and-command-buffer ((dpy queue-var command-buffer-var) &body body)
   (let ((helper-window-sym (gensym))
 	(device-sym (gensym))

@@ -34,7 +34,8 @@
    (:file "vulkan-pipelines")
    (:file "pipeline-combinations")
    (:file "text")
-   (:file "main")))
+   (:file "main")
+   (:file "teapot")))
 
 (setf (logical-pathname-translations "SUBMODULES")
       (list (list "**;*"

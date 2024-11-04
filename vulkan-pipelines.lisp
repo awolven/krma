@@ -179,58 +179,8 @@
 (defmethod initialize-instance :after ((pipeline pipeline-mixin) &rest initargs
 				&key dpy)
   (declare (ignore initargs))
-  (let* ((window (clui::helper-window dpy))
-	 (surface (render-surface window))
-	 (device (default-logical-device dpy)))
-
-    (unless (vk::paired-gpu surface)
-      ;; helper window surface has not been initialized yet
-      ;; because we didn't have logical device when it was created.
-      ;; so initialize it so that we can get the surface-format to
-      ;; create the render pass properly
-      (let* ((gpu (physical-device device))
-	     (index (get-queue-family-index-with-wsi-support gpu surface)))
-	(initialize-window-surface surface gpu index)))
-
-    (let ((depth-format (find-supported-depth-format (physical-device device))))
-    (unless (display-stock-render-pass dpy)
-      (setf (display-stock-render-pass dpy)
-	    (let ((format-enum (vk::surface-format-format (find-supported-format surface))))
-	      (create-render-pass device format-enum
-				  :color-attachments (list (make-instance 'color-attachment
-									  :name :the-color-attachment
-									  :samples (vk::max-usable-sample-count device)
-									  :format format-enum
-									  :final-layout VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL))
-				  :depth-attachments (list (make-instance 'depth-attachment
-									  :name :3d-depth-attachment
-									  :samples (vk::max-usable-sample-count device)
-									  :format depth-format)
-							   (make-instance 'depth-attachment
-									  :name :2d-depth-attachment
-									  :samples (vk::max-usable-sample-count device)
-									  :format depth-format))
-				  :subpasses (list (make-instance 'subpass
-								  :name :3d-subpass
-								  :color-attachments (list :the-color-attachment)
-								  :depth-attachments (list :3d-depth-attachment))
-						   (make-instance 'subpass
-								  :name :2d-subpass
-								  :color-attachments (list :the-color-attachment)
-								  :depth-attachments (list :2d-depth-attachment)
-								  :dependencies (list :subpass-dependency)))
-				  :subpass-dependencies
-				  (list (make-instance 'vk::subpass-dependency
-						       :src-subpass 0
-						       :dst-subpass 1
-						       :src-stage-mask VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
-						       :dst-stage-mask VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT
-						       :src-access-mask VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT
-						       :dst-access-mask VK_ACCESS_SHADER_READ_BIT)))))))
-
-    
-    (create-device-objects pipeline device (display-stock-render-pass dpy))
-    (values)))
+  (create-device-objects pipeline (default-logical-device dpy) (display-stock-render-pass dpy))
+  (values))
 
 (defmethod make-push-constant-ranges ((pipeline pipeline-mixin))
   nil)
@@ -1188,7 +1138,7 @@
 	     (group (draw-list-group draw-list))
              (mm))
 
-	(declare (type (or group null) group)) ;; group is null for im-draw-list
+	(declare (type (or group null) group))
 
 	(cmd-bind-pipeline command-buffer (device-pipeline pipeline) :bind-point :graphics)
 

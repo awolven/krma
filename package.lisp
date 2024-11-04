@@ -158,7 +158,7 @@
 		#:character-event
 		)
   
-  (:export #:default-medium
+  (:export #:default-scene
 	   #:window-viewports
 	   #:object-from-id
 	   #:krma-frame-manager-mixin
@@ -346,125 +346,132 @@
 	   #:update-3d-camera
 	   #:render-scene
 
-	   #:medium-add-2d-point-primitive
-	   #:medium-add-2d-point
-	   #:medium-draw-2d-point
+	   #:scene-add-2d-point-primitive
+	   #:scene-add-2d-point
+	   #:scene-draw-2d-point
 
-	   #:medium-add-3d-point-primitive
-           #:medium-add-3d-point           
-           #:medium-draw-3d-point
+	   #:scene-add-3d-point-primitive
+           #:scene-add-3d-point           
+           #:scene-draw-3d-point
 
-	   #:medium-add-2d-line-primitive
-           #:medium-add-2d-line         
-           #:medium-draw-2d-line
+	   #:scene-add-2d-line-primitive
+           #:scene-add-2d-line         
+           #:scene-draw-2d-line
 
-	   #:medium-add-3d-line-primitive
-           #:medium-add-3d-line
-           #:medium-draw-3d-line
+	   #:scene-add-3d-line-primitive
+           #:scene-add-3d-line
+           #:scene-draw-3d-line
 
-	   #:medium-add-2d-polyline-primitive
-           #:medium-add-2d-polyline
-           #:medium-draw-2d-polyline
+	   #:scene-add-2d-polyline-primitive
+           #:scene-add-2d-polyline
+           #:scene-draw-2d-polyline
 
-	   #:medium-add-2d-triangle-primitive
-	   #:medium-add-2d-triangle
-           #:medium-draw-2d-triangle
+	   #:scene-add-2d-triangle-primitive
+	   #:scene-add-2d-triangle
+           #:scene-draw-2d-triangle
 
-	   #:medium-add-2d-rectangle-primitive
-           #:medium-add-2d-rectangle           
-           #:medium-draw-2d-rectangle
+	   #:scene-add-2d-rectangle-primitive
+           #:scene-add-2d-rectangle           
+           #:scene-draw-2d-rectangle
 
-	   #:medium-add-multicolor-2d-polyline-primitive
-           #:medium-add-multicolor-2d-polyline           
-           #:medium-draw-multicolor-2d-polyline
+	   #:scene-add-multicolor-2d-polyline-primitive
+           #:scene-add-multicolor-2d-polyline           
+           #:scene-draw-multicolor-2d-polyline
 
-	   #:medium-add-2d-circular-arc-primitive
-           #:medium-add-2d-circular-arc           
-           #:medium-draw-2d-circular-arc
+	   #:scene-add-multicolor-2d-instanced-line-primitive
 
-	   #:medium-add-2d-circle-primitive
-           #:medium-add-2d-circle           
-           #:medium-draw-2d-circle
+	   #:scene-add-filled-3d-instanced-tube-primitive
 
-	   #:medium-add-3d-polyline-primitive
-           #:medium-add-3d-polyline
-           #:medium-draw-3d-polyline
+	   #:scene-add-2d-circular-arc-primitive
+           #:scene-add-2d-circular-arc           
+           #:scene-draw-2d-circular-arc
 
-	   #:medium-add-multicolor-3d-polyline-primitive
-           #:medium-add-multicolor-3d-polyline
-           #:medium-draw-multicolor-3d-polyline
+	   #:scene-add-2d-circle-primitive
+           #:scene-add-2d-circle           
+           #:scene-draw-2d-circle
 
-	   #:medium-add-filled-2d-triangle-list-primitive
-           #:medium-add-filled-2d-triangle-list           
-           #:medium-draw-filled-2d-triangle-list
+	   #:scene-add-3d-polyline-primitive
+           #:scene-add-3d-polyline
+           #:scene-draw-3d-polyline
 
-	   #:medium-add-filled-2d-triangle-strip-primitive
-           #:medium-draw-filled-2d-triangle-strip
+	   #:scene-add-multicolor-3d-polyline-primitive
+           #:scene-add-multicolor-3d-polyline
+           #:scene-draw-multicolor-3d-polyline
 
-	   #:medium-add-filled-2d-rectangle-list-primitive
-           #:medium-add-filled-2d-rectangle-list           
-           #:medium-draw-filled-2d-rectangle-list
+	   #:scene-add-filled-2d-triangle-list-primitive
+           #:scene-add-filled-2d-triangle-list           
+           #:scene-draw-filled-2d-triangle-list
 
-	   #:medium-add-textured-2d-rectangle-list-primitive
-           #:medium-add-textured-2d-rectangle-list           
-           #:medium-draw-textured-2d-rectangle-list
+	   #:scene-add-filled-2d-triangle-strip-primitive
+           #:scene-draw-filled-2d-triangle-strip
 
-	   #:medium-add-textured-2d-triangle-list-primitive
-	   #:medium-add-textured-2d-triangle-list
-	   #:medium-draw-textured-2d-triangle-list
+	   #:scene-add-filled-2d-rectangle-list-primitive
+           #:scene-add-filled-2d-rectangle-list           
+           #:scene-draw-filled-2d-rectangle-list
 
-	   #:medium-add-filled-2d-convex-polygon-primitive
-           #:medium-add-filled-2d-convex-polygon           
-           #:medium-draw-filled-2d-convex-polygon
+	   #:scene-add-textured-2d-rectangle-list-primitive
+           #:scene-add-textured-2d-rectangle-list           
+           #:scene-draw-textured-2d-rectangle-list
 
-	   #:medium-add-filled-2d-circle-primitive
-           #:medium-add-filled-2d-circle           
-           #:medium-draw-filled-2d-circle
+	   #:scene-add-textured-2d-triangle-list-primitive
+	   #:scene-add-textured-2d-triangle-list
+	   #:scene-draw-textured-2d-triangle-list
 
-	   #:medium-add-filled-3d-triangle-list-primitive-flat
-           #:medium-add-filled-3d-triangle-list-flat
-           #:medium-draw-filled-3d-triangle-list-flat
+	   #:scene-add-filled-2d-convex-polygon-primitive
+           #:scene-add-filled-2d-convex-polygon           
+           #:scene-draw-filled-2d-convex-polygon
 
-	   #:medium-add-filled-3d-triangle-list-primitive-diffuse
-           #:medium-add-filled-3d-triangle-list-diffuse           
-           #:medium-draw-filled-3d-triangle-list-diffuse
+	   #:scene-add-filled-2d-circle-primitive
+           #:scene-add-filled-2d-circle           
+           #:scene-draw-filled-2d-circle
 
-           #:medium-add-filled-3d-triangle-strip-primitive-flat
-           #:medium-draw-filled-3d-triangle-strip-flat
+	   #:scene-add-filled-3d-triangle-list-primitive-flat
+           #:scene-add-filled-3d-triangle-list-flat
+           #:scene-draw-filled-3d-triangle-list-flat
 
-           #:medium-add-filled-3d-triangle-strip-primitive-diffuse
-           #:medium-draw-filled-3d-triangle-strip-diffuse
+	   #:scene-add-filled-3d-triangle-list-primitive-diffuse
+           #:scene-add-filled-3d-triangle-list-diffuse           
+           #:scene-draw-filled-3d-triangle-list-diffuse
 
-	   #:medium-add-filled-3d-convex-polygon-primitive-diffuse
-           #:medium-add-filled-3d-convex-polygon-diffuse
-           #:medium-draw-filled-3d-convex-polygon-diffuse
+           #:scene-add-filled-3d-triangle-strip-primitive-flat
+           #:scene-draw-filled-3d-triangle-strip-flat
 
-	   #:medium-add-filled-3d-convex-polygon-primitive-flat
-           #:medium-add-filled-3d-convex-polygon-flat           
-           #:medium-draw-filled-3d-convex-polygon-flat
+           #:scene-add-filled-3d-triangle-strip-primitive-diffuse
+           #:scene-draw-filled-3d-triangle-strip-diffuse
 
-	   #:medium-add-multicolor-3d-convex-polygon-primitive-diffuse
-           #:medium-add-multicolor-3d-convex-polygon-diffuse           
-           #:medium-draw-multicolor-3d-convex-polygon-diffuse
+	   #:scene-add-filled-3d-convex-polygon-primitive-diffuse
+           #:scene-add-filled-3d-convex-polygon-diffuse
+           #:scene-draw-filled-3d-convex-polygon-diffuse
 
-	   #:medium-add-multicolor-3d-convex-polygon-primitive-flat
-           #:medium-add-multicolor-3d-convex-polygon-flat           
-           #:medium-draw-multicolor-3d-convex-polygon-flat
+	   #:scene-add-filled-3d-convex-polygon-primitive-flat
+           #:scene-add-filled-3d-convex-polygon-flat           
+           #:scene-draw-filled-3d-convex-polygon-flat
 
-	   #:medium-add-textured-3d-triangle-list-primitive-flat
-           #:medium-add-textured-3d-triangle-list-flat           
-           #:medium-draw-textured-3d-triangle-list-flat
+	   #:scene-add-multicolor-3d-convex-polygon-primitive-diffuse
+           #:scene-add-multicolor-3d-convex-polygon-diffuse           
+           #:scene-draw-multicolor-3d-convex-polygon-diffuse
 
-           #:medium-add-textured-3d-triangle-strip-primitve-flat
-           #:medium-draw-textured-3d-triangle-strip-flat
+	   #:scene-add-multicolor-3d-convex-polygon-primitive-flat
+           #:scene-add-multicolor-3d-convex-polygon-flat           
+           #:scene-draw-multicolor-3d-convex-polygon-flat
 
-	   #:medium-add-filled-sphere-primitive-diffuse
-           #:medium-add-filled-sphere-diffuse           
-           #:medium-draw-filled-sphere-diffuse
+	   #:scene-add-textured-3d-triangle-list-primitive-flat
+           #:scene-add-textured-3d-triangle-list-flat           
+           #:scene-draw-textured-3d-triangle-list-flat
 
-	   #:medium-add-text-primitive
-           #:medium-add-text           
-           #:medium-draw-text
+           #:scene-add-textured-3d-triangle-strip-primitive-flat
+           #:scene-draw-textured-3d-triangle-strip-flat
+
+	   #:scene-add-filled-sphere-primitive-diffuse
+
+	   #:scene-add-filled-ellipsoid-primitive-diffuse
+	   
+           #:scene-add-filled-sphere-diffuse   
+           #:scene-draw-filled-sphere-diffuse
+
+	   #:scene-add-text-primitive
+           #:scene-add-text           
+           #:scene-draw-text
 
            #:reinstance-primitive
            #:reinstance-primitive-1
@@ -487,11 +494,11 @@
            #:group-set-color-override
            #:group-set-color-override-1
 
-           #:group-set-model-matrix
-           #:group-set-model-matrix-1
+           #:group-set-transform
+           #:group-set-transform-1
 
-           #:group-apply-model-matrix
-           #:group-apply-model-matrix-1
+           #:group-apply-transform
+           #:group-apply-transform-1
 
            #:group-set-light-position
            #:group-set-light-position-1
