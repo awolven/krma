@@ -2,6 +2,8 @@
 
 ;;scene-add-2d-point-primitive
 
+;; these point functions are not working correctly with AMD driver
+
 (scene-add-2d-point-primitive (default-scene) :default nil 10 #xffff 100 100)
 
 ;;scene-add-2d-point
@@ -664,6 +666,8 @@
 
     (list right left front rear top bottom)))
 
+(cube-diffuse1)
+
 ;;scene-add-filled-3d-convex-polygon-diffuse
 
 (defun cube-diffuse2 ()
@@ -686,6 +690,8 @@
    (default-scene) :default #xffffff
    (list -100 100 -100 0 0 -1 100 100 -100 0 0 -1 100 -100 -100 0 0 -1 -100 -100 -100 0 0 -1))
   (values))
+
+(cube-diffuse2)
 
 ;;scene-draw-filled-3d-convex-polygon-diffuse
 
@@ -753,6 +759,8 @@
 		     handles)
 	     (sleep 0.016))))
 
+(spin-cube1)
+
 ;;scene-add-filled-3d-convex-polygon-flat
 
 ;; In this example, we create a retained-mode cube as a draw list
@@ -789,6 +797,8 @@
     (loop repeat 600
 	  do (group-apply-transform (default-scene) group (mrotate (meye 4) (vec3 1 1 1) (/ 2pi 600)))
 	     (sleep 0.016))))
+
+(spin-cube2)
 
 ;;scene-draw-filled-3d-convex-polygon-flat
 
