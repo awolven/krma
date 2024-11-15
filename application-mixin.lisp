@@ -235,6 +235,7 @@
       (setf (render-pass window) render-pass)
 
       (let ((swapchain (create-swapchain device window width height surface-format present-mode)))
+	(setf (swapchain window) swapchain)
 
       (setup-framebuffers device render-pass swapchain)
       
@@ -870,7 +871,7 @@
                         (group :default)
 			(object-id 0)
 			(scene (default-scene)))
-  "Retained-mode function, creates a  polyline representing the outline of a circle, returns a no values.  Calls scene-add-2d-circle with color defaulting to *default-color*, line-thickness defaulting to *default-line-thickness*, number-of-segments defaulting to 64,  group defaulting to :default and scene defaulting to (default-scene).  The required arguments should be real numbers."
+  "Retained-mode function, creates a  polyline representing the outline of a circle, returns no values.  Calls scene-add-2d-circle with color defaulting to *default-color*, line-thickness defaulting to *default-line-thickness*, number-of-segments defaulting to 64,  group defaulting to :default and scene defaulting to (default-scene).  The required arguments should be real numbers."
   (scene-add-2d-circle scene
 		       group line-thickness color
 		       center-x center-y radius number-of-segments object-id))
@@ -883,7 +884,7 @@
                          (group :default)
 			 (object-id 0)
 			 (scene (default-scene)))
-  "Immediate-mode function, creates a  polyline representing the outline of a circle, returns a no values.  Calls scene-draw-2d-circle with color defaulting to *default-color*, line-thickness defaulting to *default-line-thickness*, number-of-segments defaulting to 64,  group defaulting to :default and scene defaulting to (default-scene).  The required arguments should be real numbers."
+  "Immediate-mode function, creates a  polyline representing the outline of a circle, returns no values.  Calls scene-draw-2d-circle with color defaulting to *default-color*, line-thickness defaulting to *default-line-thickness*, number-of-segments defaulting to 64,  group defaulting to :default and scene defaulting to (default-scene).  The required arguments should be real numbers."
   (scene-draw-2d-circle scene
 			group line-thickness color
 			center-x center-y radius number-of-segments object-id))
@@ -944,7 +945,7 @@
                                               (group :default)
 					      (object-id 0)
 					      (scene (default-scene)))
-  "Retained-mode function, creates a multicolored 3d polyline, returns a no values.  Calls scene-add-multicolored-3d-polyline with closed? defaulting to nil, line-thickness defaulting to *default-line-thickness*,  group defaulting to :default and scene defaulting to (default-scene).  The required argument, vertices, should be of the form (list x0 y0 z0 color0 x1 y1 z1 color1 ... xn yn zn colorn) where the x y and z values should be real numbers and the color values should represent a color."
+  "Retained-mode function, creates a multicolored 3d polyline, returns no values.  Calls scene-add-multicolored-3d-polyline with closed? defaulting to nil, line-thickness defaulting to *default-line-thickness*,  group defaulting to :default and scene defaulting to (default-scene).  The required argument, vertices, should be of the form (list x0 y0 z0 color0 x1 y1 z1 color1 ... xn yn zn colorn) where the x y and z values should be real numbers and the color values should represent a color."
   (scene-add-multicolor-3d-polyline scene group closed? line-thickness vertices object-id))
 
 (defun draw-multicolor-3d-polyline (vertices &key
@@ -953,7 +954,7 @@
                                                (group :default)
 					       (object-id 0)
 					       (scene (default-scene)))
-  "Immediate-mode function, creates a multicolored 3d polyline, returns a no values.  Calls scene-draw-multicolored-3d-polyline with closed? defaulting to nil, line-thickness defaulting to *default-line-thickness*,  group defaulting to :default and scene defaulting to (default-scene).  The required argument, vertices, should be of the form (list x0 y0 z0 color0 x1 y1 z1 color1 ... xn yn zn colorn) where the x y and z values should be real numbers and the color values should represent a color."
+  "Immediate-mode function, creates a multicolored 3d polyline, returns no values.  Calls scene-draw-multicolored-3d-polyline with closed? defaulting to nil, line-thickness defaulting to *default-line-thickness*,  group defaulting to :default and scene defaulting to (default-scene).  The required argument, vertices, should be of the form (list x0 y0 z0 color0 x1 y1 z1 color1 ... xn yn zn colorn) where the x y and z values should be real numbers and the color values should represent a color."
   (scene-draw-multicolor-3d-polyline scene group closed? line-thickness vertices object-id))
 
 
@@ -975,7 +976,7 @@
                                    (group :default)
 				   (object-id 0)
 				   (scene (default-scene)))
-  "Retained-mode function, creates a 3d polyline, returns a no values.  Calls scene-add-3d-polyline with color defaulting to *default-color*, closed? defaulting to nil, line-thickness defaulting to *default-line-thickness*, group defaulting to :default and scene defaulting to (default-scene).  The required argument, vertices, should be of the form (list x0 y0 z0 x1 y1 z1 ... xn yn zn) where the x y and z values should be real numbers."
+  "Retained-mode function, creates a 3d polyline, returns no values.  Calls scene-add-3d-polyline with color defaulting to *default-color*, closed? defaulting to nil, line-thickness defaulting to *default-line-thickness*, group defaulting to :default and scene defaulting to (default-scene).  The required argument, vertices, should be of the form (list x0 y0 z0 x1 y1 z1 ... xn yn zn) where the x y and z values should be real numbers."
   (scene-add-3d-polyline scene group closed? line-thickness color vertices object-id))
 
 (defun draw-3d-polyline (vertices &key
@@ -985,7 +986,7 @@
                                     (group :default)
 				    (object-id 0)
 				    (scene (default-scene)))
-  "Immediate-mode function, creates a 3d polyline, returns a no values.  Calls scene-draw-3d-polyline with color defaulting to *default-color*, closed? defaulting to nil, line-thickness defaulting to *default-line-thickness*, group defaulting to :default and scene defaulting to (default-scene).  The required argument, vertices, should be of the form (list x0 y0 z0 x1 y1 z1 ... xn yn zn) where the x y and z values should be real numbers."
+  "Immediate-mode function, creates a 3d polyline, returns no values.  Calls scene-draw-3d-polyline with color defaulting to *default-color*, closed? defaulting to nil, line-thickness defaulting to *default-line-thickness*, group defaulting to :default and scene defaulting to (default-scene).  The required argument, vertices, should be of the form (list x0 y0 z0 x1 y1 z1 ... xn yn zn) where the x y and z values should be real numbers."
   (scene-draw-3d-polyline scene group closed? line-thickness color vertices object-id))
 
 
@@ -1005,7 +1006,7 @@
 					       (object-id 0)
 					       (elevation 0)
 					       (scene (default-scene)))
-  "Retained-mode function, creates a series of filled 2d triangles, returns a no values.  Calls scene-add-filled-2d-triangle-list with color defaulting to *default-color*, group defaulting to :default and scene defaulting to (default-scene).  The required argument, vertices, should be of the form (list x00 y00 x10 y10 x20 y20 x01 y01 x11 y11 x21 y21 ... x0n y0n x1n y1n x2n y2n) where the x and y values represent vertices of a triangle in a series of triangles."
+  "Retained-mode function, creates a series of filled 2d triangles, returns no values.  Calls scene-add-filled-2d-triangle-list with color defaulting to *default-color*, group defaulting to :default and scene defaulting to (default-scene).  The required argument, vertices, should be of the form (list x00 y00 x10 y10 x20 y20 x01 y01 x11 y11 x21 y21 ... x0n y0n x1n y1n x2n y2n) where the x and y values represent vertices of a triangle in a series of triangles."
   (scene-add-filled-2d-triangle-list scene group color vertices object-id elevation))
 
 (defun draw-filled-2d-triangle-list (vertices &key
@@ -1014,7 +1015,7 @@
 						(object-id 0)
 						(elevation 0)
 						(scene (default-scene)))
-  "Immediate-mode function, creates a series of filled 2d triangles, returns a no values.  Calls scene-draw-2d-triangle-list with color defaulting to *default-color*, group defaulting to :default and scene defaulting to (default-scene).  The required argument, vertices, should be of the form (list x00 y00  x10 y10 x20 y20 x01 y01 x11 y11 x21 y21 ... x0n y0n x1n y1 x2n y2n) where the x and y values represent vertices of a triangle in a series of triangles."
+  "Immediate-mode function, creates a series of filled 2d triangles, returns no values.  Calls scene-draw-2d-triangle-list with color defaulting to *default-color*, group defaulting to :default and scene defaulting to (default-scene).  The required argument, vertices, should be of the form (list x00 y00  x10 y10 x20 y20 x01 y01 x11 y11 x21 y21 ... x0n y0n x1n y1 x2n y2n) where the x and y values represent vertices of a triangle in a series of triangles."
   (scene-draw-filled-2d-triangle-list scene group color vertices object-id elevation))
 
 
@@ -1094,7 +1095,7 @@
 						(object-id 0)
 						(elevation 0)
 						(scene (default-scene)))
-  "Retained-mode function, creates a filled 2d convex polygon, returns a no values.  Calls scene-add-filled-2d-convex-polygon with color defaulting to *default-color*, group defaulting to nil (no group) and scene defaulting to (default-scene).  The required argument, vertices, should be of the form (list x0 y0 x1 y1 ... xn yn) where the x's, and y's represent a vertex of the polygon."
+  "Retained-mode function, creates a filled 2d convex polygon, returns no values.  Calls scene-add-filled-2d-convex-polygon with color defaulting to *default-color*, group defaulting to nil (no group) and scene defaulting to (default-scene).  The required argument, vertices, should be of the form (list x0 y0 x1 y1 ... xn yn) where the x's, and y's represent a vertex of the polygon."
   (scene-add-filled-2d-convex-polygon scene group color vertices object-id elevation))
 
 (defun draw-filled-2d-convex-polygon (vertices &key
@@ -1103,7 +1104,7 @@
 						 (object-id 0)
 						 (elevation 0)
 						 (scene (default-scene)))
-  "Immediate-mode function, creates a filled 2d convex polygon, returns a no values.  Calls scene-draw-filled-2d-convex-polygon with color defaulting to *default-color*, group defaulting to nil (no group) and scene defaulting to (default-scene).  The required argument, vertices, should be of the form (list x0 y0 x1 y1 ... xn yn) where the x's, and y's represent a vertex of the polygon."
+  "Immediate-mode function, creates a filled 2d convex polygon, returns no values.  Calls scene-draw-filled-2d-convex-polygon with color defaulting to *default-color*, group defaulting to nil (no group) and scene defaulting to (default-scene).  The required argument, vertices, should be of the form (list x0 y0 x1 y1 ... xn yn) where the x's, and y's represent a vertex of the polygon."
   (scene-draw-filled-2d-convex-polygon scene group color vertices object-id elevation))
 
 (defun add-filled-3d-triangle-list-primitive (vertices &key
@@ -1125,7 +1126,7 @@
                                                (group :default)
 					       (object-id 0)
 					       (scene (default-scene)))
-  "Retained-mode function, creates a filled 3d triangle list, returns a no-values.  Calls scene-add-filled-3d-triangle-list-flat or scene-add-filled-3d-triangle-list-diffuse depending on whether shading-style is :diffuse or :flat, with color defaulting to *default-color*, group defaulting to :default and scene defaulting to (default-scene).  The required argument, vertices, should be of the form (list x00 y00 z00 x10 y10 z10 x20 y20 z20 x01 y01 z01 x11 y11 z11 x21 y21 z21... x0n y0n z0n x1n y1n z1n x2n y2n z2n) where the x, y and z values represent vertices of a triangle in a series of triangles.  Vertices should be oriented counter clockwise, according to the right-hand-rule, so that the front face is up."
+  "Retained-mode function, creates a filled 3d triangle list, returns no values.  Calls scene-add-filled-3d-triangle-list-flat or scene-add-filled-3d-triangle-list-diffuse depending on whether shading-style is :diffuse or :flat, with color defaulting to *default-color*, group defaulting to :default and scene defaulting to (default-scene).  The required argument, vertices, should be of the form (list x00 y00 z00 x10 y10 z10 x20 y20 z20 x01 y01 z01 x11 y11 z11 x21 y21 z21... x0n y0n z0n x1n y1n z1n x2n y2n z2n) where the x, y and z values represent vertices of a triangle in a series of triangles.  Vertices should be oriented counter clockwise, according to the right-hand-rule, so that the front face is up."
   (ecase shading-style
     (:flat (scene-add-filled-3d-triangle-list-flat scene group color vertices object-id))
     (:diffuse (scene-add-filled-3d-triangle-list-diffuse scene group color vertices object-id))))
@@ -1136,7 +1137,7 @@
                                                 (group :default)
 						(object-id 0)
 						(scene (default-scene)))
-  "Immediate-mode function, creates a filled 3d triangle list, returns a no-values.  Calls scene-draw-filled-3d-triangle-list-flat or scene-draw-filled-3d-triangle-list-diffuse depending on whether shading-style is :diffuse or :flat, with color defaulting to *default-color*, group defaulting to :default and scene defaulting to (default-scene).  The required argument, vertices, should be of the form (list x00 y00 z00 x10 y10 z10 x20 y20 z20 x01 y01 z01 x11 y11 z11 x21 y21 z21... x0n y0n z0n x1n y1n z1n x2n y2n z2n) where the x, y and z values represent vertices of a triangle in a series of triangles.  Vertices should be oriented counter clockwise, according to the right-hand-rule, so that the front face is up."
+  "Immediate-mode function, creates a filled 3d triangle list, returns no values.  Calls scene-draw-filled-3d-triangle-list-flat or scene-draw-filled-3d-triangle-list-diffuse depending on whether shading-style is :diffuse or :flat, with color defaulting to *default-color*, group defaulting to :default and scene defaulting to (default-scene).  The required argument, vertices, should be of the form (list x00 y00 z00 x10 y10 z10 x20 y20 z20 x01 y01 z01 x11 y11 z11 x21 y21 z21... x0n y0n z0n x1n y1n z1n x2n y2n z2n) where the x, y and z values represent vertices of a triangle in a series of triangles.  Vertices should be oriented counter clockwise, according to the right-hand-rule, so that the front face is up."
   (ecase shading-style
     (:flat (scene-draw-filled-3d-triangle-list-flat scene group color vertices object-id))
     (:diffuse (scene-draw-filled-3d-triangle-list-diffuse scene group color vertices object-id))))
@@ -1161,7 +1162,7 @@
                                                  (group :default)
 						 (object-id 0)
 						 (scene (default-scene)))
-  "Immediate-mode function, creates a filled 3d triangle strip, returns a no values.  Calls scene-draw-filled-3d-triangle-strip-flat or scene-draw-filled-3d-triangle-strip-diffuse depending on whether shading-style is :diffuse or :flat, with color defaulting to *default-color*, group defaulting to :default and scene defaulting to (default-scene).  The required argument, vertices, should be of the form (list x0 y0 z0 x1 y1 z1 x2 y2 z2 ... xn yn zn) where the x, y and z values represent vertices of a triangle in a strip of triangles."
+  "Immediate-mode function, creates a filled 3d triangle strip, returns no values.  Calls scene-draw-filled-3d-triangle-strip-flat or scene-draw-filled-3d-triangle-strip-diffuse depending on whether shading-style is :diffuse or :flat, with color defaulting to *default-color*, group defaulting to :default and scene defaulting to (default-scene).  The required argument, vertices, should be of the form (list x0 y0 z0 x1 y1 z1 x2 y2 z2 ... xn yn zn) where the x, y and z values represent vertices of a triangle in a strip of triangles."
   (ecase shading-style
     (:flat (scene-draw-filled-3d-triangle-strip-flat scene group color vertices object-id))
     (:diffuse (scene-draw-filled-3d-triangle-strip-diffuse scene group color vertices object-id))))
@@ -1225,7 +1226,7 @@
                                                    (group :default)
 						   (object-id 0)
 						   (scene (default-scene)))
-  "Immediate-mode function, creates a textured 3d triangle strip, returns a no values.  Calls scene-draw-textured-3d-triangle-strip-primitive-flat when shading-style is :flat, currently errors with shading-style :diffuse, with color defaulting to *default-color*, group defaulting to :default and scene defaulting to (default-scene).  The required argument, vertices, should be of the form (list x0 y0 z0 u0 v0 x1 y1 z1u1 v1  x2 y2 z2 u2 v2... xn yn zn un vn) where the x, y and z values represent successive vertices of a triangle in a strip of triangles, and the u and v values represent the normalized texture coordinates at the corresponding x, y and z.  vertices must contain at least three vertices."
+  "Immediate-mode function, creates a textured 3d triangle strip, returns no values.  Calls scene-draw-textured-3d-triangle-strip-primitive-flat when shading-style is :flat, currently errors with shading-style :diffuse, with color defaulting to *default-color*, group defaulting to :default and scene defaulting to (default-scene).  The required argument, vertices, should be of the form (list x0 y0 z0 u0 v0 x1 y1 z1u1 v1  x2 y2 z2 u2 v2... xn yn zn un vn) where the x, y and z values represent successive vertices of a triangle in a strip of triangles, and the u and v values represent the normalized texture coordinates at the corresponding x, y and z.  vertices must contain at least three vertices."
   (ecase shading-style
     (:flat (scene-draw-textured-3d-triangle-strip-flat scene group texture color vertices object-id))))
 
@@ -1303,7 +1304,7 @@
                                                               (group :default)
 							      (object-id 0)
 							      (scene (default-scene)))
-  "Retained-mode function, creates a filled sphere, returns a no values.  Calls scene-add-filled-sphere-diffuse when shading style is :diffuse, currently errors with any other shading style, with color defaulting to *default-color*, resolution defaulting to 64, group defaulting to :default, and scene defaulting to (default-scene).  The required arguments should be real numbers.   radius should be positive."
+  "Retained-mode function, creates a filled sphere, returns no values.  Calls scene-add-filled-sphere-diffuse when shading style is :diffuse, currently errors with any other shading style, with color defaulting to *default-color*, resolution defaulting to 64, group defaulting to :default, and scene defaulting to (default-scene).  The required arguments should be real numbers.   radius should be positive."
   (ecase shading-style
     (:diffuse (scene-add-filled-sphere-diffuse scene
 					       group color
@@ -1316,7 +1317,7 @@
                                                                (group :default)
 							       (object-id 0)
 							       (scene (default-scene)))
-  "Immediate-mode function, creates a filled sphere, returns a no values.  Calls scene-draw-filled-sphere-diffuse when shading style is :diffuse, currently errors with any other shading style, with color defaulting to *default-color*, resolution defaulting to 64, group defaulting to :default, and scene defaulting to (default-scene).  The required arguments should be real numbers.   radius should be positive."
+  "Immediate-mode function, creates a filled sphere, returns no values.  Calls scene-draw-filled-sphere-diffuse when shading style is :diffuse, currently errors with any other shading style, with color defaulting to *default-color*, resolution defaulting to 64, group defaulting to :default, and scene defaulting to (default-scene).  The required arguments should be real numbers.   radius should be positive."
   (ecase shading-style
     (:diffuse (scene-draw-filled-sphere-diffuse scene
                                                 group
@@ -1345,7 +1346,7 @@
 				      (object-id 0)
 				      (elevation 0)
 				      (scene (default-scene)))
-  "Retained-mode function, creates text, returns a no values.  Calls scene-add-text with color defaulting to *default-color*, font defaulting to (frame-manager-default-font clim:*default-frame-manager*), group defaulting to :default, and scene defaulting to (default-scene).  The required arguments should be real numbers.  pos-x and pos-y represent the upper left corner of the text."
+  "Retained-mode function, creates text, returns no values.  Calls scene-add-text with color defaulting to *default-color*, font defaulting to (frame-manager-default-font clim:*default-frame-manager*), group defaulting to :default, and scene defaulting to (default-scene).  The required arguments should be real numbers.  pos-x and pos-y represent the upper left corner of the text."
   (scene-add-text scene group font color pos-x pos-y string object-id elevation))
 
 (defun draw-text (string pos-x pos-y &key (color *default-color*)
@@ -1354,6 +1355,6 @@
 				       (object-id 0)
 				       (elevation 0)
 				       (scene (default-scene)))
-  "Immediate-mode function, creates text, returns a no values.  Calls scene-draw-text with color defaulting to *default-color*, font defaulting to (frame-manager-default-font clim:*default-frame-manager*), group defaulting to :default, and scene defaulting to (default-scene).  The required arguments should be real numbers.  pos-x and pos-y represent the upper left corner of the text."
+  "Immediate-mode function, creates text, returns no values.  Calls scene-draw-text with color defaulting to *default-color*, font defaulting to (frame-manager-default-font clim:*default-frame-manager*), group defaulting to :default, and scene defaulting to (default-scene).  The required arguments should be real numbers.  pos-x and pos-y represent the upper left corner of the text."
   (scene-draw-text scene group font color pos-x pos-y string object-id elevation))
 

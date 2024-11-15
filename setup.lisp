@@ -52,3 +52,10 @@
 (defvar *default-scene-ambient* #xffffffff)
 (defvar *default-material*)
 (defvar *compact-trigger* 1/2) ;; must be real number between 0 and 1
+
+(defun safe-euclid (vec4)
+  (if (<= (abs (vw vec4)) single-float-epsilon)
+      (vec3 (vx vec4) (vy vec4) (vz vec4))
+      (vec3 (/ (vx vec4) (vw vec4))
+	    (/ (vy vec4) (vw vec4))
+	    (/ (vz vec4) (vw vec4)))))

@@ -2196,8 +2196,13 @@
               (make-group group)))))
 
 (defun scene-ensure-group (scene group)
+  (declare (type (and atom t) group))
   (rm-dispatch-to-render-thread (scene draw-data)
-    (ensure-group-1 draw-data group)))
+    (let ((group-hash-table (rm-draw-data-group-hash-table draw-data)))
+    (or (gethash group group-hash-table)
+        (setf (gethash group group-hash-table)
+              (make-group group))))))
+    
   
 
 (defun sort-2d-draw-lists (draw-data)
@@ -2213,9 +2218,30 @@
 				  nil
 				  (if (null two)
 				      t
-				      (let ((elevation1 (cmd-elevation one))
-					    (elevation2 (cmd-elevation two)))
-					(< elevation1 elevation2))))))))
+				      ;; this is a lot of work to find the 'actual' elevation of a primitive
+				      (let ((elevation1 (vec4 0 0 (cmd-elevation one) 1))
+					    (group1 (cmd-group one))
+					    (elevation2 (vec4 0 0 (cmd-elevation two) 1))
+					    (group2 (cmd-group two)))
+					#+NIL
+					(when (cmd-model-mtx one)
+					  (setq elevation1 (m* (cmd-model-mtx one) elevation1)))
+					#+NIL
+					(when (cmd-model-mtx two)
+					  (setq elevation2 (m* (cmd-model-mtx two) elevation2)))
+					(when group1
+					  (let ((g1 (gethash group1 (rm-draw-data-group-hash-table draw-data))))
+					    (when g1
+					      (let ((m1 (group-model-matrix g1)))
+						(when m1
+						  (setq elevation1 (m* m1 elevation1)))))))
+					(when group2
+					  (let ((g2 (gethash group2 (rm-draw-data-group-hash-table draw-data))))
+					    (when g2
+					      (let ((m2 (group-model-matrix g2)))
+						(when m2
+						  (setq elevation2 (m* m2 elevation2)))))))
+					(< (vz (safe-euclid elevation1)) (vz (safe-euclid elevation2))))))))))
 	   (check-for-compaction (draw-list)
 	     ;; should this be done in compaction thread?
 	     ;; seems convenient here, since it's sorted

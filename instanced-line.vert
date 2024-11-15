@@ -7,11 +7,12 @@
 struct vertex_2d {
   uint oid;
   uint color;
-  vec2 val;
+  vec2 xy;
 } ;
 
 layout(buffer_reference, std430, buffer_reference_align = 16) readonly buffer _pointRef {
-  vec4 val;
+  //vec4 val; // to make work with spirv->metal translator
+  vertex_2d val;
 };
 
 layout(set = 0, binding = 0) uniform uniformBuffer {
@@ -46,8 +47,8 @@ layout(location = 9) out vec4 outExtents;
 uint color;
 
 void main () {
-  vec2 pointA = (_pointRef(pc.ref0) + gl_InstanceIndex).val.zw;
-  vec2 pointB = (_pointRef(pc.ref0) + gl_InstanceIndex + 1).val.zw;
+  vec2 pointA = (_pointRef(pc.ref0) + gl_InstanceIndex).val.xy;
+  vec2 pointB = (_pointRef(pc.ref0) + gl_InstanceIndex + 1).val.xy;
   vec2 xBasis = pointB- pointA;
   vec2 yBasis = normalize(vec2(-xBasis.y, xBasis.x));
   vec2 point = pointA + xBasis * inPosition.x + yBasis * pc.width * inPosition.y;
@@ -56,7 +57,7 @@ void main () {
   if (bool(pc.override_color_p)) {
     color = pc.override_color;
   } else {
-    color = inColor;
+    color = (_pointRef(pc.ref0) + gl_InstanceIndex + 1).val.color;
   }
   outColor = vec4((0x000000ff & (color >> 24))/255.0,
                   (0x000000ff & (color >> 16))/255.0,

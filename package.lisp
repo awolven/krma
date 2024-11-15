@@ -159,6 +159,7 @@
 		)
   
   (:export #:default-scene
+	   #:scene
 	   #:window-viewports
 	   #:object-from-id
 	   #:krma-frame-manager-mixin

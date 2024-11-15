@@ -542,7 +542,7 @@
           (vertex-size (* (foreign-array-fill-pointer vertex-array)
                           (foreign-array-foreign-type-size vertex-array))))
 
-      (flet ((mmap-buffer (buffer lisp-array size memory-resource aligned-size type argxxx)
+      (flet ((mmap-buffer (buffer lisp-array size memory-resource aligned-size)
 	       (unless (zerop size)
 		 (let ((memory (allocated-memory buffer))
                        (offset (vk::memory-resource-offset memory-resource))
@@ -616,9 +616,7 @@
 	    
             (mmap-buffer (vk::memory-resource-buffer memory-resource)
                          (foreign-array-bytes vertex-array) vertex-size memory-resource
-                         new-size-aligned
-			 :unsigned-int
-			 4))))
+                         new-size-aligned))))
 
 	(let ((new-size-aligned (vk::aligned-size index-size)))
 	  
@@ -649,9 +647,7 @@
 	      
 	      (mmap-buffer (vk::memory-resource-buffer memory-resource)
                            (foreign-array-bytes index-array) index-size memory-resource
-                           new-size-aligned
-			   :unsigned-short
-			   2)))))))
+                           new-size-aligned)))))))
   
   (values))
 

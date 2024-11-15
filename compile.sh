@@ -1,5 +1,5 @@
 #!/bin/bash
-GLSL_COMPILER=/cygdrive/c/VulkanSDK/1.3.275.0/Bin/glslangValidator.exe
+GLSL_COMPILER=/cygdrive/c/VulkanSDK/1.3.296.0/Bin/glslangValidator.exe
 #GLSL_COMPILER=~/vulkan/1.3.231.0/x86_64/bin/glslangValidator
 #GLSL_COMPILER=~/VulkanSDK/1.3.275.0/macOS/bin/glslangValidator
 set -x

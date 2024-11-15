@@ -415,10 +415,10 @@
   #-sbcl(setf (car current-draw-data-cons) (mod (1+ (car current-draw-data-cons)) 2))
   (values))
 
-(defun recreate-swapchain-when-necessary (window)
+(defun recreate-swapchain-when-necessary (window device)
   (when (recreate-swapchain? window)
     (multiple-value-bind (width height) (window-framebuffer-size window)
-      (recreate-swapchain window (render-pass window) (swapchain window) width height)
+      (recreate-swapchain window device (render-pass window) (swapchain window) width height)
       #+NIL
       (setf (clui::last-framebuffer-width window) width
 	    (clui::last-framebuffer-height window) height)
@@ -475,7 +475,7 @@
 
 	      (progn
       
-		(recreate-swapchain-when-necessary window)
+		(recreate-swapchain-when-necessary window (default-logical-device dpy))
       
 		(with-slots (queue command-pool) window
 
@@ -542,11 +542,12 @@
 
     ;; first time use of compacting complete semaphore is :count 1
     ;; this needs to be the only thread that modifies current-frame
-    (setq *frame-initialized* t)
-    (update-counts (current-frame-cons dpy) (current-draw-data-cons dpy) (number-of-images (swapchain (main-window (first (display-frame-managers dpy))))))
-
-    (bt:wait-on-semaphore (compacting-complete-semaphore dpy))
-    (bt:signal-semaphore (frame-iteration-complete-semaphore dpy))
+    
+      (setq *frame-initialized* t)
+      (update-counts (current-frame-cons dpy) (current-draw-data-cons dpy) (number-of-images (swapchain (main-window (first (display-frame-managers dpy))))))
+      
+      (bt:wait-on-semaphore (compacting-complete-semaphore dpy))
+      (bt:signal-semaphore (frame-iteration-complete-semaphore dpy))
 
     (values)))
 
@@ -625,10 +626,26 @@
 
     (unwind-protect
 	 (loop until (clui::run-loop-exit? dpy)
-		 initially (start-compactor-thread dpy)
+	       initially (start-compactor-thread dpy)
+			 (maybe-defer-debug (dpy)
+			   (poll-events dpy))
+			 
+			 (unless (render-surface main-window)
+			   ;; initial poll-events should trigger a resize event
+			   ;; which calls initialize-window-devices
+			   ;; which calls create-swapchain
+			   ;; but if for some reason that event does not get triggered
+			   ;; do the work here:
+			   (multiple-value-bind (w h) (window-framebuffer-size main-window)
+			     (clui::initialize-window-devices main-window
+							      :width w
+							      :height h)
+			     (setf (recreate-swapchain? main-window) nil)
+			     (setf (vk::window-initialized? main-window) t)))
+			 
 	       do (maybe-defer-debug (dpy)
 		    (poll-events dpy))
-
+		  
 		  (when (clui::run-loop-exit? dpy)
 		    (return))
 
