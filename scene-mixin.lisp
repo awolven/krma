@@ -157,7 +157,7 @@
   (let ((draw-data (im-draw-data scene)))
     (sb-ext:finalize scene
                      #'(lambda ()
-                         (%purge-im-groups-1 draw-data))
+                         (%purge-im-groups-1 (default-display) draw-data))
                      :dont-save t)))
 
 #+(OR ccl ALLEGRO)     
@@ -1363,6 +1363,7 @@
     (%draw-data-draw-textured-3d-triangle-list draw-data object-id group texture (canonicalize-color color) vertices)))
 
 ;; textured-3d-triangle-strip-flat
+#+NIL
 (defun scene-add-textured-3d-triangle-strip-primitive-flat (scene group model-matrix texture color vertices &optional (object-id 0))
   "Retained-mode function, returns a handle for a textured 3d triangle strip primitive.  Displays with flat shading.  Required arguments: scene must be of type krma-essential-scene-mixin, group must be an atom, possibly nil (meaning not associated with a group), model-matrix must either be a 3dm:mat4 or nil (nil effectively means identity),  texture should be a texture such as return from make-vulkan-texture, color can either be a 4 component vector who's elements are real numbers between zero and one, or a 32 bit unsigned integer, vertices should be of the form (list x0 y0 z0 u0 v0 x1 y1 z1 u1 v1 ... xn yn zn un vn) where the x, y and z's represent a vertex of the polygon and must be real numbers.  u and v are the normalized texture coordinates of that vertex, and must be real numbers between zero and one.  There must be at least three x, y, z, u and v quints in vertices.  Dispatches actual work to render thread.  To delete the triangle strip, you must delete the primitive using the handle or delete the entire group, if any."
   (declare (type krma-essential-scene-mixin scene))
@@ -1374,6 +1375,7 @@
   (rm-dispatch-to-render-thread-with-handle (scene draw-data handle)
     (%draw-data-add-textured-3d-triangle-strip-primitive draw-data handle object-id group (when model-matrix (mcopy-mat4-to-single-float model-matrix)) texture color vertices)))
 
+#+NIL
 (defun scene-draw-textured-3d-triangle-strip-flat (scene group texture color vertices &optional (object-id 0))
   "Immediate-mode function, draws a textured 3d triangle strip, returns no values.  Displays with flat shading.  Required arguments: scene must be of type krma-essential-scene-mixin, group must be a non-null atom, color can either be a 4 component vector who's elements are real numbers between zero and one, or a 32 bit unsigned integer, vertices should be of the form (list x0 y0 z0 u0 v0 x1 y1 z1 u1 v1 ... xn yn zn un vn) where the x, y and z's represent a vertex of the polygon and must be real numbers.  u and v are the normalized texture coordinates of that vertex, and must be real numbers between zero and one.  There must be at least three x, y, z, u and v quints in vertices.  Performs work in current thread, which should be the render thread.  Effects of this function only last for the current frame."
   (declare (type krma-essential-scene-mixin scene))
@@ -1384,7 +1386,7 @@
     (declare (type immediate-mode-draw-data draw-data))
     (let ((draw-list (draw-data-3d-triangle-strip-draw-list draw-data)))
       ;; we add the primitive/cmd without a handle:
-      (%draw-list-add-textured-3d-triangle-strip/list
+      (%draw-list-add-textured-3d-triangle-strip
        draw-list object-id group nil texture (canonicalize-color color) vertices))))
 
 (defun scene-add-filled-sphere-primitive-diffuse
@@ -1703,34 +1705,7 @@
         (lparallel.queue:push-queue #'(lambda () (%primitive-set-color-1 ht1 handle color)) wq1)
         (values)))))
 
-(declaim (inline %primitive-set-light-position-1))
-(defun %primitive-set-light-position-1 (ht handle pos)
-  (let ((cmd (gethash handle ht)))
-    (if (listp cmd)
-        (warn "while in %primitive-set-light-position-1 ...could not find primitive ~S to set light position." handle)
-        (setf (cmd-light-position cmd) pos))
-    (values)))
 
-(defun primitive-set-light-position-1 (draw-data handle pos)
-  "Retained-mode function.  Returns no values.  Sets the light position of the primitive, normally renderer uses the scene light position, unless group light position is set.  Performs work in current thread, which should be the render thread."
-  (declare (type retained-mode-draw-data draw-data))
-  (let ((ht (rm-draw-data-handle-hash-table draw-data)))
-    (%primitive-set-light-position-1 ht handle pos)))
-
-(defun primitive-set-light-position (scene handle pos)
-  "Retained-mode function.  Returns no values.  Sets the light position of the primitive, normally renderer uses the scene light position, unless group light position is set.  To be run in a thread outside of the render thread.  Dispatches actual work to render thread."
-  (declare (type krma-essential-scene-mixin scene))
-  (let ((draw-data (rm-draw-data scene)))
-    (let ((dd0 (svref draw-data 0))
-          (dd1 (svref draw-data 1)))
-      (declare (type retained-mode-draw-data dd0 dd1))
-      (let ((ht0 (rm-draw-data-handle-hash-table dd0))
-            (ht1 (rm-draw-data-handle-hash-table dd1))
-            (wq0 (draw-data-work-queue dd0))
-            (wq1 (draw-data-work-queue dd1)))
-        (lparallel.queue:push-queue #'(lambda () (%primitive-set-light-position-1 ht0 handle pos)) wq0)
-        (lparallel.queue:push-queue #'(lambda () (%primitive-set-light-position-1 ht1 handle pos)) wq1)
-        (values)))))
 
 (declaim (inline %primitive-set-transform-1))
 (defun %primitive-set-transform-1 (ht handle matrix)
@@ -1825,8 +1800,8 @@
             (ht1 (rm-draw-data-handle-hash-table dd1))
             (wq0 (draw-data-work-queue dd0))
             (wq1 (draw-data-work-queue dd1)))
-        #+notyet(sb-concurrency:enqueue #'(lambda () (%primitive-set-line-thickness-1 ht0 handle thickness)) wq0)
-        #+notyet(sb-concurrency:enqueue #'(lambda () (%primitive-set-line-thickness-1 ht1 handle thickness)) wq1)
+        (lparallel.queue:push-queue #'(lambda () (%primitive-set-line-thickness-1 ht0 handle thickness)) wq0)
+        (lparallel.queue:push-queue #'(lambda () (%primitive-set-line-thickness-1 ht1 handle thickness)) wq1)
         (values)))))
 
 
@@ -2054,13 +2029,13 @@
                  (maphash #'(lambda (key draw-list)
                               (declare (ignore key))
                               ;; we're wanting to delete all groups from immediate mode draw lists!
-                              (let ((ia (draw-list-index-array draw-list))
-                                    (va (draw-list-vertex-array draw-list))
+                              (let (#+NIL(ia (draw-list-index-array draw-list))
+                                    #+NIL(va (draw-list-vertex-array draw-list))
                                     (im (draw-list-index-memory draw-list))
                                     (vm (draw-list-vertex-memory draw-list)))
-                                (declare (type foreign-adjustable-array ia va))
-                                (foreign-free (foreign-array-ptr ia))
-                                (foreign-free (foreign-array-ptr va))
+                                ;;(declare (type foreign-adjustable-array ia va))
+                                ;;(foreign-free (foreign-array-ptr ia))
+                                ;;(foreign-free (foreign-array-ptr va))
 				(when dpy
 				  (when im
 				    (vk::release-index-memory dpy im))

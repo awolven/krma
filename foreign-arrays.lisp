@@ -167,6 +167,7 @@
   (u :float)
   (v :float))
 
+#+NIL
 (setf (documentation 'symbol 'textured-2d-vertex)
       "The name of a foreign 2d vertex structure for points, lines and triangles.")
 
@@ -297,6 +298,7 @@
   (u :float)
   (v :float))
 
+#+NIL
 (setf (documentation 'symbol 'textured-3d-vertex)
       "The name of a foreign 3d vertex structure for points, lines and triangles.")
 
@@ -312,6 +314,7 @@
   (ny :float)
   (nz :float))
 
+#+NIL
 (setf (documentation 'symbol 'textured-3d-vertex-with-normal)
       "The name of a foreign 3d vertex structure for triangles with different shading styles.")
 

@@ -1228,6 +1228,7 @@
     (values)))
 
 
+#+NIL
 (defun %draw-data-add-textured-3d-triangle-strip-primitive (draw-data handle ub32-oid atom-group model-mtx texture ub32-color vertices)
   (declare (type retained-mode-draw-data draw-data))
   (let ((draw-list (rm-draw-data-3d-triangle-strip-draw-list draw-data)))

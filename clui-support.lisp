@@ -250,5 +250,4 @@
 (defmethod helper-window-class ((display x11:local-server-with-krma-mixin))
   'vk::vulkan-helper-window)
 
-(defmethod helper-window-class ((display clui:display-mixin))
-  'vk::vulkan-helper-window)
+

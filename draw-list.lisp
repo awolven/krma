@@ -1680,7 +1680,7 @@
 	 (first-index (foreign-array-fill-pointer index-array))
 	 (vtx-offset (foreign-array-fill-pointer vertex-array))
 	 (elem-count 0))
-    (declare (type fixnum number-of-vertices))
+    (declare (type fixnum elem-count))
     (with-draw-list-transaction (%draw-list-add-multicolor-3d-convex-polygon 3d-draw-list first-index vtx-offset)
       (etypecase seq-vertices
 	(list

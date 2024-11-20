@@ -359,6 +359,7 @@
 (defclass texture-image (vk::image)
   ((descriptor-set :accessor texture-image-descriptor-set)))
 
+#+NIL
 (defun aligned-size (size)
   (* (1+ (ceiling (/ (1- size) +buffer-alignment+))) +buffer-alignment+))
 

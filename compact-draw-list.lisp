@@ -61,8 +61,8 @@
       (setf (draw-list-needs-compaction? draw-list) nil)
       (return-from compact-draw-list draw-list))
 	      
-    (format *debug-io* "~%info: compacting draw-list")
-    (force-output *debug-io*)
+    ;;(format *debug-io* "~%info: compacting draw-list")
+    ;;(force-output *debug-io*)
       
     (let* ((old-index-array (draw-list-index-array draw-list))
 	   (old-vertex-array (draw-list-vertex-array draw-list))

@@ -266,10 +266,11 @@
 (defmethod 3d-cmd-oriented-combinations ((pipeline-store pipeline-store-mixin) (draw-data immediate-mode-draw-data) display)
   (im-standard-3d-cmd-oriented-combinations pipeline-store draw-data display))
 
+
 (defun im-standard-3d-cmd-oriented-combinations (pipeline-store draw-data display)
   (declare (type pipeline-store-mixin pipeline-store))
   (declare (type immediate-mode-draw-data draw-data))
-
+  (declare (ignorable pipeline-store draw-data display))
   #+NIL
   (let ((res ())
 	(point-pipeline (or (pipeline-store-3d-point-list-pipeline pipeline-store)

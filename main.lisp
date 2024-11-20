@@ -59,6 +59,7 @@
 	(vkUnmapMemory (h device) (h memory))))))
 
 (defun read-selection-set (window frame-count frame-to-read)
+  (declare (ignorable frame-count))
   (read-buffer (vk::memory-resource-buffer
 		(aref (krma-selection-set-table-memory-resources window) frame-to-read))
 	       (krma-selection-set-table window) (* 4 1024)

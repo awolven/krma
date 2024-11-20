@@ -580,7 +580,7 @@
                                      (matrix nil)
 				     (group nil)
 				     (object-id 0)
-				     (scene (default-medium)))
+				     (scene (default-scene)))
   "Retained-mode function, creates a primitive, returns a handle. Calls scene-add-2d-point-primitive with color defaulting to *default-color*, point-size defaulting to *default-point-size*, matrix defaulting to nil (identity), group defaulting to nil (no group), and scene defaulting to (default-scene). The required arguments x and y must be real numbers."
   (scene-add-2d-point-primitive scene group matrix point-size color x y object-id))
 
@@ -1164,7 +1164,7 @@
 						 (scene (default-scene)))
   "Immediate-mode function, creates a filled 3d triangle strip, returns no values.  Calls scene-draw-filled-3d-triangle-strip-flat or scene-draw-filled-3d-triangle-strip-diffuse depending on whether shading-style is :diffuse or :flat, with color defaulting to *default-color*, group defaulting to :default and scene defaulting to (default-scene).  The required argument, vertices, should be of the form (list x0 y0 z0 x1 y1 z1 x2 y2 z2 ... xn yn zn) where the x, y and z values represent vertices of a triangle in a strip of triangles."
   (ecase shading-style
-    (:flat (scene-draw-filled-3d-triangle-strip-flat scene group color vertices object-id))
+    #+NOTYET(:flat (scene-draw-filled-3d-triangle-strip-flat scene group color vertices object-id))
     (:diffuse (scene-draw-filled-3d-triangle-strip-diffuse scene group color vertices object-id))))
 
 
@@ -1205,6 +1205,7 @@
   (ecase shading-style
     (:flat (scene-draw-textured-3d-triangle-list-flat scene group texture color vertices object-id))))
 
+#+NIL
 (defun add-textured-3d-triangle-strip-primitive (vertices &key
                                                             (color *default-color*)
 							    (texture *white-texture*)
@@ -1219,6 +1220,7 @@
   (ecase shading-style
     (:flat (scene-add-textured-3d-triangle-strip-primitive-flat scene group matrix texture color vertices object-id))))
 
+#+NIL
 (defun draw-textured-3d-triangle-strip (vertices &key
                                                    (color *default-color*)
                                                    (texture *white-texture*)
