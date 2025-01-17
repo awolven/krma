@@ -38,7 +38,7 @@
    (:file "teapot")))
 
 (setf (logical-pathname-translations "SUBMODULES")
-      (list (list "**;*"
+      (list (list "**;*.*.*"
 		  (merge-pathnames (make-pathname
 				    :directory '(:relative :wild-inferiors)
 				    :name :wild
