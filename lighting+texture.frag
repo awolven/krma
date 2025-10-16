@@ -114,6 +114,12 @@ bool sethash (uint value) {
   return false;
 }
 
+float LinearizeDepth(float depth) 
+{
+  float near = extents.z;
+  float far = extents.w;
+  return ((1.0/depth)-(1.0/near))/((1.0/far)-(1.0/near));
+}
 
 void main () {
   vec4 color = vec4(fragColor * texture(texSampler, fragTexCoord));
@@ -204,17 +210,23 @@ void main () {
     sethash(inObjectId);
   }
   
-  if ((ub.pointer_pos_x - 0.5) <= gl_FragCoord.x &&
+  if (/*(ub.pointer_pos_x - 0.5) <= gl_FragCoord.x &&
       (ub.pointer_pos_y - 0.5) <= gl_FragCoord.y &&
       gl_FragCoord.x <= (ub.pointer_pos_x + 0.5) &&
-      gl_FragCoord.y <= (ub.pointer_pos_y + 0.5)) {
+      gl_FragCoord.y <= (ub.pointer_pos_y + 0.5)*/
+      (ub.pointer_pos_x) <= gl_FragCoord.x &&
+      (ub.pointer_pos_y) <= gl_FragCoord.y &&
+      gl_FragCoord.x <= (ub.pointer_pos_x + 1.0) &&
+      gl_FragCoord.y <= (ub.pointer_pos_y + 1.0)
+      /*uint(ub.pointer_pos_x) == uint(gl_FragCoord.x)
+      &&
+      uint(ub.pointer_pos_y) == uint(gl_FragCoord.y)*/) {
     
     // this shader should never be assigned in a 2d pipeline
     float near = extents.z;
     float far = extents.w;
     float z = (2.0 * near) / (far + near - gl_FragCoord.z * (far - near));
-    
-    uint zIndex = uint(z * SELECT_BOX_DEPTH_3D);
+    uint zIndex = uint(z * 4.0 * (SELECT_BOX_DEPTH_3D-1));
     uint row_size = 1;
     uint offset = uint(gl_FragCoord.y - ub.pointer_pos_y) * row_size
       + uint(gl_FragCoord.x - ub.pointer_pos_x);

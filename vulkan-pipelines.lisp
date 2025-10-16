@@ -134,7 +134,7 @@
 
 (defmethod allocator ((pipeline pipeline-mixin))
   (with-slots (display) pipeline
-    (allocator display)))
+    (allocator (default-logical-device display))))
 
 (defmethod default-logical-device ((pipeline pipeline-mixin))
   (with-slots (display) pipeline
@@ -142,11 +142,11 @@
 
 (defmethod pipeline-cache ((pipeline pipeline-mixin))
   (with-slots (display) pipeline
-    (pipeline-cache display)))
+    (pipeline-cache (default-logical-device display))))
 
 (defmethod descriptor-pool ((pipeline pipeline-mixin))
   (with-slots (display) pipeline
-    (default-descriptor-pool display)))
+    (default-descriptor-pool (default-logical-device display))))
 
 (defmethod pipeline-front-face-orientation ((pipeline pipeline-mixin))
   VK_FRONT_FACE_COUNTER_CLOCKWISE)
@@ -184,6 +184,15 @@
 
 (defmethod make-push-constant-ranges ((pipeline pipeline-mixin))
   nil)
+
+(defmethod pipeline-depth-bias-enable? ((pipeline pipeline-mixin))
+  nil)
+
+(defmethod pipeline-depth-bias-constant-factor ((pipeline pipeline-mixin))
+  0.0f0)
+
+(defmethod pipeline-depth-bias-slope-factor ((pipeline pipeline-mixin))
+  0.0f0)
 
 (defmethod pipeline-depth-test-enable? ((pipeline pipeline-mixin))
   t)
@@ -534,7 +543,7 @@
 
                 texture-image))))))))
 
-(defun initialize-buffers (dpy draw-list)
+(defun initialize-buffers (device draw-list)
   (let ((vertex-array (draw-list-vertex-array draw-list))
         (index-array (draw-list-index-array draw-list)))
 
@@ -543,11 +552,11 @@
           (vertex-size (* (foreign-array-fill-pointer vertex-array)
                           (foreign-array-foreign-type-size vertex-array))))
 
-      (flet ((mmap-buffer (buffer lisp-array size memory-resource aligned-size)
+      (flet ((mmap-buffer (buffer lisp-array size memory-block aligned-size)
 	       (unless (zerop size)
 		 (let ((memory (allocated-memory buffer))
-                       (offset (vk::memory-resource-offset memory-resource))
-                       (device (vk::device buffer)))
+		       (offset (memory-block-offset memory-block))
+		       (device (vk::device buffer)))
                    (with-foreign-object (pp-dst :pointer)
 
                      (check-vk-result (vkMapMemory (h device) (h memory) offset aligned-size 0 pp-dst))
@@ -589,65 +598,65 @@
 
 		     (values))))))
 
-	(let ((new-size-aligned (vk::aligned-size vertex-size)))
+	(let ((new-size-aligned (aligned-size vertex-size)))
 
 	  (unless (draw-list-vertex-size-aligned draw-list)
 	    (setf (draw-list-vertex-memory draw-list)
-		  (vk::acquire-vertex-memory-sized dpy new-size-aligned :host-visible))
+		  (acquire-memory-sized device new-size-aligned VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT))
 	    (setf (draw-list-vertex-size-aligned draw-list) new-size-aligned))
 
-        (unless (zerop vertex-size)
-          (let* ((old-size-aligned (draw-list-vertex-size-aligned draw-list))
-                 (memory-resource))
+          (unless (zerop vertex-size)
+            (let* ((old-size-aligned (draw-list-vertex-size-aligned draw-list))
+                   (memory-block))
 	    
-            (setq memory-resource
-		  (if (> new-size-aligned old-size-aligned)
-		      (if (draw-list-vertex-memory draw-list)
-			  (progn (vk::release-vertex-memory dpy (draw-list-vertex-memory draw-list))
-				 (setf (draw-list-vertex-memory draw-list)
-				       (vk::acquire-vertex-memory-sized dpy new-size-aligned :host-visible)))
-			  (setf (draw-list-vertex-memory draw-list)
-				(vk::acquire-vertex-memory-sized dpy new-size-aligned :host-visible)))
-		      (if (draw-list-vertex-memory draw-list)
-			  (draw-list-vertex-memory draw-list)
-			  (setf (draw-list-vertex-memory draw-list)
-				(vk::acquire-vertex-memory-sized dpy new-size-aligned :host-visible)))))
+	      (setq memory-block
+		    (if (> new-size-aligned old-size-aligned)
+			(if (draw-list-vertex-memory draw-list)
+			    (progn (release-memory (draw-list-vertex-memory draw-list))
+				   (setf (draw-list-vertex-memory draw-list)
+					 (acquire-memory-sized device new-size-aligned VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)))
+			    (setf (draw-list-vertex-memory draw-list)
+				  (acquire-memory-sized device new-size-aligned VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)))
+			(if (draw-list-vertex-memory draw-list)
+			    (draw-list-vertex-memory draw-list)
+			    (setf (draw-list-vertex-memory draw-list)
+				  (acquire-memory-sized device new-size-aligned VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)))))
 	    
-	    (setf (draw-list-vertex-size-aligned draw-list) new-size-aligned)
+	      (setf (draw-list-vertex-size-aligned draw-list) new-size-aligned)
 	    
-            (mmap-buffer (vk::memory-resource-buffer memory-resource)
-                         (foreign-array-bytes vertex-array) vertex-size memory-resource
-                         new-size-aligned))))
+	      (mmap-buffer (memory-block-buffer memory-block)
+                           (foreign-array-bytes vertex-array) vertex-size memory-block
+                           new-size-aligned))))
 
-	(let ((new-size-aligned (vk::aligned-size index-size)))
+	(let ((new-size-aligned (aligned-size index-size)))
 	  
 	  (unless (draw-list-index-size-aligned draw-list)
 	    (setf (draw-list-index-memory draw-list)
-		  (vk::acquire-index-memory-sized dpy new-size-aligned :host-visible))
+		  (acquire-memory-sized device new-size-aligned VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT))
 	    (setf (draw-list-index-size-aligned draw-list) new-size-aligned))
 
 	  (unless (zerop index-size)
 	    
 	    (let* ((old-size-aligned (draw-list-index-size-aligned draw-list))
-                   (memory-resource))
+                   (memory-block))
 	      
-              (setq memory-resource
+	      (setq memory-block
 		    (if (> new-size-aligned old-size-aligned)
 			(if (draw-list-index-memory draw-list)
-			    (progn (vk::release-index-memory dpy (draw-list-index-memory draw-list))
+			    (progn (release-memory (draw-list-index-memory draw-list))
 				   (setf (draw-list-index-memory draw-list)
-					 (vk::acquire-index-memory-sized dpy new-size-aligned :host-visible)))
+					 (acquire-memory-sized device new-size-aligned VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)))
 			    (setf (draw-list-index-memory draw-list)
-				  (vk::acquire-index-memory-sized dpy new-size-aligned :host-visible)))
+				  (acquire-memory-sized device new-size-aligned VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)))
 			(if (draw-list-index-memory draw-list)
 			    (draw-list-index-memory draw-list)
 			    (setf (draw-list-index-memory draw-list)
-				  (vk::acquire-index-memory-sized dpy new-size-aligned :host-visible)))))
+				  (acquire-memory-sized device new-size-aligned VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)))))
 	      
 	      (setf (draw-list-index-size-aligned draw-list) new-size-aligned)
 	      
-	      (mmap-buffer (vk::memory-resource-buffer memory-resource)
-                           (foreign-array-bytes index-array) index-size memory-resource
+	      (mmap-buffer (memory-block-buffer memory-block)
+                           (foreign-array-bytes index-array) index-size memory-block
                            new-size-aligned)))))))
   
   (values))
@@ -678,7 +687,13 @@
 						  (sample-shading-enable
 						   (pipeline-sample-shading-enable pipeline))
 						  (rasterization-samples
-						   (pipeline-rasterization-samples pipeline)))
+						   (pipeline-rasterization-samples pipeline))
+						  (depth-bias-enable
+						   (pipeline-depth-bias-enable? pipeline))
+						  (depth-bias-constant-factor
+						   (pipeline-depth-bias-constant-factor pipeline))
+						  (depth-bias-slope-factor
+						   (pipeline-depth-bias-slope-factor pipeline)))
   (let ()
     (let ((vtx-shader (create-shader-module-from-file device (vertex-shader-pathname pipeline)))
 	  (frg-shader (create-shader-module-from-file device (fragment-shader-pathname pipeline))))
@@ -715,7 +730,12 @@
 		   :stippled-line-enable (if stippled-line-enable
 					     VK_TRUE VK_FALSE)
 		   :sample-shading-enable sample-shading-enable
-		   :rasterization-samples rasterization-samples 
+		   :rasterization-samples rasterization-samples
+		   :depth-bias-enable (if depth-bias-enable (if (eq depth-bias-enable VK_FALSE)
+								VK_FALSE VK_TRUE)
+					  VK_FALSE)
+		   :depth-bias-constant-factor depth-bias-constant-factor
+		   :depth-bias-slope-factor depth-bias-slope-factor
 		   :allocator (allocator pipeline)
 		   additional-pipeline-creation-args))
 
@@ -848,6 +868,15 @@
 				      2d-texture-pipeline-mixin)
   ())
 
+(defmethod pipeline-depth-bias-enable? ((pipeline 2d-instanced-line-pipeline))
+  t)
+
+(defmethod pipeline-depth-bias-constant-factor ((pipeline 2d-instanced-line-pipeline))
+  -0.05f0)
+
+(defmethod pipeline-depth-bias-slope-factor ((pipeline 2d-instanced-line-pipeline))
+  0.5f0)
+
 (defmethod vertex-shader-pathname ((pipeline 2d-instanced-line-pipeline))
   (submodule-file "krma-shader-bin/instanced-line.vert.spv"))
 
@@ -868,8 +897,25 @@
 				      3d-texture-pipeline-mixin)
   ())
 
+(defmethod pipeline-depth-bias-enable? ((pipeline 3d-instanced-tube-pipeline))
+  t)
+
+(defmethod pipeline-depth-bias-constant-factor ((pipeline 3d-instanced-tube-pipeline))
+  0.0f0 #+NIL(/ 1.0f0 (1- (expt 2 32))))
+
+(defmethod pipeline-depth-bias-slope-factor ((pipeline 3d-instanced-tube-pipeline))
+  -5.0f0)
+
 (defmethod vertex-shader-pathname ((pipeline 3d-instanced-tube-pipeline))
   (submodule-file "krma-shader-bin/instanced-tube.vert.spv"))
+
+(defclass foreground-3d-instanced-line-pipeline (triangle-list-pipeline-mixin
+						 3d-texture-pipeline-mixin)
+  ())
+
+(defmethod vertex-shader-pathname ((pipeline foreground-3d-instanced-line-pipeline))
+  (submodule-file "krma-shader-bin/instanced-tube.vert.spv"))
+						 
 
 (defclass 3d-triangle-list-with-normals-pipeline (triangle-list-pipeline-mixin
 						  3d-texture-with-normals-pipeline-mixin)
@@ -898,7 +944,7 @@
     
     (unless (= 0 (foreign-array-fill-pointer index-array))
 
-      (initialize-buffers dpy draw-list)
+      (initialize-buffers device draw-list)
       
       (let ((cmd-vector (draw-list-cmd-vector draw-list)))
 	(declare (type (vector t) cmd-vector))
@@ -938,10 +984,10 @@
                                        p-descriptor-sets
                                        0 +nullptr+))
 
-            (cmd-bind-vertex-buffers command-buffer (list (vk::memory-resource-buffer (draw-list-vertex-memory draw-list)))
-                                     (list (vk::memory-resource-offset (draw-list-vertex-memory draw-list))))
-            (cmd-bind-index-buffer command-buffer (vk::memory-resource-buffer (draw-list-index-memory draw-list))
-                                   (vk::memory-resource-offset (draw-list-index-memory draw-list)) (foreign-array-foreign-type index-array))
+            (cmd-bind-vertex-buffers command-buffer (list (memory-block-buffer (draw-list-vertex-memory draw-list)))
+                                     (list (memory-block-offset (draw-list-vertex-memory draw-list))))
+            (cmd-bind-index-buffer command-buffer (memory-block-buffer (draw-list-index-memory draw-list))
+                                   (memory-block-offset (draw-list-index-memory draw-list)) (foreign-array-foreign-type index-array))
 
             (flet ((render-standard-draw-indexed-cmd (cmd &aux (pipeline-default-font nil))
 		     (declare (type standard-draw-indexed-cmd cmd))
@@ -1002,7 +1048,8 @@
 
 			   (cond ((or (typep pipeline 'point-list-pipeline-mixin)
 				      (typep pipeline '2d-instanced-line-pipeline)
-				      (typep pipeline '3d-instanced-tube-pipeline))
+				      (typep pipeline '3d-instanced-tube-pipeline)
+				      (typep pipeline 'foreground-3d-instanced-line-pipeline))
 				  (setf (mem-aref pvalues :uint32 +uber-vertex-shader-primitive-type-offset+) 0)
 				  (let ((psize (mem-aptr pvalues :uint32 +uber-vertex-shader-point-size-offset+)))
 				    (let ((cmd-point-size (cmd-point-size cmd)))
@@ -1029,13 +1076,15 @@
 				 (t (setf (mem-aref pvalues :uint32 +uber-vertex-shader-primitive-type-offset+) 2)))
 
 			   (let ((cmd-instance-array (cmd-instance-array cmd)))
-			     (if cmd-instance-array
+			     (if (and cmd-instance-array
+				      (not (zerop (foreign-array-fill-pointer
+						   (instance-list-array cmd-instance-array)))))
 				 (progn
-				   (initialize-instance-list-buffer dpy cmd-instance-array)
+				   (initialize-instance-list-buffer device cmd-instance-array)
 				   ;;(print (foreign-array-bytes (instance-list-array cmd-instance-array)))
-				   (let* ((memory-resource (instance-list-memory cmd-instance-array))
-					  (mrb (vk::memory-resource-buffer memory-resource))
-					  (mro (vk::memory-resource-offset memory-resource)))
+				   (let* ((memory-block (instance-list-memory cmd-instance-array))
+					  (mrb (memory-block-buffer memory-block))
+					  (mro (memory-block-offset memory-block)))
 				     (%vk::with-vkBufferDeviceAddressInfo (p-info)
 				       (setf %vk::buffer (h mrb))
 				       (setf (mem-ref pvalues :uint64 (* +uber-vertex-shader-instance-array-pointer-offset+ (foreign-type-size :uint32)))
@@ -1128,7 +1177,7 @@
 
     (unless (= 0 (foreign-array-fill-pointer index-array))
 
-      (initialize-buffers dpy draw-list)
+      (initialize-buffers device draw-list)
       
       (let* ((command-buffer-handle (h command-buffer))
              (pipeline-layout (pipeline-layout pipeline))
@@ -1166,10 +1215,10 @@
                                    p-descriptor-sets
                                    0 +nullptr+))
 	
-        (cmd-bind-vertex-buffers command-buffer (list (vk::memory-resource-buffer (draw-list-vertex-memory draw-list)))
-                                 (list (vk::memory-resource-offset (draw-list-vertex-memory draw-list))))
-        (cmd-bind-index-buffer command-buffer (vk::memory-resource-buffer (draw-list-index-memory draw-list))
-                               (vk::memory-resource-offset (draw-list-index-memory draw-list)) (foreign-array-foreign-type index-array))
+        (cmd-bind-vertex-buffers command-buffer (list (memory-block-buffer (draw-list-vertex-memory draw-list)))
+                                 (list (memory-block-offset (draw-list-vertex-memory draw-list))))
+        (cmd-bind-index-buffer command-buffer (memory-block-buffer (draw-list-index-memory draw-list))
+                               (memory-block-offset (draw-list-index-memory draw-list)) (foreign-array-foreign-type index-array))
 
 	(let ((descriptor-set (texture-image-descriptor-set (or (draw-list-texture draw-list)
 								(if (pipeline-default-font pipeline)
@@ -1296,9 +1345,9 @@
 			       (viewport-x viewport) (viewport-y viewport)
 			       (viewport-width viewport) (viewport-height viewport) near far))
 
-(defun read-buffer (buffer lisp-array size memory-resource aligned-size)
+(defun read-buffer (buffer lisp-array size memory-block aligned-size)
   (let ((memory (allocated-memory buffer))
-        (offset (vk::memory-resource-offset memory-resource))
+        (offset (memory-block-offset memory-block))
         (device (vk::device buffer)))
     
     (with-foreign-object (pp-src :pointer)

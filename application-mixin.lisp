@@ -11,6 +11,7 @@
    (2d-triangle-list-pipeline :accessor pipeline-store-2d-triangle-list-pipeline)
    (2d-triangle-strip-pipeline :accessor pipeline-store-2d-triangle-strip-pipeline)
    (2d-instanced-line-pipeline :accessor pipeline-store-2d-instanced-line-pipeline)
+   (foreground-3d-instanced-line-pipeline :accessor pipeline-store-foreground-3d-instanced-line-pipeline)
    (3d-point-list-pipeline :accessor pipeline-store-3d-point-list-pipeline)
    (3d-line-list-pipeline :accessor pipeline-store-3d-line-list-pipeline)
    (3d-line-strip-pipeline :accessor pipeline-store-3d-line-strip-pipeline)
@@ -43,7 +44,8 @@
                2d-triangle-list-pipeline
                #+NOMORE msdf-text-pipeline
                2d-triangle-strip-pipeline
-	       2d-instanced-line-pipeline)
+	       2d-instanced-line-pipeline
+	       foreground-3d-instanced-line-pipeline)
       instance
 
     (setf 2d-point-list-pipeline
@@ -86,6 +88,12 @@
 	  (make-instance '2d-instanced-line-pipeline
 			 :dpy dpy
 			 :name :2d-instanced-line-pipeline
+			 :subpass 1)
+
+	  foreground-3d-instanced-line-pipeline
+	  (make-instance 'foreground-3d-instanced-line-pipeline
+			 :dpy dpy
+			 :name :foreground-3d-instanced-line-pipeline
 			 :subpass 1)
 
 	  3d-point-list-pipeline
@@ -202,8 +210,8 @@
    (select-box-x1 :initform 1 :accessor krma-select-box-x1)
    (select-box-y1 :initform 1 :accessor krma-select-box-y1)
    (select-boxes-descriptor-sets :initform nil :accessor krma-select-boxes-descriptor-sets)
-   (select-box-2d-memory-resources :initform nil :accessor krma-select-box-2d-memory-resources)
-   (select-box-3d-memory-resources :initform nil :accessor krma-select-box-3d-memory-resources)
+   (select-box-2d-memory-blocks :initform nil :accessor krma-select-box-2d-memory-blocks)
+   (select-box-3d-memory-blocks :initform nil :accessor krma-select-box-3d-memory-blocks)
    (last-select-box-width :initform 0 :accessor last-select-box-width)
    (last-select-box-height :initform 0 :accessor last-select-box-height)
    (select-box-size :initform -1 :accessor krma-select-box-size)
@@ -214,10 +222,10 @@
    (selection-set-table :initform nil :accessor krma-selection-set-table)
    (selection-set-buckets-pointers :initform nil :accessor krma-selection-set-buckets-pointers)
    (selection-set-table-pointers :initform nil :accessor krma-selection-set-table-pointers)
-   (selection-set-counter-memory-resource :initform nil :accessor krma-selection-set-counter-memory-resource)
+   (selection-set-counter-memory-block :initform nil :accessor krma-selection-set-counter-memory-block)
    (selection-set-counter-pointers :initform nil :accessor krma-selection-set-counter-pointers)
-   (selection-set-buckets-memory-resources :initform nil :accessor krma-selection-set-buckets-memory-resources)
-   (selection-set-table-memory-resources :initform nil :accessor krma-selection-set-table-memory-resources)
+   (selection-set-buckets-memory-blocks :initform nil :accessor krma-selection-set-buckets-memory-blocks)
+   (selection-set-table-memory-blocks :initform nil :accessor krma-selection-set-table-memory-blocks)
    (selection-set-counters :initform nil :accessor krma-selection-set-counters)))
 
 ;; this is a callback which happens after the native platfrom window has been created but before events start to happen
@@ -388,6 +396,7 @@
   (setf (pipeline-store-2d-triangle-list-pipeline pipeline-store) nil)
   (setf (pipeline-store-2d-triangle-strip-pipeline pipeline-store) nil)
   (setf (pipeline-store-2d-instanced-line-pipeline pipeline-store) nil)
+  (setf (pipeline-store-foreground-3d-instanced-line-pipeline pipeline-store) nil)
   (setf (pipeline-store-2d-line-strip-pipeline pipeline-store) nil)
   (setf (pipeline-store-2d-line-list-pipeline pipeline-store) nil)
   (setf (pipeline-store-2d-point-list-pipeline pipeline-store) nil)
@@ -480,16 +489,16 @@
 							 :src-access-mask VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT
 							 :dst-access-mask VK_ACCESS_SHADER_READ_BIT)))))))
 
-    (setf (krma-texture-sampler dpy) (create-sampler (default-logical-device dpy) :allocator (allocator dpy)))
-    (create-select-boxes-descriptor-set-layout (default-logical-device dpy) dpy)
-    (create-ubershader-per-instance-descriptor-set-layout (default-logical-device dpy) dpy)
+    (setf (krma-texture-sampler dpy) (create-sampler (default-logical-device dpy) :allocator (allocator device)))
+    (create-select-boxes-descriptor-set-layout device dpy)
+    (create-ubershader-per-instance-descriptor-set-layout device dpy)
     (setf (krma-pipeline-store dpy) (make-instance 'standard-pipeline-store :dpy dpy))
 
     (let* ((index (queue-family-index (render-surface helper-window)))
 	   (queue (find-queue device index))
 	   (command-pool (find-command-pool device index))
 	   (command-buffer (elt (command-buffers command-pool) 0))
-	   (descriptor-pool (default-descriptor-pool dpy))
+	   (descriptor-pool (default-descriptor-pool device))
 	   (sampler (krma-texture-sampler dpy))
            (texture-dsl (create-descriptor-set-layout
 			 device

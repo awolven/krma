@@ -85,6 +85,7 @@
 (defclass wayland:krma-enabled-window (wayland:krma-enabled-window-mixin)
   ())
 
+#+NIL(
 #+win32
 (defmethod vk::get-required-instance-extensions ((display win32:display-with-krma-mixin))
   (vk::get-win32-required-instance-extensions))
@@ -100,6 +101,7 @@
 #+wayland
 (defmethod vk::get-required-instance-extensions ((display wayland:display-with-krma-mixin))
   (get-wayland-required-instance-extensions))
+)
 
 #+win32
 (defmethod compute-make-display-instance-arguments ((protocol clui:display)

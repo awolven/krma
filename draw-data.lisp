@@ -114,6 +114,7 @@
   (2d-line-strip-draw-list (make-instance '3d-vertex-draw-list))
   (2d-triangle-strip-draw-list (make-instance '3d-vertex-draw-list))
   (2d-instanced-line-draw-list (make-instance '3d-vertex-draw-list))
+  (fg-3d-instanced-line-draw-list (make-instance '3d-vertex-draw-list))
   (3d-line-strip-draw-list (make-instance '3d-vertex-draw-list))
   (3d-triangle-strip-draw-list (make-instance '3d-vertex-draw-list))
   (3d-instanced-tube-draw-list (make-instance '3d-vertex-draw-list))
@@ -386,12 +387,12 @@
     (when list
       (let* ((draw-list (rm-draw-data-2d-instanced-line-draw-list draw-data))
 	     (cmd (%draw-list-add-filled-2d-triangle-list draw-list ub32-oid atom-group model-mtx #xffffffff sf-elevation
-								(list 0.0f0 -0.5f0
-								      1.0f0 -0.5f0
-								      1.0f0  0.5f0
-								      0.0f0 -0.5f0
-								      1.0f0  0.5f0
-								      0.0f0  0.5f0))))
+							  (list 0.0f0 -0.5f0
+								1.0f0 -0.5f0
+								1.0f0  0.5f0
+								0.0f0 -0.5f0
+								1.0f0  0.5f0
+								0.0f0  0.5f0))))
 	
 	
 	(setf (cmd-instance-array cmd) list)
@@ -436,6 +437,13 @@
       (let* ((draw-list (rm-draw-data-3d-instanced-tube-draw-list draw-data))
 	     (cmd (%draw-list-add-filled-3d-triangle-strip  
 		   draw-list ub32-oid atom-group model-mtx ub32-color
+		   (list 0.0f0 -0.5f0 0.0f0
+			 1.0f0 -0.5f0 0.0f0
+			 1.0f0  0.5f0 0.0f0
+			 0.0f0 -0.5f0 1.0f0
+			 1.0f0  0.5f0 1.0f0
+			 0.0f0  0.5f0 1.0f0)
+		   #+NIL
 		   (loop for i from 0 to 9
 			 append (loop for j from 0 below 2
 				      append (list (cos (* pi (/ i 9)))
@@ -451,6 +459,53 @@
 	(setf (cmd-point-size cmd) sf-line-thickness)
 	(setf (gethash handle (rm-draw-data-handle-hash-table draw-data))
 	      cmd)))
+    (values)))
+
+(defun %draw-data-draw-filled-foreground-3d-instanced-line-primitive
+    (draw-data ub32-oid atom-group bool-closed? sf-line-thickness ub32-color seq-vertices)
+  (declare (type immediate-mode-draw-data draw-data))
+
+  (let* ((list (make-instance '3d-polyline-instance-list))
+	 (instance-array (instance-list-array list)))
+;;    (sb-ext:finalize 
+    (handler-case 
+	(etypecase seq-vertices
+	  (list
+	   (loop for (x1 y1 z1) on (cdddr seq-vertices) by #'cdddr
+		 for (x0 y0 z0) on seq-vertices by #'cdddr
+		 do (setq x0 (clampf x0))
+		    (setq y0 (clampf y0))
+		    (setq z0 (clampf z0))
+		    (setq x1 (clampf x1))
+		    (setq y1 (clampf y1))
+		    (setq z1 (clampf z1))
+		    (3d-vertex-instance-array-push-extend instance-array ub32-oid x0 y0 z0)
+		    (3d-vertex-instance-array-push-extend instance-array ub32-oid x1 y1 z1)
+		 finally (when bool-closed?
+			   (3d-vertex-instance-array-push-extend instance-array ub32-oid
+								 (clampf (car seq-vertices))
+								 (clampf (cadr seq-vertices))
+								 (clampf (caddr seq-vertices)))))))
+      (error (c)
+	(setq list nil)
+	(warn
+	 (concatenate
+	  'string
+	  "While in %draw-data-add-filled-foreground-3d-instanced-tube-primitive, while populating instance list: "
+	  (princ-to-string c)))))
+    (when list
+      (let* ((draw-list (draw-data-fg-3d-instanced-line-draw-list draw-data))
+	     (cmd (%draw-list-add-filled-3d-triangle-list 
+		   draw-list ub32-oid atom-group nil ub32-color
+		   (list 0.0f0 -0.5f0 0.0f0
+			 1.0f0 -0.5f0 0.0f0
+			 1.0f0  0.5f0 0.0f0
+			 0.0f0 -0.5f0 1.0f0
+			 1.0f0  0.5f0 1.0f0
+			 0.0f0  0.5f0 1.0f0))))
+	(setf (cmd-instance-array cmd) list)
+	(setf (cmd-point-size cmd) sf-line-thickness)
+	))
     (values)))
 
 (defun %draw-data-draw-multicolor-2d-polyline

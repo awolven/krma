@@ -193,6 +193,8 @@
 				 :subpass 1)))
 	(rm-draw-data-2d-point-list-draw-list draw-data)
 
+	
+
 	#+NOMORE(pipeline-store-msdf-text-pipeline pipeline-store)
 	#+NOMORE(draw-data-2d-triangle-list-draw-list-for-text draw-data)))
 
@@ -476,7 +478,18 @@
 		 (declare (ignore k))
 		 (push v res)
 		 (push triangle-pipeline res))
-	     (draw-data-2d-triangle-list-draw-list-table draw-data))    
+	     (draw-data-2d-triangle-list-draw-list-table draw-data))
+
+    (push (draw-data-fg-3d-instanced-line-draw-list draw-data) res)
+
+    (push (or (pipeline-store-foreground-3d-instanced-line-pipeline pipeline-store)
+	      (setf (pipeline-store-foreground-3d-instanced-line-pipeline pipeline-store)
+		    (make-instance 'foreground-3d-instanced-line-pipeline
+				   :dpy display
+				   :name :foreground-3d-instanced-line-pipeline
+				   :subpass 1)))
+	  res)
+	
     res))
 
 (defmethod 2d-draw-list-oriented-combinations ((pipeline-store pipeline-store-mixin) (draw-data immediate-mode-draw-data) display)

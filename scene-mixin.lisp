@@ -157,7 +157,7 @@
   (let ((draw-data (im-draw-data scene)))
     (sb-ext:finalize scene
                      #'(lambda ()
-                         (%purge-im-groups-1 (default-display) draw-data))
+                         (%purge-im-groups-1 draw-data))
                      :dont-save t)))
 
 #+(OR ccl ALLEGRO)     
@@ -670,6 +670,20 @@
   (rm-dispatch-to-render-thread-with-handle (scene draw-data handle)
     (%draw-data-add-filled-3d-instanced-tube-primitive
      draw-data handle object-id group (when model-matrix (mcopy-mat4-to-single-float model-matrix)) closed? line-thickness color vertices)))
+
+(defun scene-draw-filled-foreground-3d-instanced-line-primitive
+    (scene group closed? line-thickness color vertices &optional (object-id 0))
+  (declare (type krma-essential-scene-mixin scene))
+  (declare (type real line-thickness))
+  (declare (type boolean closed?))
+  (declare (type sequence vertices))
+  (declare (type (unsigned-byte 32) object-id))
+  (declare (type atom group))
+  (setq line-thickness (clampf line-thickness))
+  (setq color (canonicalize-color color))
+  (let ((draw-data (im-draw-data scene)))
+    (%draw-data-draw-filled-foreground-3d-instanced-line-primitive
+     draw-data object-id group closed? line-thickness color vertices)))
 
 ;; 2d-circular-arc
 (defun scene-add-2d-circular-arc-primitive (scene group model-matrix closed? line-thickness color
@@ -1848,8 +1862,7 @@
 		      (when (cmd-instance-array cmd)
 			(let ((memory (instance-list-memory (cmd-instance-array cmd))))
 			  (when memory
-			    (let ((pool (vk::memory-resource-memory-pool memory)))
-			    (vk::release-memory-resource-2 pool memory)))))
+			    (release-memory memory))))
 		   (return (values))))))
     (error (c)
       (warn (concatenate 'string "while in %delete-primitive-1 ..." (princ-to-string c)))
@@ -1888,7 +1901,7 @@
   (declare (type retained-mode-draw-data draw-data))
   (handler-case
       (progn
-        (flet ((free-group-draw-lists (dpy ht)
+        (flet ((free-group-draw-lists (ht)
                  (unless ht
                    (warn "ht is null"))
                  (let (#+NIL(key-list ()))
@@ -1901,8 +1914,8 @@
 			      (when draw-list
 				(let ((im (draw-list-index-memory draw-list))
 				      (vm (draw-list-vertex-memory draw-list)))
-				  (vk::release-index-memory dpy im)
-				  (vk::release-vertex-memory dpy vm)))
+				  (release-memory im)
+				  (release-memory vm)))
 			      (remhash group ht)))
 
 		   (let ((new-ht (make-hash-table :test #'equal)))
@@ -1914,9 +1927,9 @@
 				    (let ((im (draw-list-index-memory draw-list))
 					  (vm (draw-list-vertex-memory draw-list)))
 				      (when im
-					(vk::release-index-memory dpy im))
+					(release-memory im))
 				      (when vm
-					(vk::release-vertex-memory dpy vm)))))
+					(release-memory vm)))))
 			      ht)
 
 		     new-ht)
@@ -1930,8 +1943,8 @@
                                   (push key key-list)
                                   (let ((im (draw-list-index-memory draw-list))
                                         (vm (draw-list-vertex-memory draw-list)))
-                                    (vk::release-index-memory dpy im)
-                                    (vk::release-vertex-memory dpy vm))))
+                                    (release-memory dpy im)
+                                    (release-memory dpy vm))))
                             ht)
 		   #+NIL
                    (mapcar #'(lambda (key)
@@ -1980,15 +1993,15 @@
 	    ;; is producing inconsistent graphical results, workaround: copy the hash tables
 	    ;; instead minus the groups
 
-            (setf 2d-point-list-draw-list-table (free-group-draw-lists dpy 2d-point-list-draw-list-table))
-            (setf 2d-line-list-draw-list-table (free-group-draw-lists dpy 2d-line-list-draw-list-table))
-            (setf 2d-triangle-list-draw-list-table (free-group-draw-lists dpy 2d-triangle-list-draw-list-table))
-            (setf 2d-triangle-list-draw-list-for-text-table (free-group-draw-lists dpy 2d-triangle-list-draw-list-for-text-table))
-            (setf 3d-point-list-draw-list-table (free-group-draw-lists dpy 3d-point-list-draw-list-table))
-            (setf 3d-line-list-draw-list-table (free-group-draw-lists dpy 3d-line-list-draw-list-table))
-            (setf 3d-triangle-list-draw-list-table (free-group-draw-lists dpy 3d-triangle-list-draw-list-table))
+            (setf 2d-point-list-draw-list-table (free-group-draw-lists 2d-point-list-draw-list-table))
+            (setf 2d-line-list-draw-list-table (free-group-draw-lists 2d-line-list-draw-list-table))
+            (setf 2d-triangle-list-draw-list-table (free-group-draw-lists 2d-triangle-list-draw-list-table))
+            (setf 2d-triangle-list-draw-list-for-text-table (free-group-draw-lists 2d-triangle-list-draw-list-for-text-table))
+            (setf 3d-point-list-draw-list-table (free-group-draw-lists 3d-point-list-draw-list-table))
+            (setf 3d-line-list-draw-list-table (free-group-draw-lists 3d-line-list-draw-list-table))
+            (setf 3d-triangle-list-draw-list-table (free-group-draw-lists 3d-triangle-list-draw-list-table))
             (setf 3d-triangle-list-with-normals-draw-list-table
-		  (free-group-draw-lists dpy 3d-triangle-list-with-normals-draw-list-table))
+		  (free-group-draw-lists 3d-triangle-list-with-normals-draw-list-table))
 
 	    ;;(setf 2d-triangle-list-draw-list-table (make-hash-table :test #'equalp))
 
@@ -2018,7 +2031,7 @@
     (error (c)
       (warn (concatenate 'string "while in delete-groups-1 ..." (princ-to-string c))))))
 
-(defun %purge-im-groups-1 (dpy draw-data)
+(defun %purge-im-groups-1 (draw-data)
   ;; call this function when finalizing a scene
   (declare (type immediate-mode-draw-data draw-data))
   (handler-case
@@ -2036,11 +2049,10 @@
                                 ;;(declare (type foreign-adjustable-array ia va))
                                 ;;(foreign-free (foreign-array-ptr ia))
                                 ;;(foreign-free (foreign-array-ptr va))
-				(when dpy
-				  (when im
-				    (vk::release-index-memory dpy im))
+				(when im
+				    (release-memory im))
 				  (when vm
-				    (vk::release-vertex-memory dpy vm)))
+				    (release-memory vm))
                                 nil))
                           ht)))
 

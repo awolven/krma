@@ -232,16 +232,16 @@
 (defclass 3d-polyline-instance-list (polyline-instance-list-mixin)
   ((array :initform (make-3d-vertex-instance-array))))
 
-(defun initialize-instance-list-buffer (dpy instance-list)
+(defun initialize-instance-list-buffer (device instance-list)
   (let ((array (instance-list-array instance-list)))
 
     (let ((array-size (* (foreign-array-fill-pointer array)
 			 (foreign-array-foreign-type-size array))))
 
-      (flet ((mmap-buffer (buffer lisp-array size memory-resource aligned-size)
+      (flet ((mmap-buffer (buffer lisp-array size memory-block aligned-size)
 	       (unless (zerop size)
 		 (let ((memory (allocated-memory buffer))
-                       (offset (vk::memory-resource-offset memory-resource))
+                       (offset (memory-block-offset memory-block))
                        (device (vk::device buffer)))
                    (with-foreign-object (pp-dst :pointer)
 
@@ -279,34 +279,37 @@
 
 		     (values))))))
 
-	(let ((new-size-aligned (vk::aligned-size array-size)))
+	(let ((new-size-aligned (aligned-size array-size)))
 
 	  (unless (instance-list-size-aligned instance-list)
-	    (setf (instance-list-memory instance-list)
-		  (vk::acquire-memory-sized (vk::memory-pool dpy) new-size-aligned :host-visible))
+	    (let ((mr (acquire-memory-sized device new-size-aligned VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)))
+	      (setf (instance-list-memory instance-list) mr)
+	      (sb-ext:finalize instance-list #'(lambda ()
+						 (release-memory mr)
+						 (values))))
 	    (setf (instance-list-size-aligned instance-list) new-size-aligned))
 
         (unless (zerop array-size)
           (let* ((old-size-aligned (instance-list-size-aligned instance-list))
-                 (memory-resource))
+                 (memory-block))
 	    
-            (setq memory-resource
+            (setq memory-block
 		  (if (> new-size-aligned old-size-aligned)
 		      (if (instance-list-memory instance-list)
-			  (progn (vk::release-memory-resource dpy (instance-list-memory instance-list))
+			  (progn (release-memory (instance-list-memory instance-list))
 				 (setf (instance-list-memory instance-list)
-				       (vk::acquire-memory-sized dpy new-size-aligned :host-visible)))
+				       (acquire-memory-sized device new-size-aligned VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)))
 			  (setf (instance-list-memory instance-list)
-				(vk::acquire-memory-sized dpy new-size-aligned :host-visible)))
+				(acquire-memory-sized device new-size-aligned VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)))
 		      (if (instance-list-memory instance-list)
 			  (instance-list-memory instance-list)
 			  (setf (instance-list-memory instance-list)
-				(vk::acquire-memory-sized dpy new-size-aligned :host-visible)))))
+				(acquire-memory-sized device new-size-aligned VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)))))
 	    
 	    (setf (instance-list-size-aligned instance-list) new-size-aligned)
 	    
-            (mmap-buffer (vk::memory-resource-buffer memory-resource)
-                         (foreign-array-bytes array) array-size memory-resource
+            (mmap-buffer (memory-block-buffer memory-block)
+                         (foreign-array-bytes array) array-size memory-block
                          new-size-aligned)))))))
   
   (values))
