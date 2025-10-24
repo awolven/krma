@@ -372,7 +372,7 @@
 (defun aligned-size (size)
   (* (1+ (ceiling (/ (1- size) +buffer-alignment+))) +buffer-alignment+))
 
-(defun make-vulkan-texture (device queue sampler descriptor-set-layout descriptor-pool command-buffer bpp bitmap width height
+(defun make-vulkan-texture (device sampler descriptor-set-layout descriptor-pool command-pool bpp bitmap width height
                             &key (allocator (allocator device)))
 
   (declare (type fixnum width height bpp))
@@ -463,7 +463,7 @@
                       %vk::image (h texture-image))
 
                 (let ((p-subresource-range
-		       (foreign-slot-pointer p-copy-barrier '(:struct VkImageMemoryBarrier) '%vk::subresourceRange)))
+			(foreign-slot-pointer p-copy-barrier '(:struct VkImageMemoryBarrier) '%vk::subresourceRange)))
                   (with-foreign-slots ((%vk::aspectMask
                                         %vk::levelCount
                                         %vk::layerCount)
@@ -473,191 +473,268 @@
                           %vk::levelCount 1
                           %vk::layerCount 1)))
 
-                (begin-command-buffer command-buffer)
+		(let ((command-buffer (begin-single-time-commands device command-pool)))
+		  
+		  (vkCmdPipelineBarrier (h command-buffer) VK_PIPELINE_STAGE_HOST_BIT
+					VK_PIPELINE_STAGE_TRANSFER_BIT
+					0 0 +nullptr+ 0 +nullptr+ 1 p-copy-barrier)
 
-                (vkCmdPipelineBarrier (h command-buffer) VK_PIPELINE_STAGE_HOST_BIT
-                                      VK_PIPELINE_STAGE_TRANSFER_BIT
-                                      0 0 +nullptr+ 0 +nullptr+ 1 p-copy-barrier)
+                  (with-vk-struct (p-region VkBufferImageCopy)
+                    (let ((p-image-subresource
+			    (foreign-slot-pointer p-region '(:struct VkBufferImageCopy) '%vk::imageSubresource))
+                          (p-image-extent
+			    (foreign-slot-pointer p-region '(:struct VkBufferImageCopy) '%vk::imageExtent)))
+                      (with-foreign-slots ((%vk::aspectMask
+                                            %vk::layerCount)
+                                           p-image-subresource (:struct VkImageSubresourceLayers))
+			(setf %vk::aspectMask VK_IMAGE_ASPECT_COLOR_BIT
+                              %vk::layerCount 1))
+                      (with-foreign-slots ((%vk::width
+                                            %vk::height
+                                            %vk::depth)
+                                           p-image-extent (:struct VkExtent3D))
+			(setf %vk::width width
+                              %vk::height height
+                              %vk::depth 1)))
+                    (vkCmdCopyBufferToImage (h command-buffer) (h upload-buffer)
+                                            (h texture-image)
+                                            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL 1 p-region))
 
-                (with-vk-struct (p-region VkBufferImageCopy)
-                  (let ((p-image-subresource
-			 (foreign-slot-pointer p-region '(:struct VkBufferImageCopy) '%vk::imageSubresource))
-                        (p-image-extent
-			 (foreign-slot-pointer p-region '(:struct VkBufferImageCopy) '%vk::imageExtent)))
-                    (with-foreign-slots ((%vk::aspectMask
-                                          %vk::layerCount)
-                                         p-image-subresource (:struct VkImageSubresourceLayers))
-                      (setf %vk::aspectMask VK_IMAGE_ASPECT_COLOR_BIT
-                            %vk::layerCount 1))
-                    (with-foreign-slots ((%vk::width
-                                          %vk::height
-                                          %vk::depth)
-                                         p-image-extent (:struct VkExtent3D))
-                      (setf %vk::width width
-                            %vk::height height
-                            %vk::depth 1)))
-                  (vkCmdCopyBufferToImage (h command-buffer) (h upload-buffer)
-                                          (h texture-image)
-                                          VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL 1 p-region))
+                  (with-vk-struct (p-use-barrier VkImageMemoryBarrier)
+		    (with-foreign-slots ((%vk::srcAccessMask
+					  %vk::dstAccessMask
+					  %vk::oldLayout
+					  %vk::newLayout
+					  %vk::srcQueueFamilyIndex
+					  %vk::dstQueueFamilyIndex
+					  %vk::image)
+					 p-use-barrier (:struct VkImageMemoryBarrier))
+		      (setf %vk::srcAccessMask VK_ACCESS_TRANSFER_WRITE_BIT
+			    %vk::dstAccessMask VK_ACCESS_SHADER_READ_BIT
+			    %vk::oldLayout VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
+			    %vk::newLayout VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+			    %vk::srcQueueFamilyIndex vk::VK_QUEUE_FAMILY_IGNORED
+			    %vk::dstQueueFamilyIndex vk::VK_QUEUE_FAMILY_IGNORED
+			    %vk::image (h texture-image)))
+		    (let ((p-subresource-range
+			    (foreign-slot-pointer p-use-barrier '(:struct VkImageMemoryBarrier) '%vk::subresourceRange)))
+		      (with-foreign-slots ((%vk::aspectMask
+					    %vk::levelCount
+					    %vk::layerCount)
+					   p-subresource-range
+					   (:struct VkImageSubresourceRange))
+			(setf %vk::aspectMask VK_IMAGE_ASPECT_COLOR_BIT
+			      %vk::levelCount 1
+			      %vk::layerCount 1)))
 
-                (with-vk-struct (p-use-barrier VkImageMemoryBarrier)
-		  (with-foreign-slots ((%vk::srcAccessMask
-					%vk::dstAccessMask
-					%vk::oldLayout
-					%vk::newLayout
-					%vk::srcQueueFamilyIndex
-					%vk::dstQueueFamilyIndex
-					%vk::image)
-				       p-use-barrier (:struct VkImageMemoryBarrier))
-		    (setf %vk::srcAccessMask VK_ACCESS_TRANSFER_WRITE_BIT
-			  %vk::dstAccessMask VK_ACCESS_SHADER_READ_BIT
-			  %vk::oldLayout VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
-			  %vk::newLayout VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-			  %vk::srcQueueFamilyIndex vk::VK_QUEUE_FAMILY_IGNORED
-			  %vk::dstQueueFamilyIndex vk::VK_QUEUE_FAMILY_IGNORED
-			  %vk::image (h texture-image)))
-		  (let ((p-subresource-range
-			 (foreign-slot-pointer p-use-barrier '(:struct VkImageMemoryBarrier) '%vk::subresourceRange)))
-		    (with-foreign-slots ((%vk::aspectMask
-					  %vk::levelCount
-					  %vk::layerCount)
-					 p-subresource-range
-					 (:struct VkImageSubresourceRange))
-		      (setf %vk::aspectMask VK_IMAGE_ASPECT_COLOR_BIT
-			    %vk::levelCount 1
-			    %vk::layerCount 1)))
+		    (vkCmdPipelineBarrier (h command-buffer) VK_PIPELINE_STAGE_TRANSFER_BIT
+					  VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT
+					  0 0 +nullptr+ 0 +nullptr+ 1 p-use-barrier))
 
-		  (vkCmdPipelineBarrier (h command-buffer) VK_PIPELINE_STAGE_TRANSFER_BIT
-					VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT
-					0 0 +nullptr+ 0 +nullptr+ 1 p-use-barrier))
+                  (end-command-buffer command-buffer)
 
-                (end-command-buffer command-buffer)
+		  (vk::with-transfer-queue (queue device)
+		    (queue-submit1 queue command-buffer)
+		    (vkQueueWaitIdle (h queue)))
 
+                  (vkDestroyBuffer (h device) (h upload-buffer) (h allocator))
+                  (vkFreeMemory (h device) (h upload-buffer-memory) (h allocator))
 
-                (queue-submit1 queue command-buffer)
+                  texture-image)))))))))
 
-                (device-wait-idle device)
+(defun krma-mmap-buffer (buffer lisp-array size memory-block aligned-size)
+  (unless (zerop size)
+    (let ((memory (allocated-memory buffer))
+	  (offset (memory-block-offset memory-block))
+	  (device (vk::device buffer)))
+      (with-foreign-object (pp-dst :pointer)
 
-                (vkDestroyBuffer (h device) (h upload-buffer) (h allocator))
-                (vkFreeMemory (h device) (h upload-buffer-memory) (h allocator))
+        (check-vk-result (vkMapMemory (h device) (h memory) offset aligned-size 0 pp-dst))
 
-                texture-image))))))))
+	(unwind-protect
+	     (let ((p-dst (mem-aref pp-dst :pointer)))
+	       #+sbcl
+	       (sb-sys:with-pinned-objects (lisp-array)
+		 (vk::memcpy p-dst (sb-sys:vector-sap lisp-array) size))
+	       #+allegro
+	       (excl:with-underlying-simple-vector (lisp-array underlying)
+		 (vk::memcpy p-dst (ff:fslot-address-typed :unsigned-char :lisp underlying) size))
 
-(defun initialize-buffers (device draw-list)
-  (let ((vertex-array (draw-list-vertex-array draw-list))
-        (index-array (draw-list-index-array draw-list)))
-
-    (let ((index-size (* (foreign-array-fill-pointer index-array)
-                         (foreign-array-foreign-type-size index-array)))
-          (vertex-size (* (foreign-array-fill-pointer vertex-array)
-                          (foreign-array-foreign-type-size vertex-array))))
-
-      (flet ((mmap-buffer (buffer lisp-array size memory-block aligned-size)
-	       (unless (zerop size)
-		 (let ((memory (allocated-memory buffer))
-		       (offset (memory-block-offset memory-block))
-		       (device (vk::device buffer)))
-                   (with-foreign-object (pp-dst :pointer)
-
-                     (check-vk-result (vkMapMemory (h device) (h memory) offset aligned-size 0 pp-dst))
-
-		     (unwind-protect
-			  (let ((p-dst (mem-aref pp-dst :pointer)))
-			    #+sbcl
-			    (sb-sys:with-pinned-objects (lisp-array)
-			      (vk::memcpy p-dst (sb-sys:vector-sap lisp-array) size))
-			    #+allegro
-			    (excl:with-underlying-simple-vector (lisp-array underlying)
-			      (vk::memcpy p-dst (ff:fslot-address-typed :unsigned-char :lisp underlying) size))
-
-			    #+NIL
-			    (loop for i from 0 below (/ size argxxx)
-				  do (setf (mem-aref p-dst type i)
+	       #+NIL
+	       (loop for i from 0 below (/ size argxxx)
+		     do (setf (mem-aref p-dst type i)
 					   
-					   (aref lisp-array i)))
-			    #+ccl
-			    (ccl::%copy-ivector-to-ptr lisp-array 0 p-dst 0 size)
+			      (aref lisp-array i)))
+	       #+ccl
+	       (ccl::%copy-ivector-to-ptr lisp-array 0 p-dst 0 size)
 			    
-			    (with-foreign-object (p-range '(:struct VkMappedMemoryRange))
-			      (zero-struct p-range '(:struct VkMappedMemoryRange))
+	       (with-foreign-object (p-range '(:struct VkMappedMemoryRange))
+		 (zero-struct p-range '(:struct VkMappedMemoryRange))
 			      
-			      (with-foreign-slots ((%vk::sType
-						    %vk::memory
-						    %vk::size
-						    %vk::offset)
-						   p-range (:struct VkMappedMemoryRange))
+		 (with-foreign-slots ((%vk::sType
+				       %vk::memory
+				       %vk::size
+				       %vk::offset)
+				      p-range (:struct VkMappedMemoryRange))
 				
-				(setf %vk::sType VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE
-				      %vk::memory (h memory)
-				      %vk::size aligned-size
-				      %vk::offset offset))
+		   (setf %vk::sType VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE
+			 %vk::memory (h memory)
+			 %vk::size aligned-size
+			 %vk::offset offset))
 			      
-			      (check-vk-result (vkFlushMappedMemoryRanges (h device) 1 p-range))))
+		 (check-vk-result (vkFlushMappedMemoryRanges (h device) 1 p-range))))
 			      
-		       (vkUnmapMemory (h device) (h memory)))
+	  (vkUnmapMemory (h device) (h memory)))
 
-		     (values))))))
+	(values)))))
 
-	(let ((new-size-aligned (aligned-size vertex-size)))
+(defun maybe-initialize-draw-list-vram (device draw-list window releaseme-queue)
+  (when (draw-list-changed? draw-list)
+    (initialize-draw-list-vram-device-local device draw-list window releaseme-queue)))
 
-	  (unless (draw-list-vertex-size-aligned draw-list)
-	    (setf (draw-list-vertex-memory draw-list)
-		  (acquire-memory-sized device new-size-aligned VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT))
-	    (setf (draw-list-vertex-size-aligned draw-list) new-size-aligned))
+(defun initialize-draw-list-vram-device-local (device draw-list window releaseme-queue)
+  (multiple-value-bind (index-array index-size) (draw-list-index-array-2 draw-list)
+    (multiple-value-bind (vertex-array vertex-size) (draw-list-vertex-array-2 draw-list)
+      (let* ((vertex-size-aligned (aligned-size vertex-size))
+	     (index-size-aligned (aligned-size index-size))
+	     (new-staging-size-aligned (max vertex-size-aligned index-size-aligned))
+	     (staging-memory-block)
+	     (vertex-memory-block)
+	     (index-memory-block)
+	     (command-pool (window-command-pool window))
+	     (queue (window-queue window)))
+    
+	(unless (window-staging-memory-block window)
+	  (setf (window-staging-memory-block window)
+		(acquire-memory-sized device new-staging-size-aligned VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)))
+    
+	(setq staging-memory-block (window-staging-memory-block window))
+    
+	(unless (and (zerop index-size) (zerop vertex-size))
+	  (let ((old-size-aligned (memory-block-size staging-memory-block)))
+	
+	    (setq staging-memory-block
+		  (if (> new-staging-size-aligned old-size-aligned)
+		      (progn (release-memory staging-memory-block)
+			     (setf (window-staging-memory-block window)
+				   (acquire-memory-sized device new-staging-size-aligned VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)))
+		      (window-staging-memory-block window)))))
 
-          (unless (zerop vertex-size)
-            (let* ((old-size-aligned (draw-list-vertex-size-aligned draw-list))
-                   (memory-block))
-	    
-	      (setq memory-block
-		    (if (> new-size-aligned old-size-aligned)
-			(if (draw-list-vertex-memory draw-list)
-			    (progn (release-memory (draw-list-vertex-memory draw-list))
-				   (setf (draw-list-vertex-memory draw-list)
-					 (acquire-memory-sized device new-size-aligned VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)))
-			    (setf (draw-list-vertex-memory draw-list)
-				  (acquire-memory-sized device new-size-aligned VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)))
-			(if (draw-list-vertex-memory draw-list)
-			    (draw-list-vertex-memory draw-list)
-			    (setf (draw-list-vertex-memory draw-list)
-				  (acquire-memory-sized device new-size-aligned VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)))))
-	    
-	      (setf (draw-list-vertex-size-aligned draw-list) new-size-aligned)
-	    
-	      (mmap-buffer (memory-block-buffer memory-block)
-                           (foreign-array-bytes vertex-array) vertex-size memory-block
-                           new-size-aligned))))
-
-	(let ((new-size-aligned (aligned-size index-size)))
+	(unless (zerop vertex-size)
+	  (setq vertex-memory-block
+		(if (> vertex-size-aligned (draw-list-vertex-size-aligned draw-list))
+		    (if (draw-list-vertex-memory draw-list)
+			(progn (let ((vertex-memory (draw-list-vertex-memory draw-list)))
+				 (lparallel.queue:push-queue
+				  (lambda () (release-memory vertex-memory))
+				  releaseme-queue))
+			       (acquire-memory-sized device vertex-size-aligned VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
+			(acquire-memory-sized device vertex-size-aligned VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
+		    (if (draw-list-vertex-memory draw-list)
+			(draw-list-vertex-memory draw-list)
+			(acquire-memory-sized device vertex-size-aligned VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))))
+	  (setf (draw-list-vertex-memory draw-list) vertex-memory-block)
+	  (setf (draw-list-vertex-size-aligned draw-list) vertex-size-aligned)
 	  
-	  (unless (draw-list-index-size-aligned draw-list)
-	    (setf (draw-list-index-memory draw-list)
-		  (acquire-memory-sized device new-size-aligned VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT))
-	    (setf (draw-list-index-size-aligned draw-list) new-size-aligned))
+	  (krma-mmap-buffer (memory-block-buffer staging-memory-block)
+			    (foreign-array-bytes vertex-array)
+			    vertex-size
+			    staging-memory-block
+			    vertex-size-aligned)
+	  
+	  (copy-buffer device command-pool queue
+		       (memory-block-buffer staging-memory-block) (memory-block-offset staging-memory-block)
+		       (memory-block-buffer vertex-memory-block) (memory-block-offset vertex-memory-block)
+		       vertex-size))
+	  
 
-	  (unless (zerop index-size)
+	(unless (zerop index-size)
+	  (setq index-memory-block
+		(if (> index-size-aligned (draw-list-index-size-aligned draw-list))
+		    (if (draw-list-index-memory draw-list)
+			(progn (let ((index-memory (draw-list-index-memory draw-list)))
+				 (lparallel.queue:push-queue
+				  (lambda () (release-memory index-memory))
+				  releaseme-queue))
+			       (acquire-memory-sized device index-size-aligned VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
+			(acquire-memory-sized device index-size-aligned VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
+		    (if (draw-list-index-memory draw-list)
+			(draw-list-index-memory draw-list)
+			(acquire-memory-sized device index-size-aligned VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))))
+	  (setf (draw-list-index-memory draw-list) index-memory-block)
+	  (setf (draw-list-index-size-aligned draw-list) index-size-aligned)
+	  
+	  (krma-mmap-buffer (memory-block-buffer staging-memory-block)
+			    (foreign-array-bytes index-array)
+			    index-size
+			    staging-memory-block
+			    index-size-aligned)
+	  
+	  (copy-buffer device command-pool queue
+		       (memory-block-buffer staging-memory-block) (memory-block-offset staging-memory-block)
+		       (memory-block-buffer index-memory-block) (memory-block-offset index-memory-block)
+		       index-size))
+
+	(unless (and (zerop index-size) (zerop vertex-size))
+	  (setf (draw-list-changed? draw-list) nil))))))
+    
+
+(defun initialize-draw-list-vram-quick (device draw-list releaseme-queue)
+  (multiple-value-bind (index-array index-size) (draw-list-index-array-2 draw-list)
+    (multiple-value-bind (vertex-array vertex-size) (draw-list-vertex-array-2 draw-list)
+
+      (let ((new-size-aligned (aligned-size vertex-size)))
+
+        (unless (zerop vertex-size)
+          (let* ((old-size-aligned (draw-list-vertex-size-aligned draw-list))
+                 (memory-block))
 	    
-	    (let* ((old-size-aligned (draw-list-index-size-aligned draw-list))
-                   (memory-block))
+	    (setq memory-block
+		  (if (> new-size-aligned old-size-aligned)
+		      (if (draw-list-vertex-memory draw-list)
+			  (progn (let ((vertex-memory (draw-list-vertex-memory draw-list)))
+				   (lparallel.queue:push-queue
+				    (lambda () (release-memory vertex-memory))
+				    releaseme-queue))
+				 (acquire-memory-sized device new-size-aligned VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT))
+			  (acquire-memory-sized device new-size-aligned VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT))
+		      (if (draw-list-vertex-memory draw-list)
+			  (draw-list-vertex-memory draw-list)
+			  (acquire-memory-sized device new-size-aligned VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT))))
+
+	    (setf (draw-list-vertex-memory draw-list) memory-block)
+	    (setf (draw-list-vertex-size-aligned draw-list) new-size-aligned)
+	    
+	    (krma-mmap-buffer (memory-block-buffer memory-block)
+			      (foreign-array-bytes vertex-array) vertex-size memory-block
+			      new-size-aligned))))
+
+      (let ((new-size-aligned (aligned-size index-size)))
+	  
+	(unless (zerop index-size)
+	  (let* ((old-size-aligned (draw-list-index-size-aligned draw-list))
+                 (memory-block))
 	      
-	      (setq memory-block
-		    (if (> new-size-aligned old-size-aligned)
-			(if (draw-list-index-memory draw-list)
-			    (progn (release-memory (draw-list-index-memory draw-list))
-				   (setf (draw-list-index-memory draw-list)
-					 (acquire-memory-sized device new-size-aligned VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)))
-			    (setf (draw-list-index-memory draw-list)
-				  (acquire-memory-sized device new-size-aligned VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)))
-			(if (draw-list-index-memory draw-list)
-			    (draw-list-index-memory draw-list)
-			    (setf (draw-list-index-memory draw-list)
-				  (acquire-memory-sized device new-size-aligned VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)))))
+	    (setq memory-block
+		  (if (> new-size-aligned old-size-aligned)
+		      (if (draw-list-index-memory draw-list)
+			  (progn (let ((index-memory (draw-list-index-memory draw-list)))
+				   (lparallel.queue:push-queue
+				    (lambda () (release-memory index-memory))
+				    releaseme-queue))
+				 (acquire-memory-sized device new-size-aligned VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT))
+			  (acquire-memory-sized device new-size-aligned VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT))
+		      (if (draw-list-index-memory draw-list)
+			  (draw-list-index-memory draw-list)
+			  (acquire-memory-sized device new-size-aligned VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT))))
+	    
+	    (setf (draw-list-index-memory draw-list) memory-block)
+
+	    (setf (draw-list-index-size-aligned draw-list) new-size-aligned)
 	      
-	      (setf (draw-list-index-size-aligned draw-list) new-size-aligned)
-	      
-	      (mmap-buffer (memory-block-buffer memory-block)
-                           (foreign-array-bytes index-array) index-size memory-block
-                           new-size-aligned)))))))
+	    (krma-mmap-buffer (memory-block-buffer memory-block)
+			      (foreign-array-bytes index-array) index-size memory-block
+			      new-size-aligned))))))
   
   (values))
 
@@ -932,244 +1009,265 @@
 
 ;;------
 
-(defun ubershader-render-draw-list-cmds (pipeline draw-data draw-list dpy device command-buffer scene window view proj x y width height near far)
+(defun ubershader-render-draw-list-cmds (pipeline draw-data draw-list dpy device command-buffer scene window view proj x y width height near far releaseme-queue)
   
   (declare (type draw-indexed-pipeline-mixin pipeline))
   (declare (type draw-list-mixin draw-list))
   (declare (type standard-draw-data draw-data))
   (declare (ignorable device))
 
-  (let ((index-array (draw-list-index-array draw-list)))
-    (declare (type foreign-adjustable-array index-array))
+  (let* ((pipeline-layout (pipeline-layout pipeline))
+         (command-buffer-handle (h command-buffer))
+	 (mm))
+	    
+    (cmd-bind-pipeline command-buffer (device-pipeline pipeline) :bind-point :graphics)
+
+    ;; apparently, updating uniform buffers have no effect if done before cmd-bind-pipeline
+    (update-vertex-uniform-buffer pipeline view proj width height near far)
+
+    (update-fragment-uniform-buffer pipeline scene window (car (current-frame-cons dpy)))
+
+    (cmd-set-viewport command-buffer :x x :y y :width width :height height
+				     :min-depth 0.0 :max-depth 1.0)
+    (cmd-set-scissor command-buffer :x x :y y :width width :height height)
+
+    (with-foreign-objects ((p-descriptor-sets :pointer 1))
+      (setf (mem-aref p-descriptor-sets :pointer 0) (h (global-descriptor-set pipeline)))
+      (vkCmdBindDescriptorSets (h command-buffer)
+                               VK_PIPELINE_BIND_POINT_GRAPHICS
+                               (h pipeline-layout)
+                               0 1
+                               p-descriptor-sets
+                               0 +nullptr+))
+	    
+    (with-foreign-objects ((p-descriptor-sets :pointer 1))
+      (setf (mem-aref p-descriptor-sets :pointer 0) (h (aref (krma-select-boxes-descriptor-sets window) (car (current-frame-cons dpy)))))
+      (vkCmdBindDescriptorSets (h command-buffer)
+                               VK_PIPELINE_BIND_POINT_GRAPHICS
+                               (h pipeline-layout)
+                               1 1
+                               p-descriptor-sets
+                               0 +nullptr+))
+
     
-    (unless (= 0 (foreign-array-fill-pointer index-array))
 
-      (initialize-buffers device draw-list)
-      
-      (let ((cmd-vector (draw-list-cmd-vector draw-list)))
-	(declare (type (vector t) cmd-vector))
-	
-	(unless (= 0 (fill-pointer cmd-vector))
-	  
-	  (let* ((pipeline-layout (pipeline-layout pipeline))
-                 (command-buffer-handle (h command-buffer))
-		 (mm))
-	    
-            (cmd-bind-pipeline command-buffer (device-pipeline pipeline) :bind-point :graphics)
-
-	    ;; apparently, updating uniform buffers have no effect if done before cmd-bind-pipeline
-	    (update-vertex-uniform-buffer pipeline view proj width height near far)
-
-	    (update-fragment-uniform-buffer pipeline scene window (car (current-frame-cons dpy)))
-
-	    (cmd-set-viewport command-buffer :x x :y y :width width :height height
-					     :min-depth 0.0 :max-depth 1.0)
-	    (cmd-set-scissor command-buffer :x x :y y :width width :height height)
-
-            (with-foreign-objects ((p-descriptor-sets :pointer 1))
-              (setf (mem-aref p-descriptor-sets :pointer 0) (h (global-descriptor-set pipeline)))
-              (vkCmdBindDescriptorSets (h command-buffer)
-                                       VK_PIPELINE_BIND_POINT_GRAPHICS
-                                       (h pipeline-layout)
-                                       0 1
-                                       p-descriptor-sets
-                                       0 +nullptr+))
-	    
-            (with-foreign-objects ((p-descriptor-sets :pointer 1))
-	      (setf (mem-aref p-descriptor-sets :pointer 0) (h (aref (krma-select-boxes-descriptor-sets window) (car (current-frame-cons dpy)))))
-              (vkCmdBindDescriptorSets (h command-buffer)
-                                       VK_PIPELINE_BIND_POINT_GRAPHICS
-                                       (h pipeline-layout)
-                                       1 1
-                                       p-descriptor-sets
-                                       0 +nullptr+))
-
-            (cmd-bind-vertex-buffers command-buffer (list (memory-block-buffer (draw-list-vertex-memory draw-list)))
-                                     (list (memory-block-offset (draw-list-vertex-memory draw-list))))
-            (cmd-bind-index-buffer command-buffer (memory-block-buffer (draw-list-index-memory draw-list))
-                                   (memory-block-offset (draw-list-index-memory draw-list)) (foreign-array-foreign-type index-array))
-
-            (flet ((render-standard-draw-indexed-cmd (cmd &aux (pipeline-default-font nil))
-		     (declare (type standard-draw-indexed-cmd cmd))
-
-		     (let* ((descriptor-set (texture-image-descriptor-set
-					     (or (cmd-texture cmd)
-						 (draw-list-texture draw-list)
-						 (and (setq pipeline-default-font
-							    (pipeline-default-font pipeline))
-						      (font-atlas pipeline-default-font))
-						 *white-texture*)))
-			    (group (when (cmd-group cmd) (gethash (cmd-group cmd) (draw-data-group-hash-table draw-data))))
-			    (group-model-matrix (and group (group-model-matrix group)))
-			    (group-color-override (and group (group-color-override group))))
+    (flet ((render-standard-draw-indexed-cmd (cmd &aux (pipeline-default-font nil))
+	     (declare (type standard-draw-indexed-cmd cmd))
+	     
+	     (let* ((descriptor-set (texture-image-descriptor-set
+				     (or (cmd-texture cmd)
+					 (draw-list-texture draw-list)
+					 (and (setq pipeline-default-font
+						    (pipeline-default-font pipeline))
+					      (font-atlas pipeline-default-font))
+					 *white-texture*)))
+		    (group (when (cmd-group cmd) (gethash (cmd-group cmd) (draw-data-group-hash-table draw-data))))
+		    (group-model-matrix (and group (group-model-matrix group)))
+		    (group-color-override (and group (group-color-override group))))
 		       
-		       (with-foreign-objects ((p-descriptor-sets :pointer 1))
-                         (setf (mem-aref p-descriptor-sets :pointer 0) (h descriptor-set))
-                         (vkCmdBindDescriptorSets (h command-buffer)
-                                                  VK_PIPELINE_BIND_POINT_GRAPHICS
-                                                  (h pipeline-layout)
-                                                  2 1
-                                                  p-descriptor-sets
-                                                  0 +nullptr+))
+	       (with-foreign-objects ((p-descriptor-sets :pointer 1))
+                 (setf (mem-aref p-descriptor-sets :pointer 0) (h descriptor-set))
+                 (vkCmdBindDescriptorSets (h command-buffer)
+                                          VK_PIPELINE_BIND_POINT_GRAPHICS
+                                          (h pipeline-layout)
+                                          2 1
+                                          p-descriptor-sets
+                                          0 +nullptr+))
 
-		       (with-foreign-object (pvalues :uint32 +uber-vertex-shader-pc-size+)
+	       (with-foreign-object (pvalues :uint32 +uber-vertex-shader-pc-size+)
 
-			 (let ((cmd-model-matrix (cmd-model-mtx cmd))
-			       (cmd-color-override (cmd-color-override cmd)))
+		 (let ((cmd-model-matrix (cmd-model-mtx cmd))
+		       (cmd-color-override (cmd-color-override cmd)))
 
-			   (if cmd-model-matrix
-			       (setq mm cmd-model-matrix)
-			       (if group-model-matrix
-				   (setq mm group-model-matrix)
-				   (setq mm *identity-matrix*))
-			       #+NIL
-			       (if group-model-matrix
-				   (setq mm (m* cmd-model-matrix group-model-matrix))
-				   (setq mm (m* cmd-model-matrix)))
-			       #+NIL
-			       (if group-model-matrix
-				   (setq mm (m* group-model-matrix))
-				   (setq mm *identity-matrix*)))
+		   (if cmd-model-matrix
+		       (setq mm cmd-model-matrix)
+		       (if group-model-matrix
+			   (setq mm group-model-matrix)
+			   (setq mm *identity-matrix*))
+		       #+NIL
+		       (if group-model-matrix
+			   (setq mm (m* cmd-model-matrix group-model-matrix))
+			   (setq mm (m* cmd-model-matrix)))
+		       #+NIL
+		       (if group-model-matrix
+			   (setq mm (m* group-model-matrix))
+			   (setq mm *identity-matrix*)))
 
-			   ;;(print mm)
+		   ;;(print mm)
 
-			   (copy-matrix-to-foreign mm pvalues)
+		   (copy-matrix-to-foreign mm pvalues)
 			   
-			   (if cmd-color-override
-			       (let ((pcol (mem-aptr pvalues :uint32 +uber-vertex-shader-color-override-offset+)))
-				 (setf (mem-aref pcol :uint32 0) cmd-color-override)
-				 (setf (mem-aref pvalues :uint32 +uber-vertex-shader-override-color-p-offset+) 1))
+		   (if cmd-color-override
+		       (let ((pcol (mem-aptr pvalues :uint32 +uber-vertex-shader-color-override-offset+)))
+			 (setf (mem-aref pcol :uint32 0) cmd-color-override)
+			 (setf (mem-aref pvalues :uint32 +uber-vertex-shader-override-color-p-offset+) 1))
 			       
-			       (if group-color-override
-				   (let ((pcol (mem-aptr pvalues :uint32 +uber-vertex-shader-color-override-offset+)))
-				     (setf (mem-aref pcol :uint32 0) group-color-override)
-				     (setf (mem-aref pvalues :uint32 +uber-vertex-shader-override-color-p-offset+) 1))
-				   (setf (mem-aref pvalues :uint32 +uber-vertex-shader-override-color-p-offset+) 0)))
+		       (if group-color-override
+			   (let ((pcol (mem-aptr pvalues :uint32 +uber-vertex-shader-color-override-offset+)))
+			     (setf (mem-aref pcol :uint32 0) group-color-override)
+			     (setf (mem-aref pvalues :uint32 +uber-vertex-shader-override-color-p-offset+) 1))
+			   (setf (mem-aref pvalues :uint32 +uber-vertex-shader-override-color-p-offset+) 0)))
 
-			   (cond ((or (typep pipeline 'point-list-pipeline-mixin)
-				      (typep pipeline '2d-instanced-line-pipeline)
-				      (typep pipeline '3d-instanced-tube-pipeline)
-				      (typep pipeline 'foreground-3d-instanced-line-pipeline))
-				  (setf (mem-aref pvalues :uint32 +uber-vertex-shader-primitive-type-offset+) 0)
-				  (let ((psize (mem-aptr pvalues :uint32 +uber-vertex-shader-point-size-offset+)))
-				    (let ((cmd-point-size (cmd-point-size cmd)))
-				      (if cmd-point-size
-					  (setf (mem-aref psize :float) cmd-point-size)
-					  (let ((pipeline-point-size (pipeline-point-size pipeline)))
-					    (if pipeline-point-size
-						(setf (mem-aref psize :float) pipeline-point-size)
-						(setf (mem-aref psize :float) *default-point-size*)))))))
+		   (cond ((or (typep pipeline 'point-list-pipeline-mixin)
+			      (typep pipeline '2d-instanced-line-pipeline)
+			      (typep pipeline '3d-instanced-tube-pipeline)
+			      (typep pipeline 'foreground-3d-instanced-line-pipeline))
+			  (setf (mem-aref pvalues :uint32 +uber-vertex-shader-primitive-type-offset+) 0)
+			  (let ((psize (mem-aptr pvalues :uint32 +uber-vertex-shader-point-size-offset+)))
+			    (let ((cmd-point-size (cmd-point-size cmd)))
+			      (if cmd-point-size
+				  (setf (mem-aref psize :float) cmd-point-size)
+				  (let ((pipeline-point-size (pipeline-point-size pipeline)))
+				    (if pipeline-point-size
+					(setf (mem-aref psize :float) pipeline-point-size)
+					(setf (mem-aref psize :float) *default-point-size*)))))))
 
-				 ((typep pipeline 'line-pipeline-mixin)
-				  (setf (mem-aref pvalues :uint32 +uber-vertex-shader-primitive-type-offset+) 1)
-				  #-darwin
-				  (let ((cmd-line-width (cmd-line-thickness cmd)))
-				    (if cmd-line-width
-					(vkCmdSetLineWidth command-buffer-handle cmd-line-width)
-					(let ((pipeline-line-width (pipeline-line-width pipeline)))
-					  (if pipeline-line-width
-					      (vkCmdSetLineWidth command-buffer-handle pipeline-line-width)
-					      (vkCmdSetLineWidth command-buffer-handle *default-line-thickness*))))))
-				 ((typep cmd 'text-draw-indexed-cmd)
-				  (setf (mem-aref pvalues :uint32 +uber-vertex-shader-primitive-type-offset+) 3))
+			 ((typep pipeline 'line-pipeline-mixin)
+			  (setf (mem-aref pvalues :uint32 +uber-vertex-shader-primitive-type-offset+) 1)
+			  #-darwin
+			  (let ((cmd-line-width (cmd-line-thickness cmd)))
+			    (if cmd-line-width
+				(vkCmdSetLineWidth command-buffer-handle cmd-line-width)
+				(let ((pipeline-line-width (pipeline-line-width pipeline)))
+				  (if pipeline-line-width
+				      (vkCmdSetLineWidth command-buffer-handle pipeline-line-width)
+				      (vkCmdSetLineWidth command-buffer-handle *default-line-thickness*))))))
+			 ((typep cmd 'text-draw-indexed-cmd)
+			  (setf (mem-aref pvalues :uint32 +uber-vertex-shader-primitive-type-offset+) 3))
 				  
-				 (t (setf (mem-aref pvalues :uint32 +uber-vertex-shader-primitive-type-offset+) 2)))
+			 (t (setf (mem-aref pvalues :uint32 +uber-vertex-shader-primitive-type-offset+) 2)))
 
-			   (let ((cmd-instance-array (cmd-instance-array cmd)))
-			     (if (and cmd-instance-array
-				      (not (zerop (foreign-array-fill-pointer
-						   (instance-list-array cmd-instance-array)))))
-				 (progn
-				   (initialize-instance-list-buffer device cmd-instance-array)
-				   ;;(print (foreign-array-bytes (instance-list-array cmd-instance-array)))
-				   (let* ((memory-block (instance-list-memory cmd-instance-array))
-					  (mrb (memory-block-buffer memory-block))
-					  (mro (memory-block-offset memory-block)))
-				     (%vk::with-vkBufferDeviceAddressInfo (p-info)
-				       (setf %vk::buffer (h mrb))
-				       (setf (mem-ref pvalues :uint64 (* +uber-vertex-shader-instance-array-pointer-offset+ (foreign-type-size :uint32)))
-					     (+ mro (%vk::vkGetBufferDeviceAddress (h (default-logical-device dpy)) p-info))))))
-				 (setf (mem-ref pvalues :uint64 (* +uber-vertex-shader-instance-array-pointer-offset+ (foreign-type-size :uint32))) 0)))
+		   (let ((cmd-instance-array (cmd-instance-array cmd)))
+		     (if (and cmd-instance-array
+			      (not (zerop (foreign-array-fill-pointer
+					   (instance-list-array cmd-instance-array)))))
+			 (progn
+			   (initialize-instance-list-buffer device cmd-instance-array)
+			   ;;(print (foreign-array-bytes (instance-list-array cmd-instance-array)))
+			   (let* ((memory-block (instance-list-memory cmd-instance-array))
+				  (mrb (memory-block-buffer memory-block))
+				  (mro (memory-block-offset memory-block)))
+			     (%vk::with-vkBufferDeviceAddressInfo (p-info)
+			       (setf %vk::buffer (h mrb))
+			       (setf (mem-ref pvalues :uint64 (* +uber-vertex-shader-instance-array-pointer-offset+ (foreign-type-size :uint32)))
+				     (+ mro (%vk::vkGetBufferDeviceAddress (h (default-logical-device dpy)) p-info))))))
+			 (setf (mem-ref pvalues :uint64 (* +uber-vertex-shader-instance-array-pointer-offset+ (foreign-type-size :uint32))) 0)))
 			   
-			   (vkCmdPushConstants command-buffer-handle
-					       (h pipeline-layout)
-					       VK_SHADER_STAGE_VERTEX_BIT
-					       0
-					       (load-time-value (* +uber-vertex-shader-pc-size+
-								   (foreign-type-size :uint32)))
-					       pvalues)))
+		   (vkCmdPushConstants command-buffer-handle
+				       (h pipeline-layout)
+				       VK_SHADER_STAGE_VERTEX_BIT
+				       0
+				       (load-time-value (* +uber-vertex-shader-pc-size+
+							   (foreign-type-size :uint32)))
+				       pvalues)))
 
 
-		       (with-foreign-object (pvalues2 :float +fragment-shader-pc-size+)
-			 (when (typep cmd 'text-draw-indexed-cmd)
-			   (let ((font (or (text-cmd-font cmd) pipeline-default-font)))
-			     (when font
-			       (let ((px-range (font-px-range font)))
-				 (if px-range
-				     (setf (mem-aref pvalues2 :float +text-fragment-shader-px-range-offset+) (clampf px-range))
-				     (setf (mem-aref pvalues2 :float +text-fragment-shader-px-range-offset+) 32.0f0))))))
+	       (with-foreign-object (pvalues2 :float +fragment-shader-pc-size+)
+		 (when (typep cmd 'text-draw-indexed-cmd)
+		   (let ((font (or (text-cmd-font cmd) pipeline-default-font)))
+		     (when font
+		       (let ((px-range (font-px-range font)))
+			 (if px-range
+			     (setf (mem-aref pvalues2 :float +text-fragment-shader-px-range-offset+) (clampf px-range))
+			     (setf (mem-aref pvalues2 :float +text-fragment-shader-px-range-offset+) 32.0f0))))))
 
-			 (setf (mem-aref pvalues2 :float +fragment-shader-select-box-min-offset+) (clampf (krma-select-box-x0 window))
-			       (mem-aref pvalues2 :float (1+ +fragment-shader-select-box-min-offset+)) (clampf (krma-select-box-y0 window))
-			       (mem-aref pvalues2 :float +fragment-shader-select-box-max-offset+) (clampf (krma-select-box-x1 window))
-			       (mem-aref pvalues2 :float (1+ +fragment-shader-select-box-max-offset+)) (clampf (krma-select-box-y1 window)))
+		 (setf (mem-aref pvalues2 :float +fragment-shader-select-box-min-offset+) (clampf (krma-select-box-x0 window))
+		       (mem-aref pvalues2 :float (1+ +fragment-shader-select-box-min-offset+)) (clampf (krma-select-box-y0 window))
+		       (mem-aref pvalues2 :float +fragment-shader-select-box-max-offset+) (clampf (krma-select-box-x1 window))
+		       (mem-aref pvalues2 :float (1+ +fragment-shader-select-box-max-offset+)) (clampf (krma-select-box-y1 window)))
 
-			 (when (typep pipeline '3d-texture-with-normals-pipeline-mixin)
-			   (let* ((cmd-material (cmd-material cmd))
-				  (material (if cmd-material
-						cmd-material
-						(if group
-						    (group-material group)
-						    *default-material*)))
-				  (ambient (material-ambient material))
-				  (diffuse (material-diffuse material))
-				  (specular (material-specular material))
-				  (shininess (material-shininess material)))
+		 (when (typep pipeline '3d-texture-with-normals-pipeline-mixin)
+		   (let* ((cmd-material (cmd-material cmd))
+			  (material (if cmd-material
+					cmd-material
+					(if group
+					    (group-material group)
+					    *default-material*)))
+			  (ambient (material-ambient material))
+			  (diffuse (material-diffuse material))
+			  (specular (material-specular material))
+			  (shininess (material-shininess material)))
 
-			     (setf (mem-aref pvalues2 :unsigned-int +lighting-fragment-shader-ambient-offset+) (canonicalize-color ambient)
-				   (mem-aref pvalues2 :unsigned-int +lighting-fragment-shader-diffuse-offset+) (canonicalize-color diffuse)
-				   (mem-aref pvalues2 :unsigned-int +lighting-fragment-shader-specular-offset+) (canonicalize-color specular)
-				   (mem-ref pvalues2 :float (load-time-value
-							     (* +lighting-fragment-shader-shininess-offset+ (foreign-type-size :float))))
-				   (clampf shininess))))				 
+		     (setf (mem-aref pvalues2 :unsigned-int +lighting-fragment-shader-ambient-offset+) (canonicalize-color ambient)
+			   (mem-aref pvalues2 :unsigned-int +lighting-fragment-shader-diffuse-offset+) (canonicalize-color diffuse)
+			   (mem-aref pvalues2 :unsigned-int +lighting-fragment-shader-specular-offset+) (canonicalize-color specular)
+			   (mem-ref pvalues2 :float (load-time-value
+						     (* +lighting-fragment-shader-shininess-offset+ (foreign-type-size :float))))
+			   (clampf shininess))))				 
 
-			 ;; make sure msdf-texture fragment shader can get px-range from font
-			 (vkCmdPushConstants command-buffer-handle
-					     (h pipeline-layout)
-					     VK_SHADER_STAGE_FRAGMENT_BIT
-					     (load-time-value (* +uber-vertex-shader-pc-size+
-								 (foreign-type-size :uint32)))
-					     (load-time-value (* +fragment-shader-pc-size+
-								 (foreign-type-size :float)))
-					     pvalues2))
+		 ;; make sure msdf-texture fragment shader can get px-range from font
+		 (vkCmdPushConstants command-buffer-handle
+				     (h pipeline-layout)
+				     VK_SHADER_STAGE_FRAGMENT_BIT
+				     (load-time-value (* +uber-vertex-shader-pc-size+
+							 (foreign-type-size :uint32)))
+				     (load-time-value (* +fragment-shader-pc-size+
+							 (foreign-type-size :float)))
+				     pvalues2))
 
-		       (vkCmdDrawIndexed command-buffer-handle
-					 (cmd-elem-count cmd) (if (cmd-instance-array cmd)
-								  (max
-								   (instance-list-count
-								    (cmd-instance-array cmd))
-								   0)
-								  1)
-					 (cmd-first-idx cmd) (cmd-vtx-offset cmd)
-					 0))))
+	       (vkCmdDrawIndexed command-buffer-handle
+				 (cmd-elem-count cmd) (if (cmd-instance-array cmd)
+							  (max
+							   (instance-list-count
+							    (cmd-instance-array cmd))
+							   0)
+							  1)
+				 (cmd-first-idx cmd) (cmd-vtx-offset cmd)
+				 0))))
 
-	      (loop for cmd across cmd-vector
-		    when cmd
-		      do (render-standard-draw-indexed-cmd cmd))
-              t)))))))
+      (do ((draw-list draw-list (draw-list-next draw-list)))
+	  ((null draw-list))
+	
+	(let ((index-array (draw-list-index-array draw-list)))
+	  (declare (type foreign-adjustable-array index-array))
+	
+	  (unless (= 0 (foreign-array-fill-pointer index-array))
+	    
+	    (let ((cmd-vector (draw-list-cmd-vector draw-list)))
+	      (declare (type (vector t) cmd-vector))
+	    
+	      (unless (= 0 (fill-pointer cmd-vector))
+	      
+		(if (typep draw-data 'immediate-mode-draw-data)
+		    (initialize-draw-list-vram-quick device draw-list releaseme-queue)
+		    (maybe-initialize-draw-list-vram device draw-list window releaseme-queue))
+
+		(unless (or (draw-list-vertex-memory draw-list)
+			    (draw-list-index-memory draw-list))
+		  (print "missing memory block")
+		  (finish-output))
+
+		(when (and (draw-list-vertex-memory draw-list)
+			   (draw-list-index-memory draw-list))
+		  
+		  (cmd-bind-vertex-buffers
+		   command-buffer (list (memory-block-buffer (draw-list-vertex-memory draw-list)))
+		   (list (memory-block-offset (draw-list-vertex-memory draw-list))))
+		  (cmd-bind-index-buffer
+		   command-buffer (memory-block-buffer (draw-list-index-memory draw-list))
+		   (memory-block-offset (draw-list-index-memory draw-list))
+		   (foreign-array-foreign-type index-array))
+		  
+		  (loop for cmd across cmd-vector
+			when cmd
+			  do (render-standard-draw-indexed-cmd cmd))
+		  ))))))
+      t)))
+
+
 
 (defmethod render-draw-list-cmds ((pipeline draw-indexed-pipeline-mixin) draw-data draw-list
-				  dpy device command-buffer scene window view proj viewport near far)
+				  dpy device command-buffer scene window view proj viewport near far
+				  releaseme-queue)
 
   (ubershader-render-draw-list-cmds pipeline draw-data draw-list dpy device command-buffer scene window view proj
 				    (viewport-x viewport) (viewport-y viewport)
-				    (viewport-width viewport) (viewport-height viewport) near far))
+				    (viewport-width viewport) (viewport-height viewport) near far releaseme-queue))
 
-(defun ubershader-render-draw-list (pipeline draw-data draw-list dpy device command-buffer scene window view proj x y width height near far)
+(defun ubershader-render-draw-list (pipeline draw-data draw-list dpy device command-buffer scene window view proj x y width height near far releaseme-queue)
   
   (declare (type draw-indexed-pipeline-mixin))
   (declare (type draw-list-mixin draw-list))
-  (declare (ignore draw-data))
   (declare (ignorable device))
 
   (let ((index-array (draw-list-index-array draw-list)))
@@ -1177,7 +1275,9 @@
 
     (unless (= 0 (foreign-array-fill-pointer index-array))
 
-      (initialize-buffers device draw-list)
+      (if (typep draw-data 'immediate-mode-draw-data)
+	  (initialize-draw-list-vram-quick device draw-list releaseme-queue)
+	  (maybe-initialize-draw-list-vram device draw-list window releaseme-queue))
       
       (let* ((command-buffer-handle (h command-buffer))
              (pipeline-layout (pipeline-layout pipeline))
@@ -1340,10 +1440,12 @@
 			    (foreign-array-fill-pointer index-array)
 			    1 0 0 0))))))
 
-(defmethod render-draw-list ((pipeline draw-indexed-pipeline-mixin) draw-data draw-list dpy device command-buffer scene window view proj viewport near far)
+
+
+(defmethod render-draw-list ((pipeline draw-indexed-pipeline-mixin) draw-data draw-list dpy device command-buffer scene window view proj viewport near far releaseme-queue)
   (ubershader-render-draw-list pipeline draw-data draw-list dpy device command-buffer scene window view proj
 			       (viewport-x viewport) (viewport-y viewport)
-			       (viewport-width viewport) (viewport-height viewport) near far))
+			       (viewport-width viewport) (viewport-height viewport) near far releaseme-queue))
 
 (defun read-buffer (buffer lisp-array size memory-block aligned-size)
   (let ((memory (allocated-memory buffer))

@@ -67,7 +67,7 @@
 		#:poll-events
 		#:wait-event
 		#:run
-
+		
 		#:choose-video-mode
 
 		#:display
@@ -525,5 +525,5 @@
 	   #:pipeline-mixin
 	   #:pipeline-vertex-uniform-buffer
 	   #:device-pipeline
-	   
+	   #:tutorial
            ))

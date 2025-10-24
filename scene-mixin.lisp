@@ -150,7 +150,7 @@
    (ambient :initform *default-scene-ambient* :accessor scene-ambient)
 
    (children :initform () :accessor node-children))
-  (:documentation "Absract base class for scenes in krma. Define your own scene classes with this mixin as a superclass."))
+  (:documentation "Abstract base class for scenes in krma. Define your own scene classes with this mixin as a superclass."))
 
 #+sbcl
 (defun finalize-scene (scene)
@@ -176,19 +176,31 @@
 
 (defclass standard-scene (krma-essential-scene-mixin)
   ()
-  (:documentation "A concrete scene class based on krma-essential-scene-mixin used in krma-test-frame-manager."))
+  (:documentation "A concrete scene class based on krma-essential-scene-mixin used in tutorial."))
 
+
+(defgeneric render-scene (scene window viewport dpy command-buffer rm-draw-data im-draw-data releaseme-queue)
+  (:documentation "The generic function to render krma scenes. You can define your own methods for your own scene classes and call-next-method if you like."))
 
 (defmethod render-scene ((scene krma-essential-scene-mixin)
-			 window viewport dpy command-buffer rm-draw-data im-draw-data)
-  (render-3d-scene scene window viewport dpy command-buffer rm-draw-data im-draw-data)
+			 window viewport dpy command-buffer rm-draw-data im-draw-data releaseme-queue)
+  "The default method to render krma scenes."
+  (render-3d-scene scene window viewport dpy command-buffer rm-draw-data im-draw-data releaseme-queue)
   (vkCmdNextSubpass (h command-buffer) VK_SUBPASS_CONTENTS_INLINE)
-  (render-2d-scene scene window viewport dpy command-buffer rm-draw-data im-draw-data)
+  (render-2d-scene scene window viewport dpy command-buffer rm-draw-data im-draw-data releaseme-queue)
   (values))
 
+(defgeneric render-draw-list-cmds (pipeline draw-data draw-list
+				  dpy device command-buffer scene window view proj viewport near far
+				  releaseme-queue))
+
+(defgeneric render-2d-scene (scene
+			     window viewport dpy command-buffer rm-draw-data im-draw-data releaseme-queue))
+
 (defmethod render-2d-scene ((scene krma-essential-scene-mixin)
-			    window viewport dpy command-buffer rm-draw-data im-draw-data)
-  "The default method to render krma scenes.  You can define your own methods for your own scene classes and call-next-method if you like."
+			    window viewport dpy command-buffer rm-draw-data im-draw-data
+			    releaseme-queue)
+  
 
   ;; todo: think about having separate clos objects for 3d-scene and 2d-scene
   
@@ -205,33 +217,43 @@
 					scene
 					window
 					2d-camera-view-matrix 2d-camera-projection-matrix
-					viewport 0.0f0 +select-box-2d-depth+))
+					viewport 0.0f0 +select-box-2d-depth+
+					releaseme-queue))
 
 	(loop for (p dl) on (2d-draw-list-oriented-combinations pipeline-store rm-draw-data dpy) by #'cddr
 	      do (render-draw-list p rm-draw-data dl dpy device command-buffer
 				   scene
 				   window
 				   2d-camera-view-matrix 2d-camera-projection-matrix
-				   viewport  0.0f0 +select-box-2d-depth+))
+				   viewport  0.0f0 +select-box-2d-depth+
+				   releaseme-queue))
 
 	(loop for (p dl) on (2d-cmd-oriented-combinations pipeline-store im-draw-data dpy) by #'cddr
 	      do (render-draw-list-cmds p im-draw-data dl dpy device command-buffer
 					scene
 					window
 					2d-camera-view-matrix 2d-camera-projection-matrix
-					viewport 0.0f0 +select-box-2d-depth+))
+					viewport 0.0f0 +select-box-2d-depth+
+					releaseme-queue))
 
 	(loop for (p dl) on (2d-draw-list-oriented-combinations pipeline-store im-draw-data dpy) by #'cddr
 	      do (render-draw-list p im-draw-data dl dpy device command-buffer
 				   scene
 				   window
 				   2d-camera-view-matrix 2d-camera-projection-matrix
-				   viewport 0.0f0 +select-box-2d-depth+))
+				   viewport 0.0f0 +select-box-2d-depth+
+				   releaseme-queue))
 	(values)))))
 
+(defgeneric render-draw-list (pipeline draw-data draw-list dpy device command-buffer scene window view proj viewport near far releaseme-queue))
+
+(defgeneric render-3d-scene (scene
+			    window viewport dpy command-buffer rm-draw-data im-draw-data
+			    releaseme-queue))
+
 (defmethod render-3d-scene ((scene krma-essential-scene-mixin)
-			    window viewport dpy command-buffer rm-draw-data im-draw-data)
-  "The default method to render krma scenes.  You can define your own methods for your own scene classes and call-next-method if you like."
+			    window viewport dpy command-buffer rm-draw-data im-draw-data
+			    releaseme-queue)
 
   ;; todo: think about having separate clos objects for 3d-scene and 2d-scene
   
@@ -240,41 +262,40 @@
 
     (with-slots (x y width height 2d-camera 3d-camera) viewport
 
-      (let ((3d-camera-projection-matrix (camera-proj-matrix 3d-camera))
-	    (3d-camera-view-matrix (camera-view-matrix 3d-camera))
-	    (near (camera-near 3d-camera))
-	    (far (camera-far 3d-camera)))
-
-	;;(print 2d-camera-projection-matrix)
-	;;(print 2d-camera-view-matrix)
+      (multiple-value-bind (3d-camera-projection-matrix 3d-camera-view-matrix near far)
+	  ;;(bt:with-recursive-lock-held ((slot-value 3d-camera 'adhoc::root-lock))
+	    (values (camera-proj-matrix 3d-camera)
+		    (camera-view-matrix 3d-camera)
+		    (camera-near 3d-camera)
+		    (camera-far 3d-camera));;)
 
 	(loop for (p dl) on (3d-draw-list-oriented-combinations pipeline-store rm-draw-data dpy) by #'cddr
 	      do (render-draw-list p rm-draw-data dl dpy device command-buffer
 				   scene
 				   window
 				   3d-camera-view-matrix 3d-camera-projection-matrix
-				   viewport near far))
+				   viewport near far releaseme-queue))
 	
 	(loop for (p dl) on (3d-cmd-oriented-combinations pipeline-store rm-draw-data dpy) by #'cddr
 	      do (render-draw-list-cmds p rm-draw-data dl dpy device command-buffer
 					scene
 					window
 					3d-camera-view-matrix 3d-camera-projection-matrix
-					viewport near far))
+					viewport near far releaseme-queue))
 
 	(loop for (p dl) on (3d-draw-list-oriented-combinations pipeline-store im-draw-data dpy) by #'cddr
 	      do (render-draw-list p im-draw-data dl dpy device command-buffer
 				   scene
 				   window
 				   3d-camera-view-matrix 3d-camera-projection-matrix
-				   viewport near far))
+				   viewport near far releaseme-queue))
 
 	(loop for (p dl) on (3d-cmd-oriented-combinations pipeline-store im-draw-data dpy) by #'cddr
 	      do (render-draw-list-cmds p im-draw-data dl dpy device command-buffer
 					scene
 					window
 					3d-camera-view-matrix 3d-camera-projection-matrix
-					viewport near far))	
+					viewport near far releaseme-queue))	
 
       (values)))))
 
@@ -1613,80 +1634,6 @@
 	(%draw-data-draw-text-quad-list (im-draw-data scene) object-id group font (canonicalize-color color) elevation vertices)))))
 
 
-
-;;(declaim (inline %reinstance-primitive-1))
-#+update-me
-(defun %reinstance-primitive-1 (ht new-handle handle
-                                group model-mtx sf-line-thickness sf-point-size ub32-color-override light-position font)
-  (let ((cmd (gethash handle ht)))
-    (if (listp cmd)
-        (warn "while in %reinstance-primitve-1 ...couldn't find primitive ~S to reinstance" handle)
-        (let ((constructor #'make-standard-draw-indexed-cmd))
-          (declare (type function constructor))
-          (when font
-            (setq constructor #'(lambda (&rest args)
-                                  (apply #'make-text-draw-indexed-cmd font args))))
-          (setf (gethash new-handle ht)
-                )))))
-
-#+update-me
-(defun reinstance-primitive-1 (draw-data new-handle handle
-                               &key 
-				 (group nil)
-				 (model-matrix nil)
-                                 (point-size nil)
-                                 (line-thickness nil)
-                                 (color-override nil)
-                                 (light-position nil)
-                                 (font nil))
-  "Retained-mode function.  Re-instances a primitive given a handle with the option to set a new group, model-matrix, point-size, line-thickness, color-override, light-position and/or font.  References the same vertices in the draw-lists. Performs work in current thread, which should be the render thread."
-  (declare (type retained-mode-draw-data draw-data))
-  (let ((ht (draw-data-handle-hash-table draw-data)))
-    (%reinstance-primitive-1
-     ht new-handle handle
-     group model-matrix (clampf line-thickness) (clampf point-size) (canonicalize-color color-override) light-position font)))
-
-#+update-me
-(defun reinstance-primitive (scene handle
-                             &key 
-			       (group nil)
-			       (model-matrix nil)
-                               (point-size nil)
-                               (line-thickness nil)
-                               (color-override nil)
-                               (light-position nil)
-                               (font nil))
-  "Retained-mode function.  Re-instances a primitive given a handle with the option to set a new group, model-matrix, point-size, line-thickness, color-override, light-position and/or font.  References the same vertices in the draw-lists.  To be run in a thread outside of the render thread.  Dispatches actual work to render thread."
-  (declare (type krma-essential-scene-mixin scene))
-  (when point-size
-    (setq point-size (clampf point-size)))
-  (when line-thickness
-    (setq line-thickness (clampf line-thickness)))
-  (when color-override
-    (setq color-override (canonicalize-color color-override)))
-  (let ((draw-data (rm-draw-data scene)))
-    (let ((dd0 (svref draw-data 0))
-          (dd1 (svref draw-data 1)))
-      (declare (type retained-mode-draw-data dd0 dd1))
-      (let ((ht0 (draw-data-handle-hash-table dd0))
-            (ht1 (draw-data-handle-hash-table dd1))
-            (wq0 (draw-data-work-queue dd0))
-            (wq1 (draw-data-work-queue dd1))
-            (new-handle (gen-rm-handle)))
-	
-        #+notyet(sb-concurrency:enqueue #'(lambda ()
-					    (%reinstance-primitive-1 ht0 new-handle handle group
-								     model-matrix line-thickness point-size color-override
-								     light-position font))
-					wq0)
-	
-	#+notyet(sb-concurrency:enqueue #'(lambda ()
-					    (%reinstance-primitive-1 ht1 new-handle handle group
-								     model-matrix line-thickness point-size color-override
-								     light-position font))
-					wq1)
-        new-handle))))
-
 (declaim (inline %primitive-set-color-1))
 (defun %primitive-set-color-1 (ht handle ub32-color)
   (let ((cmd (gethash handle ht)))
@@ -1819,34 +1766,6 @@
         (values)))))
 
 
-#+NIL
-(defun %delete-primitives-2 (ht handles)
-  (handler-case
-      (let ((cmds (mapcar #'(lambda (handle)
-			      (cons handle (gethash handle ht))) handles)))
-	(let* ((cmd-vector (draw-list-cmd-vector draw-list))
-	       (holes 0))
-	  (loop for entry across cmd-vector
-	     with cmd = nil
-	     for i from 0
-	     unless entry
-	     do (incf holes)
-	     when (setq cmd (find entry cmds :key #'cdr))
-	     do (remhash (car cmd) ht)
-	       (setq cmds (delete entry cmds :key #'cdr))
-	       (setf (aref cmd-vector i) nil)
-	       (incf holes)
-	     unless cmds
-	     do (return))
-	  ;; we do not count all the holes here, we'll do that elsewhere
-	  ;; but if holes happens to exceed trigger already, then schedule compaction
-	  (when (> holes (floor (* (fill-pointer cmd-vector) *compact-trigger*)))
-	    (setf (draw-list-needs-compaction? draw-list) t))
-	  (values)))
-    (error (c)
-      (warn (concatenate 'string "while in %delete-primitive2-2 ..." (princ-to-string c)))
-      (values))))    
-
 (defun %delete-primitive-1 (ht handle)
   (handler-case
       (let ((cmd (gethash handle ht)))
@@ -1904,21 +1823,8 @@
         (flet ((free-group-draw-lists (ht)
                  (unless ht
                    (warn "ht is null"))
-                 (let (#+NIL(key-list ()))
 
-		   #+NO ;; key is a list!
-		   (loop for group in list-of-groups
-			 do (let ((draw-list (gethash group ht)))
-			      (unless draw-list
-				(warn "could not find entry for ~S" group))
-			      (when draw-list
-				(let ((im (draw-list-index-memory draw-list))
-				      (vm (draw-list-vertex-memory draw-list)))
-				  (release-memory im)
-				  (release-memory vm)))
-			      (remhash group ht)))
-
-		   (let ((new-ht (make-hash-table :test #'equal)))
+		 (let ((new-ht (make-hash-table :test #'equal)))
 
 		     (maphash #'(lambda (key draw-list)
 				  (unless (find (car key) list-of-groups)
@@ -1932,24 +1838,7 @@
 					(release-memory vm)))))
 			      ht)
 
-		     new-ht)
-
-		   ;; this ought to be fast since we maphash these tables at render time also
-                   ;; and haven't a performance problem yet (knock on wood)
-
-		   #+NIL		   
-                   (maphash #'(lambda (key draw-list)
-                                (when (find (car key) list-of-groups)
-                                  (push key key-list)
-                                  (let ((im (draw-list-index-memory draw-list))
-                                        (vm (draw-list-vertex-memory draw-list)))
-                                    (release-memory dpy im)
-                                    (release-memory dpy vm))))
-                            ht)
-		   #+NIL
-                   (mapcar #'(lambda (key)
-                               (remhash key ht))
-                           key-list)))
+		     new-ht))
 
                (delete-primitives-with-groups (draw-list)
                  (let ((cmd-vector (draw-list-cmd-vector draw-list)))
@@ -2042,17 +1931,13 @@
                  (maphash #'(lambda (key draw-list)
                               (declare (ignore key))
                               ;; we're wanting to delete all groups from immediate mode draw lists!
-                              (let (#+NIL(ia (draw-list-index-array draw-list))
-                                    #+NIL(va (draw-list-vertex-array draw-list))
-                                    (im (draw-list-index-memory draw-list))
+                              (let ((im (draw-list-index-memory draw-list))
                                     (vm (draw-list-vertex-memory draw-list)))
-                                ;;(declare (type foreign-adjustable-array ia va))
-                                ;;(foreign-free (foreign-array-ptr ia))
-                                ;;(foreign-free (foreign-array-ptr va))
+				
 				(when im
-				    (release-memory im))
-				  (when vm
-				    (release-memory vm))
+				  (release-memory im))
+				(when vm
+				  (release-memory vm))
                                 nil))
                           ht)))
 
@@ -2151,29 +2036,6 @@
   (declare (type (and atom t) group))
   (rm-dispatch-to-render-thread (scene draw-data)
     (%group-apply-transform-1 draw-data group matrix)))
-
-#+NIL
-(declaim (inline %group-set-light-position-1))
-#+NIL
-(defun %group-set-light-position-1 (draw-data atom-group light-position)
-  (let ((group (gethash atom-group (draw-data-group-hash-table draw-data))))
-    (if group
-        (setf (group-light-position group) (when light-position (vcopy light-position)))
-        (warn "while in %group-set-light-position-1 ...no group named ~S" atom-group))))
-
-#+NIL
-(defun group-set-light-position-1 (draw-data group position)
-  (declare (type (or vec3 null) position))
-  (declare (type (and atom t) group))
-  (%group-set-light-position-1 draw-data group position))
-
-#+NIL
-(defun group-set-light-position (scene group position)
-  (declare (type krma-essential-scene-mixin scene))
-  (declare (type (or vec3 null) position))
-  (declare (type (and atom t) group))
-  (rm-dispatch-to-render-thread (scene draw-data)
-    (%group-set-light-position-1 draw-data group position)))
 
 (defun ensure-group-1 (draw-data group)
   (declare (type (and atom t) group))

@@ -64,17 +64,40 @@
     (declaim (inline %draw-list-add-filled-sphere))
     (declaim (inline %prim-reserve))))
 
+(declaim (inline draw-list-index-array-2))
+(defun draw-list-index-array-2 (draw-list)
+  (declare (type draw-list-mixin draw-list))
+  (let ((index-array (draw-list-index-array draw-list)))
+    (values index-array
+	    (* (foreign-array-fill-pointer index-array)
+	       (foreign-array-foreign-type-size index-array)))))
+
+(declaim (inline draw-list-vertex-array-2))
+(defun draw-list-vertex-array-2 (draw-list)
+  (declare (type draw-list-mixin draw-list))
+  (let ((vertex-array (draw-list-vertex-array draw-list)))
+    (values vertex-array
+	    (* (foreign-array-fill-pointer vertex-array)
+	       (foreign-array-foreign-type-size vertex-array)))))
+
+
+
 (defmacro with-draw-list-transaction ((fn-name draw-list first-index initial-vtx-offset)
 				      &body body)
-  (let ((draw-list-sym (gensym)))
-    `(let ((,draw-list-sym ,draw-list))
+  (let ((draw-list-sym (gensym))
+	(draw-list-changed-flag-saved-value-sym (gensym)))
+    `(let* ((,draw-list-sym ,draw-list)
+	    (,draw-list-changed-flag-saved-value-sym (draw-list-changed? ,draw-list-sym)))
+	   
        (handler-case
-	   (progn ,@body)
+	   (progn
+	     (setf (draw-list-changed? ,draw-list-sym) t)
+	     ,@body)
 	 (error (c)
 	   (warn (concatenate 'string "While in " ,(symbol-name fn-name) ": " (princ-to-string c)))
-           ;;(break)
 	   (setf (foreign-array-fill-pointer (draw-list-index-array ,draw-list-sym)) ,first-index
 		 (foreign-array-fill-pointer (draw-list-vertex-array ,draw-list-sym)) ,initial-vtx-offset)
+	   (setf (draw-list-changed? ,draw-list-sym) ,draw-list-changed-flag-saved-value-sym)
 	   nil)))))
 
 (defun %draw-list-draw-2d-point (2d-draw-list ub32-oid ub32-color sf-elevation sf-x sf-y)

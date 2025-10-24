@@ -145,13 +145,31 @@
 
   (handle-hash-table (make-hash-table :test #'eq)))
 
+(defconstant +draw-list-allocation-limit+ (truncate (* 0.9 (expt 2 26))))
+
+(defmacro with-next-draw-list ((draw-list initargs) &body body)
+  `(invoke-with-next-draw-list ,draw-list #'(lambda (,draw-list) ,@body) ,initargs))
+
+(defun invoke-with-next-draw-list (draw-list body-lambda initargs)
+  (if (or (multiple-value-bind (vertex-array vertex-size) (draw-list-vertex-array-2 draw-list)
+	    (declare (ignore vertex-array))
+	    (> vertex-size +draw-list-allocation-limit+))
+	  (multiple-value-bind (index-array index-size) (draw-list-index-array-2 draw-list)
+	    (declare (ignore index-array))
+	    (> index-size +draw-list-allocation-limit+)))
+      (let ((next (or (draw-list-next draw-list)
+		      (setf (draw-list-next draw-list)
+			    (apply #'make-instance (class-of draw-list) initargs)))))
+	(invoke-with-next-draw-list next body-lambda initargs))
+      (funcall body-lambda draw-list)))  
 
 (defun %draw-data-add-2d-point-primitive (draw-data handle ub32-oid atom-group model-mtx sf-point-size ub32-color sf-elevation sf-x sf-y)
   (declare (type retained-mode-draw-data draw-data))
   (declare (type single-float sf-point-size))
   (let* ((draw-list (rm-draw-data-2d-point-list-draw-list draw-data)))
     (setf (gethash handle (rm-draw-data-handle-hash-table draw-data))
-          (%draw-list-add-2d-point draw-list ub32-oid atom-group model-mtx sf-point-size ub32-color sf-elevation sf-x sf-y))
+	  (with-next-draw-list (draw-list nil)
+	    (%draw-list-add-2d-point draw-list ub32-oid atom-group model-mtx sf-point-size ub32-color sf-elevation sf-x sf-y)))
     (values)))
 
 
@@ -161,14 +179,16 @@
   (let* ((draw-list-table (rm-draw-data-2d-point-list-draw-list-table draw-data))
 	 (group-hash-table (rm-draw-data-group-hash-table draw-data))
 	 (key (list atom-group sf-point-size))
+	 (initargs (list :point-size sf-point-size
+			 :group (or (gethash atom-group group-hash-table)
+				    (setf (gethash atom-group group-hash-table)
+					  (make-group atom-group)))))
 	 (draw-list (or (gethash key draw-list-table)
 			(setf (gethash key draw-list-table)
-			      (make-instance '3d-vertex-draw-list
-					     :point-size sf-point-size
-					     :group (or (gethash atom-group group-hash-table)
-							(setf (gethash atom-group group-hash-table)
-							      (make-group atom-group))))))))
-    (%draw-list-draw-2d-point draw-list ub32-oid ub32-color sf-elevation sf-x sf-y)
+			      (apply #'make-instance '3d-vertex-draw-list
+				     initargs)))))
+    (with-next-draw-list (draw-list initargs)
+      (%draw-list-draw-2d-point draw-list ub32-oid ub32-color sf-elevation sf-x sf-y))
     (values)))
 
 
@@ -178,14 +198,15 @@
   (let* ((draw-list-table (draw-data-2d-point-list-draw-list-table draw-data))
          (group-hash-table (draw-data-group-hash-table draw-data))
          (key (list atom-group sf-point-size))
+	 (initargs (list :point-size sf-point-size
+			 :group (or (gethash atom-group group-hash-table)
+				    (setf (gethash atom-group group-hash-table)
+					  (make-group atom-group)))))
 	 (draw-list (or (gethash key draw-list-table)
 			(setf (gethash key draw-list-table)
-			      (make-instance '3d-vertex-draw-list
-					     :point-size sf-point-size
-					     :group (or (gethash atom-group group-hash-table)
-							(setf (gethash atom-group group-hash-table)
-							      (make-group atom-group))))))))
-    (%draw-list-draw-2d-point draw-list ub32-oid ub32-color sf-elevation sf-x sf-y)
+			      (apply #'make-instance '3d-vertex-draw-list initargs)))))
+    (with-next-draw-list (draw-list initargs)
+      (%draw-list-draw-2d-point draw-list ub32-oid ub32-color sf-elevation sf-x sf-y))
     (values)))
 
 
@@ -194,7 +215,8 @@
   (declare (type single-float sf-point-size))
   (let* ((draw-list (rm-draw-data-3d-point-list-draw-list draw-data)))
     (setf (gethash handle (rm-draw-data-handle-hash-table draw-data))
-          (%draw-list-add-3d-point draw-list ub32-oid atom-group model-mtx sf-point-size ub32-color sf-x sf-y sf-z))
+	  (with-next-draw-list (draw-list nil)
+	    (%draw-list-add-3d-point draw-list ub32-oid atom-group model-mtx sf-point-size ub32-color sf-x sf-y sf-z)))
     (values)))
 
 
@@ -204,14 +226,15 @@
   (let* ((draw-list-table (rm-draw-data-3d-point-list-draw-list-table draw-data))
 	 (group-hash-table (rm-draw-data-group-hash-table draw-data))
 	 (key (list atom-group sf-point-size))
+	 (initargs (list :point-size sf-point-size
+			 :group (or (gethash atom-group group-hash-table)
+				    (setf (gethash atom-group group-hash-table)
+					  (make-group atom-group)))))
 	 (draw-list (or (gethash key draw-list-table)
 			(setf (gethash key draw-list-table)
-			      (make-instance '3d-vertex-draw-list
-					     :point-size sf-point-size
-					     :group (or (gethash atom-group group-hash-table)
-							(setf (gethash atom-group group-hash-table)
-							      (make-group atom-group))))))))
-    (%draw-list-draw-3d-point draw-list ub32-oid ub32-color sf-x sf-y sf-z)
+			      (apply #'make-instance '3d-vertex-draw-list initargs)))))
+    (with-next-draw-list (draw-list initargs)
+      (%draw-list-draw-3d-point draw-list ub32-oid ub32-color sf-x sf-y sf-z))
     (values)))
 
 
@@ -221,14 +244,15 @@
   (let* ((draw-list-table (draw-data-3d-point-list-draw-list-table draw-data))
          (group-hash-table (draw-data-group-hash-table draw-data))
          (key (list atom-group sf-point-size))
+	 (initargs (list :point-size sf-point-size
+			 :group (or (gethash atom-group group-hash-table)
+				    (setf (gethash atom-group group-hash-table)
+					  (make-group atom-group)))))
 	 (draw-list (or (gethash key draw-list-table)
 			(setf (gethash key draw-list-table)
-			      (make-instance '3d-vertex-draw-list
-					     :point-size sf-point-size
-					     :group (or (gethash atom-group group-hash-table)
-							(setf (gethash atom-group group-hash-table)
-							      (make-group atom-group))))))))
-    (%draw-list-draw-3d-point draw-list ub32-oid ub32-color sf-x sf-y sf-z)
+			      (apply #'make-instance '3d-vertex-draw-list initargs)))))
+    (with-next-draw-list (draw-list initargs)
+      (%draw-list-draw-3d-point draw-list ub32-oid ub32-color sf-x sf-y sf-z))
     (values)))
 
 
@@ -237,7 +261,8 @@
   (declare (type retained-mode-draw-data draw-data))
   (let* ((draw-list (rm-draw-data-2d-line-list-draw-list draw-data)))
     (setf (gethash handle (rm-draw-data-handle-hash-table draw-data))
-          (%draw-list-add-2d-line draw-list ub32-oid atom-group model-mtx sf-line-thickness ub32-color sf-elevation sf-x0 sf-y0 sf-x1 sf-y1))
+	  (with-next-draw-list (draw-list nil)
+	    (%draw-list-add-2d-line draw-list ub32-oid atom-group model-mtx sf-line-thickness ub32-color sf-elevation sf-x0 sf-y0 sf-x1 sf-y1)))
     (values)))
 
 (defun %draw-data-add-2d-line
@@ -246,14 +271,15 @@
   (let* ((draw-list-table (rm-draw-data-2d-line-list-draw-list-table draw-data))
 	 (group-hash-table (rm-draw-data-group-hash-table draw-data))
 	 (key (list atom-group sf-line-thickness))
+	 (initargs (list :line-thickness sf-line-thickness
+			 :group (or (gethash atom-group group-hash-table)
+				    (setf (gethash atom-group group-hash-table)
+					  (make-group atom-group)))))
 	 (draw-list (or (gethash key draw-list-table)
 			(setf (gethash key draw-list-table)
-			      (make-instance '3d-vertex-draw-list
-					     :line-thickness sf-line-thickness
-					     :group (or (gethash atom-group group-hash-table)
-							(setf (gethash atom-group group-hash-table)
-							      (make-group atom-group))))))))
-    (%draw-list-draw-2d-line draw-list ub32-oid ub32-color sf-elevation sf-x0 sf-y0 sf-x1 sf-y1)
+			      (apply #'make-instance '3d-vertex-draw-list initargs)))))
+    (with-next-draw-list (draw-list initargs)
+      (%draw-list-draw-2d-line draw-list ub32-oid ub32-color sf-elevation sf-x0 sf-y0 sf-x1 sf-y1))
     (values)))
 
 
@@ -262,14 +288,15 @@
   (let* ((draw-list-table (draw-data-2d-line-list-draw-list-table draw-data))
          (group-hash-table (draw-data-group-hash-table draw-data))
          (key (list atom-group sf-line-thickness))
+	 (initargs (list :line-thickness sf-line-thickness
+			 :group (or (gethash atom-group group-hash-table)
+				    (setf (gethash atom-group group-hash-table)
+					  (make-group atom-group)))))
 	 (draw-list (or (gethash key draw-list-table)
 			(setf (gethash key draw-list-table)
-			      (make-instance '3d-vertex-draw-list
-					     :line-thickness sf-line-thickness
-					     :group (or (gethash atom-group group-hash-table)
-							(setf (gethash atom-group group-hash-table)
-							      (make-group atom-group))))))))
-    (%draw-list-draw-2d-line draw-list ub32-oid ub32-color sf-elevation sf-x0 sf-y0 sf-x1 sf-y1)
+			      (apply #'make-instance '3d-vertex-draw-list initargs)))))
+    (with-next-draw-list (draw-list initargs)
+      (%draw-list-draw-2d-line draw-list ub32-oid ub32-color sf-elevation sf-x0 sf-y0 sf-x1 sf-y1))
     (values)))
 
 
@@ -278,8 +305,9 @@
   (declare (type retained-mode-draw-data draw-data))
   (let* ((draw-list (rm-draw-data-3d-line-list-draw-list draw-data)))
     (setf (gethash handle (rm-draw-data-handle-hash-table draw-data))
-          (%draw-list-add-3d-line draw-list ub32-oid atom-group model-mtx sf-line-thickness ub32-color
-				  sf-x0 sf-y0 sf-z0 sf-x1 sf-y1 sf-z1))
+	  (with-next-draw-list (draw-list nil)
+	    (%draw-list-add-3d-line draw-list ub32-oid atom-group model-mtx sf-line-thickness ub32-color
+				    sf-x0 sf-y0 sf-z0 sf-x1 sf-y1 sf-z1)))
     (values)))
 
 
@@ -289,14 +317,15 @@
   (let* ((draw-list-table (rm-draw-data-3d-line-list-draw-list-table draw-data))
 	 (group-hash-table (rm-draw-data-group-hash-table draw-data))
 	 (key (list atom-group sf-line-thickness))
+	 (initargs (list :line-thickness sf-line-thickness
+			 :group (or (gethash atom-group group-hash-table)
+				    (setf (gethash atom-group group-hash-table)
+					  (make-group atom-group)))))
 	 (draw-list (or (gethash key draw-list-table)
 			(setf (gethash key draw-list-table)
-			      (make-instance '3d-vertex-draw-list
-					     :line-thickness sf-line-thickness
-					     :group (or (gethash atom-group group-hash-table)
-							(setf (gethash atom-group group-hash-table)
-							      (make-group atom-group))))))))
-    (%draw-list-draw-3d-line draw-list ub32-oid ub32-color sf-x0 sf-y0 sf-z0 sf-x1 sf-y1 sf-z1)
+			      (apply #'make-instance '3d-vertex-draw-list initargs)))))
+    (with-next-draw-list (draw-list initargs)
+      (%draw-list-draw-3d-line draw-list ub32-oid ub32-color sf-x0 sf-y0 sf-z0 sf-x1 sf-y1 sf-z1))
     (values)))
 
 (defun %draw-data-draw-3d-line (draw-data ub32-oid atom-group sf-line-thickness ub32-color sf-x0 sf-y0 sf-z0 sf-x1 sf-y1 sf-z1)
@@ -304,14 +333,15 @@
   (let* ((draw-list-table (draw-data-3d-line-list-draw-list-table draw-data))
          (group-hash-table (draw-data-group-hash-table draw-data))
          (key (list atom-group sf-line-thickness))
+	 (initargs (list :line-thickness sf-line-thickness
+			 :group (or (gethash atom-group group-hash-table)
+				    (setf (gethash atom-group group-hash-table)
+					  (make-group atom-group)))))
 	 (draw-list (or (gethash key draw-list-table)
 			(setf (gethash key draw-list-table)
-			      (make-instance '3d-vertex-draw-list
-                                             :line-thickness sf-line-thickness
-					     :group (or (gethash atom-group group-hash-table)
-							(setf (gethash atom-group group-hash-table)
-							      (make-group atom-group))))))))
-    (%draw-list-draw-3d-line draw-list ub32-oid ub32-color sf-x0 sf-y0 sf-z0 sf-x1 sf-y1 sf-z1)
+			      (apply #'make-instance '3d-vertex-draw-list initargs)))))
+    (with-next-draw-list (draw-list initargs)
+      (%draw-list-draw-3d-line draw-list ub32-oid ub32-color sf-x0 sf-y0 sf-z0 sf-x1 sf-y1 sf-z1))
     (values)))
 
 
@@ -321,8 +351,9 @@
   (declare (type retained-mode-draw-data draw-data))
   (let* ((draw-list (rm-draw-data-2d-line-strip-draw-list draw-data)))
     (setf (gethash handle (rm-draw-data-handle-hash-table draw-data))
-	  (%draw-list-add-2d-polyline draw-list ub32-oid atom-group model-mtx t sf-line-thickness ub32-color sf-elevation
-				      (list sf-x0 sf-y0 sf-x1 sf-y1 sf-x2 sf-y2)))
+	  (with-next-draw-list (draw-list nil)
+	    (%draw-list-add-2d-polyline draw-list ub32-oid atom-group model-mtx t sf-line-thickness ub32-color sf-elevation
+					(list sf-x0 sf-y0 sf-x1 sf-y1 sf-x2 sf-y2))))
     
     (values)))
 
@@ -332,8 +363,9 @@
   (declare (type retained-mode-draw-data draw-data))
   (let ((draw-list (rm-draw-data-2d-line-strip-draw-list draw-data)))
     (setf (gethash handle (rm-draw-data-handle-hash-table draw-data))
-          (%draw-list-add-multicolor-2d-polyline
-	   draw-list ub32-oid atom-group model-mtx bool-closed? sf-line-thickness sf-elevation seq-vertices))
+	  (with-next-draw-list (draw-list nil)
+	    (%draw-list-add-multicolor-2d-polyline
+	     draw-list ub32-oid atom-group model-mtx bool-closed? sf-line-thickness sf-elevation seq-vertices)))
     (values)))
 
 
@@ -343,14 +375,15 @@
   (let* ((draw-list-table (rm-draw-data-2d-line-list-draw-list-table draw-data))
          (group-hash-table (rm-draw-data-group-hash-table draw-data))
 	 (key (list atom-group sf-line-thickness))
+	 (initargs (list :line-thickness sf-line-thickness
+			 :group (or (gethash atom-group group-hash-table)
+				    (setf (gethash atom-group group-hash-table)
+					  (make-group atom-group)))))
 	 (draw-list (or (gethash key draw-list-table)
 			(setf (gethash key draw-list-table)
-			      (make-instance '3d-vertex-draw-list
-                                             :line-thickness sf-line-thickness
-					     :group (or (gethash atom-group group-hash-table)
-							(setf (gethash atom-group group-hash-table)
-							      (make-group atom-group))))))))
-    (%draw-list-draw-multicolor-2d-polyline draw-list ub32-oid bool-closed? sf-elevation seq-vertices)
+			      (apply #'make-instance '3d-vertex-draw-list initargs)))))
+    (with-next-draw-list (draw-list initargs)
+      (%draw-list-draw-multicolor-2d-polyline draw-list ub32-oid bool-closed? sf-elevation seq-vertices))
     (values)))
 
 (defun %draw-data-add-multicolor-2d-instanced-line-primitive
@@ -386,13 +419,14 @@
 	  (princ-to-string c)))))
     (when list
       (let* ((draw-list (rm-draw-data-2d-instanced-line-draw-list draw-data))
-	     (cmd (%draw-list-add-filled-2d-triangle-list draw-list ub32-oid atom-group model-mtx #xffffffff sf-elevation
-							  (list 0.0f0 -0.5f0
-								1.0f0 -0.5f0
-								1.0f0  0.5f0
-								0.0f0 -0.5f0
-								1.0f0  0.5f0
-								0.0f0  0.5f0))))
+	     (cmd (with-next-draw-list (draw-list nil)
+		    (%draw-list-add-filled-2d-triangle-list draw-list ub32-oid atom-group model-mtx #xffffffff sf-elevation
+							    (list 0.0f0 -0.5f0
+								  1.0f0 -0.5f0
+								  1.0f0  0.5f0
+								  0.0f0 -0.5f0
+								  1.0f0  0.5f0
+								  0.0f0  0.5f0)))))
 	
 	
 	(setf (cmd-instance-array cmd) list)
@@ -435,14 +469,15 @@
 	  (princ-to-string c)))))
     (when list
       (let* ((draw-list (rm-draw-data-3d-instanced-tube-draw-list draw-data))
-	     (cmd (%draw-list-add-filled-3d-triangle-strip  
-		   draw-list ub32-oid atom-group model-mtx ub32-color
-		   (list 0.0f0 -0.5f0 0.0f0
-			 1.0f0 -0.5f0 0.0f0
-			 1.0f0  0.5f0 0.0f0
-			 0.0f0 -0.5f0 1.0f0
-			 1.0f0  0.5f0 1.0f0
-			 0.0f0  0.5f0 1.0f0)
+	     (cmd (with-next-draw-list (draw-list nil)
+		    (%draw-list-add-filled-3d-triangle-strip  
+		     draw-list ub32-oid atom-group model-mtx ub32-color
+		     (list 0.0f0 -0.5f0 0.0f0
+			   1.0f0 -0.5f0 0.0f0
+			   1.0f0  0.5f0 0.0f0
+			   0.0f0 -0.5f0 1.0f0
+			   1.0f0  0.5f0 1.0f0
+			   0.0f0  0.5f0 1.0f0)
 		   #+NIL
 		   (loop for i from 0 to 9
 			 append (loop for j from 0 below 2
@@ -454,7 +489,7 @@
 						   j
 						   (cos (* pi (/ i 9)))
 						   (sin (* pi (/ i 9)))
-						   (mod (1+ j) 2)))))))
+						   (mod (1+ j) 2))))))))
 	(setf (cmd-instance-array cmd) list)
 	(setf (cmd-point-size cmd) sf-line-thickness)
 	(setf (gethash handle (rm-draw-data-handle-hash-table draw-data))
@@ -464,7 +499,7 @@
 (defun %draw-data-draw-filled-foreground-3d-instanced-line-primitive
     (draw-data ub32-oid atom-group bool-closed? sf-line-thickness ub32-color seq-vertices)
   (declare (type immediate-mode-draw-data draw-data))
-
+  
   (let* ((list (make-instance '3d-polyline-instance-list))
 	 (instance-array (instance-list-array list)))
 ;;    (sb-ext:finalize 
@@ -495,14 +530,15 @@
 	  (princ-to-string c)))))
     (when list
       (let* ((draw-list (draw-data-fg-3d-instanced-line-draw-list draw-data))
-	     (cmd (%draw-list-add-filled-3d-triangle-list 
-		   draw-list ub32-oid atom-group nil ub32-color
-		   (list 0.0f0 -0.5f0 0.0f0
-			 1.0f0 -0.5f0 0.0f0
-			 1.0f0  0.5f0 0.0f0
-			 0.0f0 -0.5f0 1.0f0
-			 1.0f0  0.5f0 1.0f0
-			 0.0f0  0.5f0 1.0f0))))
+	     (cmd (with-next-draw-list (draw-list nil)
+		    (%draw-list-add-filled-3d-triangle-list 
+		     draw-list ub32-oid atom-group nil ub32-color
+		     (list 0.0f0 -0.5f0 0.0f0
+			   1.0f0 -0.5f0 0.0f0
+			   1.0f0  0.5f0 0.0f0
+			   0.0f0 -0.5f0 1.0f0
+			   1.0f0  0.5f0 1.0f0
+			   0.0f0  0.5f0 1.0f0)))))
 	(setf (cmd-instance-array cmd) list)
 	(setf (cmd-point-size cmd) sf-line-thickness)
 	))
@@ -514,14 +550,15 @@
   (let* ((draw-list-table (draw-data-2d-line-list-draw-list-table draw-data))
          (group-hash-table (draw-data-group-hash-table draw-data))
          (key (list atom-group sf-line-thickness))
+	 (initargs (list :line-thickness sf-line-thickness
+			 :group (or (gethash atom-group group-hash-table)
+				    (setf (gethash atom-group group-hash-table)
+					  (make-group atom-group)))))
 	 (draw-list (or (gethash key draw-list-table)
 			(setf (gethash key draw-list-table)
-			      (make-instance '3d-vertex-draw-list
-                                             :line-thickness sf-line-thickness
-					     :group (or (gethash atom-group group-hash-table)
-							(setf (gethash atom-group group-hash-table)
-							      (make-group atom-group))))))))
-    (%draw-list-draw-multicolor-2d-polyline draw-list ub32-oid bool-closed? sf-elevation seq-vertices)
+			      (apply #'make-instance '3d-vertex-draw-list initargs)))))
+    (with-next-draw-list (draw-list initargs)
+      (%draw-list-draw-multicolor-2d-polyline draw-list ub32-oid bool-closed? sf-elevation seq-vertices))
     (values)))
 
 
@@ -530,8 +567,9 @@
   (declare (type retained-mode-draw-data draw-data))
   (let ((draw-list (rm-draw-data-2d-line-strip-draw-list draw-data)))
     (setf (gethash handle (rm-draw-data-handle-hash-table draw-data))
-          (%draw-list-add-2d-polyline
-           draw-list ub32-oid atom-group model-mtx closed? sf-line-thickness ub32-color sf-elevation seq-vertices))
+	  (with-next-draw-list (draw-list nil)
+	    (%draw-list-add-2d-polyline
+	     draw-list ub32-oid atom-group model-mtx closed? sf-line-thickness ub32-color sf-elevation seq-vertices)))
     (values)))
 
 
@@ -541,14 +579,15 @@
   (let* ((draw-list-table (rm-draw-data-2d-line-list-draw-list-table draw-data))
          (group-hash-table (rm-draw-data-group-hash-table draw-data))
 	 (key (list atom-group sf-line-thickness))
+	 (initargs (list :line-thickness sf-line-thickness
+			 :group (or (gethash atom-group group-hash-table)
+				    (setf (gethash atom-group group-hash-table)
+					  (make-group atom-group)))))
 	 (draw-list (or (gethash key draw-list-table)
 			(setf (gethash key draw-list-table)
-			      (make-instance '3d-vertex-draw-list
-                                             :line-thickness sf-line-thickness
-					     :group (or (gethash atom-group group-hash-table)
-							(setf (gethash atom-group group-hash-table)
-							      (make-group atom-group))))))))
-    (%draw-list-draw-2d-polyline draw-list ub32-oid closed? ub32-color sf-elevation seq-vertices)
+			      (apply #'make-instance '3d-vertex-draw-list initargs)))))
+    (with-next-draw-list (draw-list initargs)
+      (%draw-list-draw-2d-polyline draw-list ub32-oid closed? ub32-color sf-elevation seq-vertices))
     (values)))
 
 
@@ -557,14 +596,15 @@
   (let* ((draw-list-table (draw-data-2d-line-list-draw-list-table draw-data))
          (group-hash-table (draw-data-group-hash-table draw-data))
          (key (list atom-group sf-line-thickness))
+	 (initargs (list :line-thickness sf-line-thickness
+			 :group (or (gethash atom-group group-hash-table)
+				    (setf (gethash atom-group group-hash-table)
+					  (make-group atom-group)))))
 	 (draw-list (or (gethash key draw-list-table)
 			(setf (gethash key draw-list-table)
-			      (make-instance '3d-vertex-draw-list
-                                             :line-thickness sf-line-thickness
-					     :group (or (gethash atom-group group-hash-table)
-							(setf (gethash atom-group group-hash-table)
-							      (make-group atom-group))))))))
-    (%draw-list-draw-2d-polyline draw-list ub32-oid closed? ub32-color sf-elevation seq-vertices))
+			      (apply #'make-instance '3d-vertex-draw-list initargs)))))
+    (with-next-draw-list (draw-list initargs)
+      (%draw-list-draw-2d-polyline draw-list ub32-oid closed? ub32-color sf-elevation seq-vertices)))
   (values))
 
 
@@ -574,11 +614,12 @@
   (declare (type retained-mode-draw-data draw-data))
   (let ((draw-list (rm-draw-data-2d-line-strip-draw-list draw-data)))
     (setf (gethash handle (rm-draw-data-handle-hash-table draw-data))
-          (%draw-list-add-2d-circular-arc
-           draw-list ub32-oid atom-group model-mtx
-	   closed? sf-line-thickness ub32-color sf-elevation
-           center-x center-y radius start-angle end-angle
-           number-of-segments))
+	  (with-next-draw-list (draw-list nil)
+	    (%draw-list-add-2d-circular-arc
+	     draw-list ub32-oid atom-group model-mtx
+	     closed? sf-line-thickness ub32-color sf-elevation
+	     center-x center-y radius start-angle end-angle
+	     number-of-segments)))
     (values)))
 
 
@@ -589,17 +630,18 @@
   (let* ((draw-list-table (rm-draw-data-2d-line-list-draw-list-table draw-data))
 	 (group-hash-table (rm-draw-data-group-hash-table draw-data))
 	 (key (list atom-group sf-line-thickness))
+	 (initargs (list :line-thickness sf-line-thickness
+			 :group (or (gethash atom-group group-hash-table)
+				    (setf (gethash atom-group group-hash-table)
+					  (make-group atom-group)))))
 	 (draw-list (or (gethash key draw-list-table)
 			(setf (gethash key draw-list-table)
-			      (make-instance '3d-vertex-draw-list
-					     :line-thickness sf-line-thickness
-					     :group (or (gethash atom-group group-hash-table)
-							(setf (gethash atom-group group-hash-table)
-							      (make-group atom-group))))))))
-    (%draw-list-draw-2d-circular-arc draw-list ub32-oid
-                                     closed? ub32-color sf-elevation
-                                     center-x center-y radius start-angle end-angle
-                                     number-of-segments))
+			      (apply #'make-instance '3d-vertex-draw-list initargs)))))
+    (with-next-draw-list (draw-list initargs)
+      (%draw-list-draw-2d-circular-arc draw-list ub32-oid
+				       closed? ub32-color sf-elevation
+				       center-x center-y radius start-angle end-angle
+				       number-of-segments)))
   (values))
 
 
@@ -610,17 +652,18 @@
   (let* ((draw-list-table (draw-data-2d-line-list-draw-list-table draw-data))
          (group-hash-table (draw-data-group-hash-table draw-data))
          (key (list atom-group sf-line-thickness))
+	 (initargs (list :line-thickness sf-line-thickness
+			 :group (or (gethash atom-group group-hash-table)
+				    (setf (gethash atom-group group-hash-table)
+					  (make-group atom-group)))))
 	 (draw-list (or (gethash key draw-list-table)
 			(setf (gethash key draw-list-table)
-			      (make-instance '3d-vertex-draw-list
-                                             :line-thickness sf-line-thickness
-					     :group (or (gethash atom-group group-hash-table)
-							(setf (gethash atom-group group-hash-table)
-							      (make-group atom-group))))))))
-    (%draw-list-draw-2d-circular-arc draw-list ub32-oid
-                                     closed? ub32-color sf-elevation
-                                     center-x center-y radius start-angle end-angle
-                                     number-of-segments)
+			      (apply #'make-instance '3d-vertex-draw-list initargs)))))
+    (with-next-draw-list (draw-list initargs)
+      (%draw-list-draw-2d-circular-arc draw-list ub32-oid
+				       closed? ub32-color sf-elevation
+				       center-x center-y radius start-angle end-angle
+				       number-of-segments))
     (values)))
 
 
@@ -629,10 +672,11 @@
   (declare (type retained-mode-draw-data draw-data))
   (let ((draw-list (rm-draw-data-2d-line-strip-draw-list draw-data)))
     (setf (gethash handle (rm-draw-data-handle-hash-table draw-data))
-          (%draw-list-add-2d-circle
-           draw-list ub32-oid atom-group model-mtx sf-line-thickness ub32-color sf-elevation
-           center-x center-y radius
-           number-of-segments))
+	  (with-next-draw-list (draw-list nil)
+	    (%draw-list-add-2d-circle
+	     draw-list ub32-oid atom-group model-mtx sf-line-thickness ub32-color sf-elevation
+	     center-x center-y radius
+	     number-of-segments)))
     (values)))
 
 
@@ -642,14 +686,15 @@
   (let* ((draw-list-table (rm-draw-data-2d-line-list-draw-list-table draw-data))
 	 (group-hash-table (rm-draw-data-group-hash-table draw-data))
 	 (key (list atom-group sf-line-thickness))
+	 (initargs (list :line-thickness sf-line-thickness
+			 :group (or (gethash atom-group group-hash-table)
+				    (setf (gethash atom-group group-hash-table)
+					  (make-group atom-group)))))
 	 (draw-list (or (gethash key draw-list-table)
 			(setf (gethash key draw-list-table)
-			      (make-instance '3d-vertex-draw-list
-					     :line-thickness sf-line-thickness
-					     :group (or (gethash atom-group group-hash-table)
-							(setf (gethash atom-group group-hash-table)
-							      (make-group atom-group))))))))
-    (%draw-list-draw-2d-circle draw-list ub32-oid ub32-color sf-elevation center-x center-y radius number-of-segments)
+			      (apply #'make-instance '3d-vertex-draw-list initargs)))))
+    (with-next-draw-list (draw-list initargs)
+      (%draw-list-draw-2d-circle draw-list ub32-oid ub32-color sf-elevation center-x center-y radius number-of-segments))
     (values)))
 
 
@@ -659,14 +704,15 @@
   (let* ((draw-list-table (draw-data-2d-line-list-draw-list-table draw-data))
          (group-hash-table (draw-data-group-hash-table draw-data))
          (key (list atom-group sf-line-thickness))
+	 (initargs (list :line-thickness sf-line-thickness
+			 :group (or (gethash atom-group group-hash-table)
+				    (setf (gethash atom-group group-hash-table)
+					  (make-group atom-group)))))
 	 (draw-list (or (gethash key draw-list-table)
 			(setf (gethash key draw-list-table)
-			      (make-instance '3d-vertex-draw-list
-                                             :line-thickness sf-line-thickness
-					     :group (or (gethash atom-group group-hash-table)
-							(setf (gethash atom-group group-hash-table)
-							      (make-group atom-group))))))))
-    (%draw-list-draw-2d-circle draw-list ub32-oid ub32-color sf-elevation center-x center-y radius number-of-segments)
+			      (apply #'make-instance '3d-vertex-draw-list initargs)))))
+    (with-next-draw-list (draw-list initargs)
+      (%draw-list-draw-2d-circle draw-list ub32-oid ub32-color sf-elevation center-x center-y radius number-of-segments))
     (values)))
 
 
@@ -674,8 +720,9 @@
   (declare (type retained-mode-draw-data draw-data))
   (let ((draw-list (rm-draw-data-3d-line-strip-draw-list draw-data)))
     (setf (gethash handle (rm-draw-data-handle-hash-table draw-data))
-          (%draw-list-add-multicolor-3d-polyline
-           draw-list ub32-oid atom-group model-mtx closed? sf-line-thickness vertices))
+	  (with-next-draw-list (draw-list nil)
+	    (%draw-list-add-multicolor-3d-polyline
+	     draw-list ub32-oid atom-group model-mtx closed? sf-line-thickness vertices)))
     (values)))
 
 
@@ -684,14 +731,15 @@
   (let* ((draw-list-table (rm-draw-data-3d-line-list-draw-list-table draw-data))
 	 (group-hash-table (rm-draw-data-group-hash-table draw-data))
 	 (key (list atom-group sf-line-thickness))
+	 (initargs (list :line-thickness sf-line-thickness
+			 :group (or (gethash atom-group group-hash-table)
+				    (setf (gethash atom-group group-hash-table)
+					  (make-group atom-group)))))
 	 (draw-list (or (gethash key draw-list-table)
 			(setf (gethash key draw-list-table)
-			      (make-instance '3d-vertex-draw-list
-					     :line-thickness sf-line-thickness
-					     :group (or (gethash atom-group group-hash-table)
-							(setf (gethash atom-group group-hash-table)
-							      (make-group atom-group))))))))
-    (%draw-list-draw-multicolor-3d-polyline draw-list ub32-oid closed? vertices)
+			      (apply #'make-instance '3d-vertex-draw-list initargs)))))
+    (with-next-draw-list (draw-list initargs)
+      (%draw-list-draw-multicolor-3d-polyline draw-list ub32-oid closed? vertices))
     (values)))
 
 
@@ -700,14 +748,15 @@
   (let* ((draw-list-table (draw-data-3d-line-list-draw-list-table draw-data))
          (group-hash-table (draw-data-group-hash-table draw-data))
          (key (list atom-group sf-line-thickness))
+	 (initargs (list :line-thickness sf-line-thickness
+			 :group (or (gethash atom-group group-hash-table)
+				    (setf (gethash atom-group group-hash-table)
+					  (make-group atom-group)))))
 	 (draw-list (or (gethash key draw-list-table)
 			(setf (gethash key draw-list-table)
-			      (make-instance '3d-vertex-draw-list
-                                             :line-thickness sf-line-thickness
-					     :group (or (gethash atom-group group-hash-table)
-							(setf (gethash atom-group group-hash-table)
-							      (make-group atom-group))))))))
-    (%draw-list-draw-multicolor-3d-polyline draw-list ub32-oid closed? vertices)
+			      (apply #'make-instance '3d-vertex-draw-list initargs)))))
+    (with-next-draw-list (draw-list initargs)
+      (%draw-list-draw-multicolor-3d-polyline draw-list ub32-oid closed? vertices))
     (values)))
 
 
@@ -715,9 +764,10 @@
   (declare (type retained-mode-draw-data draw-data))
   (let ((draw-list (rm-draw-data-3d-line-strip-draw-list draw-data)))
     (setf (gethash handle (rm-draw-data-handle-hash-table draw-data))
-          (%draw-list-add-3d-polyline
-           draw-list ub32-oid atom-group
-           model-mtx closed? line-thickness color vertices))
+	  (with-next-draw-list (draw-list nil)
+	    (%draw-list-add-3d-polyline
+	     draw-list ub32-oid atom-group
+	     model-mtx closed? line-thickness color vertices)))
     (values)))
 
 
@@ -726,13 +776,13 @@
   (let* ((draw-list-table (rm-draw-data-3d-line-list-draw-list-table draw-data))
 	 (group-hash-table (rm-draw-data-group-hash-table draw-data))
 	 (key (list atom-group sf-line-thickness))
+	 (initargs (list :line-thickness sf-line-thickness
+			 :group (or (gethash atom-group group-hash-table)
+				    (setf (gethash atom-group group-hash-table)
+					  (make-group atom-group)))))
 	 (draw-list (or (gethash key draw-list-table)
 			(setf (gethash key draw-list-table)
-			      (make-instance '3d-vertex-draw-list
-					     :line-thickness sf-line-thickness
-					     :group (or (gethash atom-group group-hash-table)
-							(setf (gethash atom-group group-hash-table)
-							      (make-group atom-group))))))))
+			      (apply #'make-instance '3d-vertex-draw-list initargs)))))
     (%draw-list-draw-3d-polyline draw-list ub32-oid closed? color vertices)
     (values)))
 
@@ -742,14 +792,15 @@
   (let* ((draw-list-table (draw-data-3d-line-list-draw-list-table draw-data))
          (group-hash-table (draw-data-group-hash-table draw-data))
          (key (list atom-group sf-line-thickness))
+	 (initargs (list :line-thickness sf-line-thickness
+			 :group (or (gethash atom-group group-hash-table)
+				    (setf (gethash atom-group group-hash-table)
+					  (make-group atom-group)))))
 	 (draw-list (or (gethash key draw-list-table)
 			(setf (gethash key draw-list-table)
-			      (make-instance '3d-vertex-draw-list
-                                             :line-thickness sf-line-thickness
-					     :group (or (gethash atom-group group-hash-table)
-							(setf (gethash atom-group group-hash-table)
-							      (make-group atom-group))))))))
-    (%draw-list-draw-3d-polyline draw-list ub32-oid closed? color vertices)
+			      (apply #'make-instance '3d-vertex-draw-list initargs)))))
+    (with-next-draw-list (draw-list initargs)
+      (%draw-list-draw-3d-polyline draw-list ub32-oid closed? color vertices))
     (values)))
 
 
@@ -757,7 +808,8 @@
   (declare (type retained-mode-draw-data draw-data))
   (let* ((draw-list (rm-draw-data-2d-triangle-list-draw-list draw-data)))
     (setf (gethash handle (rm-draw-data-handle-hash-table draw-data))
-	  (%draw-list-add-filled-2d-triangle-list draw-list ub32-oid atom-group model-mtx color sf-elevation vertices))
+	  (with-next-draw-list (draw-list nil)
+	    (%draw-list-add-filled-2d-triangle-list draw-list ub32-oid atom-group model-mtx color sf-elevation vertices)))
     (values)))
 
 
@@ -766,14 +818,15 @@
   (let* ((draw-list-table (rm-draw-data-2d-triangle-list-draw-list-table draw-data))
 	 (group-hash-table (rm-draw-data-group-hash-table draw-data))
 	 (key (list atom-group *white-texture*))
+	 (initargs (list :texture *white-texture*
+			 :group (or (gethash atom-group group-hash-table)
+				    (setf (gethash atom-group group-hash-table)
+					  (make-group atom-group)))))
 	 (draw-list (or (gethash key draw-list-table)
 			(setf (gethash key draw-list-table)
-			      (make-instance '3d-vertex-draw-list
-					     :texture *white-texture*
-					     :group (or (gethash atom-group group-hash-table)
-							(setf (gethash atom-group group-hash-table)
-							      (make-group atom-group))))))))
-    (%draw-list-draw-filled-2d-triangle-list draw-list ub32-oid ub32-color sf-elevation vertices)
+			      (apply #'make-instance '3d-vertex-draw-list initargs)))))
+    (with-next-draw-list (draw-list initargs)
+      (%draw-list-draw-filled-2d-triangle-list draw-list ub32-oid ub32-color sf-elevation vertices))
     (values)))
 
 
@@ -782,14 +835,15 @@
   (let* ((draw-list-table (draw-data-2d-triangle-list-draw-list-table draw-data))
          (group-hash-table (draw-data-group-hash-table draw-data))
 	 (key (list atom-group *white-texture*))
+	 (initargs (list :texture *white-texture*
+			 :group (or (gethash atom-group group-hash-table)
+				    (setf (gethash atom-group group-hash-table)
+					  (make-group atom-group)))))
 	 (draw-list (or (gethash key draw-list-table)
 			(setf (gethash key draw-list-table)
-			      (make-instance '3d-vertex-draw-list
-                                             :texture *white-texture*
-					     :group (or (gethash atom-group group-hash-table)
-							(setf (gethash atom-group group-hash-table)
-							      (make-group atom-group))))))))
-    (%draw-list-draw-filled-2d-triangle-list draw-list ub32-oid color sf-elevation vertices)
+			      (apply #'make-instance '3d-vertex-draw-list initargs)))))
+    (with-next-draw-list (draw-list initargs)
+      (%draw-list-draw-filled-2d-triangle-list draw-list ub32-oid color sf-elevation vertices))
     (values)))
 
 
@@ -797,7 +851,8 @@
   (declare (type retained-mode-draw-data draw-data))
   (let ((draw-list (rm-draw-data-2d-triangle-strip-draw-list draw-data)))
     (setf (gethash handle (rm-draw-data-handle-hash-table draw-data))
-          (%draw-list-add-filled-2d-triangle-strip draw-list ub32-oid atom-group model-mtx ub32-color sf-elevation vertices))
+	  (with-next-draw-list (draw-list nil)
+	    (%draw-list-add-filled-2d-triangle-strip draw-list ub32-oid atom-group model-mtx ub32-color sf-elevation vertices)))
     (values)))
 
 
@@ -805,7 +860,8 @@
   (declare (type retained-mode-draw-data draw-data))
   (let* ((draw-list (rm-draw-data-2d-triangle-list-draw-list draw-data)))
     (setf (gethash handle (rm-draw-data-handle-hash-table draw-data))
-	  (%draw-list-add-filled-2d-rectangle-list draw-list ub32-oid atom-group model-mtx ub32-color sf-elevation vertices))
+	  (with-next-draw-list (draw-list nil)
+	    (%draw-list-add-filled-2d-rectangle-list draw-list ub32-oid atom-group model-mtx ub32-color sf-elevation vertices)))
     (values)))
 
 
@@ -814,14 +870,15 @@
   (let* ((draw-list-table (rm-draw-data-2d-triangle-list-draw-list-table draw-data))
 	 (group-hash-table (rm-draw-data-group-hash-table draw-data))
 	 (key (list atom-group *white-texture*))
+	 (initargs (list :texture *white-texture*
+			 :group (or (gethash atom-group group-hash-table)
+				    (setf (gethash atom-group group-hash-table)
+					  (make-group atom-group)))))
 	 (draw-list (or (gethash key draw-list-table)
 			(setf (gethash key draw-list-table)
-			      (make-instance '3d-vertex-draw-list
-					     :texture *white-texture*
-					     :group (or (gethash atom-group group-hash-table)
-							(setf (gethash atom-group group-hash-table)
-							      (make-group atom-group))))))))
-    (%draw-list-draw-filled-2d-rectangle-list draw-list ub32-oid ub32-color sf-elevation vertices)
+			      (apply #'make-instance '3d-vertex-draw-list initargs)))))
+    (with-next-draw-list (draw-list initargs)
+      (%draw-list-draw-filled-2d-rectangle-list draw-list ub32-oid ub32-color sf-elevation vertices))
     (values)))
 
 
@@ -830,14 +887,15 @@
   (let* ((draw-list-table (draw-data-2d-triangle-list-draw-list-table draw-data))
          (group-hash-table (draw-data-group-hash-table draw-data))
 	 (key (list atom-group *white-texture*))
+	 (initargs (list :texture *white-texture*
+			 :group (or (gethash atom-group group-hash-table)
+				    (setf (gethash atom-group group-hash-table)
+					  (make-group atom-group)))))
 	 (draw-list (or (gethash key draw-list-table)
 			(setf (gethash key draw-list-table)
-			      (make-instance '3d-vertex-draw-list
-                                             :texture *white-texture*
-					     :group (or (gethash atom-group group-hash-table)
-							(setf (gethash atom-group group-hash-table)
-							      (make-group atom-group))))))))
-    (%draw-list-draw-filled-2d-rectangle-list draw-list ub32-oid ub32-color sf-elevation vertices)
+			      (apply #'make-instance '3d-vertex-draw-list initargs)))))
+    (with-next-draw-list (draw-list initargs)
+      (%draw-list-draw-filled-2d-rectangle-list draw-list ub32-oid ub32-color sf-elevation vertices))
     (values)))
 
 
@@ -845,7 +903,8 @@
   (declare (type retained-mode-draw-data draw-data))
   (let ((draw-list (rm-draw-data-2d-triangle-list-draw-list draw-data)))
     (setf (gethash handle (rm-draw-data-handle-hash-table draw-data))
-          (%draw-list-add-textured-2d-rectangle-list draw-list ub32-oid atom-group model-mtx texture ub32-color sf-elevation vertices))
+	  (with-next-draw-list (draw-list nil)
+	    (%draw-list-add-textured-2d-rectangle-list draw-list ub32-oid atom-group model-mtx texture ub32-color sf-elevation vertices)))
     (values)))
 
 
@@ -854,14 +913,15 @@
   (let* ((draw-list-table (rm-draw-data-2d-triangle-list-draw-list-table draw-data))
 	 (group-hash-table (rm-draw-data-group-hash-table draw-data))
 	 (key (list atom-group texture))
+	 (initargs (list :texture texture
+			 :group (or (gethash atom-group group-hash-table)
+				    (setf (gethash atom-group group-hash-table)
+					  (make-group atom-group)))))
 	 (draw-list (or (gethash key draw-list-table)
 			(setf (gethash key draw-list-table)
-			      (make-instance '3d-vertex-draw-list
-					     :texture texture
-					     :group (or (gethash atom-group group-hash-table)
-							(setf (gethash atom-group group-hash-table)
-							      (make-group atom-group))))))))
-    (%draw-list-draw-textured-2d-rectangle-list draw-list ub32-oid ub32-color sf-elevation vertices)
+			      (apply #'make-instance '3d-vertex-draw-list initargs)))))
+    (with-next-draw-list (draw-list initargs)
+      (%draw-list-draw-textured-2d-rectangle-list draw-list ub32-oid ub32-color sf-elevation vertices))
     (values)))
 
 
@@ -870,14 +930,15 @@
   (let* ((draw-list-table (draw-data-2d-triangle-list-draw-list-table draw-data))
          (group-hash-table (draw-data-group-hash-table draw-data))
          (key (list atom-group texture))
+	 (initargs (list :texture texture
+			 :group (or (gethash atom-group group-hash-table)
+				    (setf (gethash atom-group group-hash-table)
+					  (make-group atom-group)))))
 	 (draw-list (or (gethash key draw-list-table)
 			(setf (gethash key draw-list-table)
-			      (make-instance '3d-vertex-draw-list
-                                             :texture texture
-					     :group (or (gethash atom-group group-hash-table)
-							(setf (gethash atom-group group-hash-table)
-							      (make-group atom-group))))))))
-    (%draw-list-draw-textured-2d-rectangle-list draw-list ub32-oid ub32-color sf-elevation vertices)
+			      (apply #'make-instance '3d-vertex-draw-list initargs)))))
+    (with-next-draw-list (draw-list initargs)
+      (%draw-list-draw-textured-2d-rectangle-list draw-list ub32-oid ub32-color sf-elevation vertices))
     (values)))
 
 
@@ -885,9 +946,10 @@
   (declare (type retained-mode-draw-data draw-data))
   (let ((draw-list (rm-draw-data-2d-triangle-list-draw-list draw-data)))
     (setf (gethash handle (rm-draw-data-handle-hash-table draw-data))
-          (%draw-list-add-filled-2d-convex-polygon
-           draw-list ub32-oid atom-group
-           model-mtx ub32-color sf-elevation vertices))
+	  (with-next-draw-list (draw-list nil)
+	    (%draw-list-add-filled-2d-convex-polygon
+	     draw-list ub32-oid atom-group
+	     model-mtx ub32-color sf-elevation vertices)))
     (values)))
 
 
@@ -896,14 +958,15 @@
   (let* ((draw-list-table (rm-draw-data-2d-triangle-list-draw-list-table draw-data))
 	 (group-hash-table (rm-draw-data-group-hash-table draw-data))
 	 (key (list atom-group *white-texture*))
+	 (initargs (list :texture *white-texture*
+			 :group (or (gethash atom-group group-hash-table)
+				    (setf (gethash atom-group group-hash-table)
+					  (make-group atom-group)))))
 	 (draw-list (or (gethash key draw-list-table)
 			(setf (gethash key draw-list-table)
-			      (make-instance '3d-vertex-draw-list
-					     :texture *white-texture*
-					     :group (or (gethash atom-group group-hash-table)
-							(setf (gethash atom-group group-hash-table)
-							      (make-group atom-group))))))))
-    (%draw-list-draw-filled-2d-convex-polygon draw-list ub32-oid ub32-color sf-elevation vertices)
+			      (apply #'make-instance '3d-vertex-draw-list initargs)))))
+    (with-next-draw-list (draw-list initargs)
+      (%draw-list-draw-filled-2d-convex-polygon draw-list ub32-oid ub32-color sf-elevation vertices))
     (values)))
 
 
@@ -912,14 +975,15 @@
   (let* ((draw-list-table (draw-data-2d-triangle-list-draw-list-table draw-data))
          (group-hash-table (draw-data-group-hash-table draw-data))
 	 (key (list atom-group *white-texture*))
+	 (initargs (list :texture *white-texture*
+			 :group (or (gethash atom-group group-hash-table)
+				    (setf (gethash atom-group group-hash-table)
+					  (make-group atom-group)))))
 	 (draw-list (or (gethash key draw-list-table)
 			(setf (gethash key draw-list-table)
-			      (make-instance '3d-vertex-draw-list
-                                             :texture *white-texture*
-					     :group (or (gethash atom-group group-hash-table)
-							(setf (gethash atom-group group-hash-table)
-							      (make-group atom-group))))))))
-    (%draw-list-draw-filled-2d-convex-polygon draw-list ub32-oid ub32-color sf-elevation vertices)
+			      (apply #'make-instance '3d-vertex-draw-list initargs)))))
+    (with-next-draw-list (draw-list initargs)
+      (%draw-list-draw-filled-2d-convex-polygon draw-list ub32-oid ub32-color sf-elevation vertices))
     (values)))
 
 
@@ -927,9 +991,10 @@
   (declare (type retained-mode-draw-data draw-data))
   (let ((draw-list (rm-draw-data-3d-triangle-list-draw-list draw-data)))
     (setf (gethash handle (rm-draw-data-handle-hash-table draw-data))
-          (%draw-list-add-filled-3d-convex-polygon
-           draw-list ub32-oid atom-group
-           model-mtx ub32-color vertices))
+	  (with-next-draw-list (draw-list nil)
+	    (%draw-list-add-filled-3d-convex-polygon
+	     draw-list ub32-oid atom-group
+	     model-mtx ub32-color vertices)))
     (values)))
 
 
@@ -938,14 +1003,15 @@
   (let* ((draw-list-table (rm-draw-data-3d-triangle-list-draw-list-table draw-data))
 	 (group-hash-table (rm-draw-data-group-hash-table draw-data))
 	 (key (list atom-group *white-texture*))
+	 (initargs (list :texture *white-texture*
+			 :group (or (gethash atom-group group-hash-table)
+				    (setf (gethash atom-group group-hash-table)
+					  (make-group atom-group)))))
 	 (draw-list (or (gethash key draw-list-table)
 			(setf (gethash key draw-list-table)
-			      (make-instance '3d-vertex-draw-list
-					     :texture *white-texture*
-					     :group (or (gethash atom-group group-hash-table)
-							(setf (gethash atom-group group-hash-table)
-							      (make-group atom-group))))))))
-    (%draw-list-draw-filled-3d-convex-polygon draw-list ub32-oid ub32-color vertices)
+			      (apply #'make-instance '3d-vertex-draw-list initargs)))))
+    (with-next-draw-list (draw-list initargs)
+      (%draw-list-draw-filled-3d-convex-polygon draw-list ub32-oid ub32-color vertices))
     (values)))
 
 
@@ -954,14 +1020,15 @@
   (let* ((draw-list-table (draw-data-3d-triangle-list-draw-list-table draw-data))
          (group-hash-table (draw-data-group-hash-table draw-data))
 	 (key (list atom-group *white-texture*))
+	 (initargs (list :texture *white-texture*
+			 :group (or (gethash atom-group group-hash-table)
+				    (setf (gethash atom-group group-hash-table)
+					  (make-group atom-group)))))
 	 (draw-list (or (gethash key draw-list-table)
 			(setf (gethash key draw-list-table)
-			      (make-instance '3d-vertex-draw-list
-					     :texture *white-texture*
-					     :group (or (gethash atom-group group-hash-table)
-							(setf (gethash atom-group group-hash-table)
-							      (make-group atom-group))))))))
-    (%draw-list-draw-filled-3d-convex-polygon draw-list ub32-oid ub32-color vertices)
+			      (apply 'make-instance '3d-vertex-draw-list initargs)))))
+    (with-next-draw-list (draw-list initargs)
+      (%draw-list-draw-filled-3d-convex-polygon draw-list ub32-oid ub32-color vertices))
     (values)))
 
 
@@ -969,9 +1036,10 @@
   (declare (type retained-mode-draw-data draw-data))
   (let ((draw-list (rm-draw-data-3d-triangle-list-draw-list draw-data)))
     (setf (gethash handle (rm-draw-data-handle-hash-table draw-data))
-          (%draw-list-add-multicolor-3d-convex-polygon
-           draw-list ub32-oid atom-group
-           model-mtx vertices))
+	  (with-next-draw-list (draw-list nil)
+	    (%draw-list-add-multicolor-3d-convex-polygon
+	     draw-list ub32-oid atom-group
+	     model-mtx vertices)))
     (values)))
 
 
@@ -980,14 +1048,15 @@
   (let* ((draw-list-table (rm-draw-data-3d-triangle-list-draw-list-table draw-data))
 	 (group-hash-table (rm-draw-data-group-hash-table draw-data))
 	 (key (list atom-group *white-texture*))
+	 (initargs (list :texture *white-texture*
+			 :group (or (gethash atom-group group-hash-table)
+				    (setf (gethash atom-group group-hash-table)
+					  (make-group atom-group)))))
 	 (draw-list (or (gethash key draw-list-table)
 			(setf (gethash key draw-list-table)
-			      (make-instance '3d-vertex-draw-list
-					     :texture *white-texture*
-					     :group (or (gethash atom-group group-hash-table)
-							(setf (gethash atom-group group-hash-table)
-							      (make-group atom-group))))))))
-    (%draw-list-draw-multicolor-3d-convex-polygon draw-list ub32-oid vertices)
+			      (apply #'make-instance '3d-vertex-draw-list initargs)))))
+    (with-next-draw-list (draw-list initargs)
+      (%draw-list-draw-multicolor-3d-convex-polygon draw-list ub32-oid vertices))
     (values)))
 
 
@@ -996,14 +1065,15 @@
   (let* ((draw-list-table (draw-data-3d-triangle-list-draw-list-table draw-data))
          (group-hash-table (draw-data-group-hash-table draw-data))
 	 (key (list atom-group *white-texture*))
+	 (initargs (list :texture *white-texture*
+			 :group (or (gethash atom-group group-hash-table)
+				    (setf (gethash atom-group group-hash-table)
+					  (make-group atom-group)))))
 	 (draw-list (or (gethash key draw-list-table)
 			(setf (gethash key draw-list-table)
-			      (make-instance '3d-vertex-draw-list
-                                             :texture *white-texture*
-					     :group (or (gethash atom-group group-hash-table)
-							(setf (gethash atom-group group-hash-table)
-							      (make-group atom-group))))))))
-    (%draw-list-draw-multicolor-3d-convex-polygon draw-list ub32-oid vertices)
+			      (apply #'make-instance '3d-vertex-draw-list initargs)))))
+    (with-next-draw-list (draw-list initargs)
+      (%draw-list-draw-multicolor-3d-convex-polygon draw-list ub32-oid vertices))
     (values)))
 
 
@@ -1012,9 +1082,10 @@
   (declare (type retained-mode-draw-data draw-data))
   (let ((draw-list (rm-draw-data-3d-triangle-list-with-normals-draw-list draw-data)))
     (setf (gethash handle (rm-draw-data-handle-hash-table draw-data))
-          (%draw-list-add-filled-3d-convex-polygon-with-normals
-           draw-list ub32-oid atom-group
-           model-mtx ub32-color vertices material))
+	  (with-next-draw-list (draw-list nil)
+	    (%draw-list-add-filled-3d-convex-polygon-with-normals
+	     draw-list ub32-oid atom-group
+	     model-mtx ub32-color vertices material)))
     (values)))
 
 
@@ -1023,14 +1094,15 @@
   (let* ((draw-list-table (rm-draw-data-3d-triangle-list-with-normals-draw-list-table draw-data))
 	 (group-hash-table (rm-draw-data-group-hash-table draw-data))
 	 (key (list atom-group *white-texture*))
+	 (initargs (list :texture *white-texture*
+			 :group (or (gethash atom-group group-hash-table)
+				    (setf (gethash atom-group group-hash-table)
+					  (make-group atom-group)))))
 	 (draw-list (or (gethash key draw-list-table)
 			(setf (gethash key draw-list-table)
-			      (make-instance '3d-vertex-with-normal-draw-list
-					     :texture *white-texture*
-					     :group (or (gethash atom-group group-hash-table)
-							(setf (gethash atom-group group-hash-table)
-							      (make-group atom-group))))))))
-    (%draw-list-draw-filled-3d-convex-polygon-with-normals draw-list ub32-oid ub32-color vertices)
+			      (apply 'make-instance '3d-vertex-with-normal-draw-list initargs)))))
+    (with-next-draw-list (draw-list initargs)
+      (%draw-list-draw-filled-3d-convex-polygon-with-normals draw-list ub32-oid ub32-color vertices))
     (values)))
 
 
@@ -1039,14 +1111,15 @@
   (let* ((draw-list-table (draw-data-3d-triangle-list-with-normals-draw-list-table draw-data))
          (group-hash-table (draw-data-group-hash-table draw-data))
 	 (key (list atom-group *white-texture*))
+	 (initargs (list :texture *white-texture*
+			 :group (or (gethash atom-group group-hash-table)
+				    (setf (gethash atom-group group-hash-table)
+					  (make-group atom-group)))))
 	 (draw-list (or (gethash key draw-list-table)
 			(setf (gethash key draw-list-table)
-			      (make-instance '3d-vertex-with-normal-draw-list
-                                             :texture *white-texture*
-					     :group (or (gethash atom-group group-hash-table)
-							(setf (gethash atom-group group-hash-table)
-							      (make-group atom-group))))))))
-    (%draw-list-draw-filled-3d-convex-polygon-with-normals draw-list ub32-oid ub32-color vertices)
+			      (apply #'make-instance '3d-vertex-with-normal-draw-list initargs)))))
+    (with-next-draw-list (draw-list initargs)
+      (%draw-list-draw-filled-3d-convex-polygon-with-normals draw-list ub32-oid ub32-color vertices))
     (values)))
 
 
@@ -1055,8 +1128,9 @@
   (declare (type retained-mode-draw-data draw-data))
   (let* ((draw-list (rm-draw-data-3d-triangle-list-with-normals-draw-list draw-data)))
     (setf (gethash handle (rm-draw-data-handle-hash-table draw-data))
-          (%draw-list-add-multicolor-3d-convex-polygon-with-normals
-           draw-list ub32-oid atom-group model-mtx vertices material))
+	  (with-next-draw-list (draw-list nil)
+	    (%draw-list-add-multicolor-3d-convex-polygon-with-normals
+	     draw-list ub32-oid atom-group model-mtx vertices material)))
     (values)))
 
 
@@ -1065,14 +1139,15 @@
   (let* ((draw-list-table (rm-draw-data-3d-triangle-list-with-normals-draw-list-table draw-data))
 	 (group-hash-table (rm-draw-data-group-hash-table draw-data))
 	 (key (list atom-group *white-texture*))
+	 (initargs (list :texture *white-texture*
+			 :group (or (gethash atom-group group-hash-table)
+				    (setf (gethash atom-group group-hash-table)
+					  (make-group atom-group)))))
 	 (draw-list (or (gethash key draw-list-table)
 			(setf (gethash key draw-list-table)
-			      (make-instance '3d-vertex-with-normal-draw-list
-					     :texture *white-texture*
-					     :group (or (gethash atom-group group-hash-table)
-							(setf (gethash atom-group group-hash-table)
-							      (make-group atom-group))))))))
-    (%draw-list-draw-multicolor-3d-convex-polygon-with-normals draw-list ub32-oid vertices)
+			      (apply #'make-instance '3d-vertex-with-normal-draw-list initargs)))))
+    (with-next-draw-list (draw-list initargs)
+      (%draw-list-draw-multicolor-3d-convex-polygon-with-normals draw-list ub32-oid vertices))
     (values)))
 
 
@@ -1081,14 +1156,15 @@
   (let* ((draw-list-table (draw-data-3d-triangle-list-with-normals-draw-list-table draw-data))
          (group-hash-table (draw-data-group-hash-table draw-data))
 	 (key (list atom-group *white-texture*))
+	 (initargs (list :texture *white-texture*
+			 :group (or (gethash atom-group group-hash-table)
+				    (setf (gethash atom-group group-hash-table)
+					  (make-group atom-group)))))
 	 (draw-list (or (gethash key draw-list-table)
 			(setf (gethash key draw-list-table)
-			      (make-instance '3d-vertex-with-normal-draw-list
-                                             :texture *white-texture*
-					     :group (or (gethash atom-group group-hash-table)
-							(setf (gethash atom-group group-hash-table)
-							      (make-group atom-group))))))))
-    (%draw-list-draw-multicolor-3d-convex-polygon-with-normals draw-list ub32-oid vertices)
+			      (apply #'make-instance '3d-vertex-with-normal-draw-list initargs)))))
+    (with-next-draw-list (draw-list initargs)
+      (%draw-list-draw-multicolor-3d-convex-polygon-with-normals draw-list ub32-oid vertices))
     (values)))
 
 
@@ -1096,7 +1172,8 @@
   (declare (type retained-mode-draw-data draw-data))
   (let ((draw-list (rm-draw-data-3d-triangle-list-draw-list draw-data)))
     (setf (gethash handle (rm-draw-data-handle-hash-table draw-data))
-          (%draw-list-add-filled-3d-triangle-list draw-list ub32-oid atom-group model-mtx ub32-color vertices))
+	  (with-next-draw-list (draw-list nil)
+	    (%draw-list-add-filled-3d-triangle-list draw-list ub32-oid atom-group model-mtx ub32-color vertices)))
     (values)))
 
 
@@ -1105,14 +1182,15 @@
   (let* ((draw-list-table (rm-draw-data-3d-triangle-list-draw-list-table draw-data))
 	 (group-hash-table (rm-draw-data-group-hash-table draw-data))
 	 (key (list atom-group *white-texture*))
+	 (initargs (list :texture *white-texture*
+			 :group (or (gethash atom-group group-hash-table)
+				    (setf (gethash atom-group group-hash-table)
+					  (make-group atom-group)))))
 	 (draw-list (or (gethash key draw-list-table)
 			(setf (gethash key draw-list-table)
-			      (make-instance '3d-vertex-draw-list
-					     :texture *white-texture*
-					     :group (or (gethash atom-group group-hash-table)
-							(setf (gethash atom-group group-hash-table)
-							      (make-group atom-group))))))))
-    (%draw-list-draw-filled-3d-triangle-list draw-list ub32-oid ub32-color vertices)
+			      (apply #'make-instance '3d-vertex-draw-list initargs)))))
+    (with-next-draw-list (draw-list initargs)
+      (%draw-list-draw-filled-3d-triangle-list draw-list ub32-oid ub32-color vertices))
     (values)))
 
 
@@ -1121,14 +1199,15 @@
   (let* ((draw-list-table (draw-data-3d-triangle-list-draw-list-table draw-data))
          (group-hash-table (draw-data-group-hash-table draw-data))
 	 (key (list atom-group *white-texture*))
+	 (initargs (list :texture *white-texture*
+			 :group (or (gethash atom-group group-hash-table)
+				    (setf (gethash atom-group group-hash-table)
+					  (make-group atom-group)))))
 	 (draw-list (or (gethash key draw-list-table)
 			(setf (gethash key draw-list-table)
-			      (make-instance '3d-vertex-draw-list
-                                             :texture *white-texture*
-					     :group (or (gethash atom-group group-hash-table)
-							(setf (gethash atom-group group-hash-table)
-							      (make-group atom-group))))))))
-    (%draw-list-draw-filled-3d-triangle-list draw-list ub32-oid ub32-color vertices)
+			      (apply #'make-instance '3d-vertex-draw-list initargs)))))
+    (with-next-draw-list (draw-list initargs)
+      (%draw-list-draw-filled-3d-triangle-list draw-list ub32-oid ub32-color vertices))
     (values)))
 
 
@@ -1138,7 +1217,8 @@
   (declare (type retained-mode-draw-data draw-data))
   (let ((draw-list (rm-draw-data-3d-triangle-strip-draw-list draw-data)))
     (setf (gethash handle (rm-draw-data-handle-hash-table draw-data))
-          (%draw-list-add-filled-3d-triangle-strip draw-list ub32-oid atom-group model-mtx ub32-color vertices))
+	  (with-next-draw-list (draw-list nil)
+	    (%draw-list-add-filled-3d-triangle-strip draw-list ub32-oid atom-group model-mtx ub32-color vertices)))
     (values)))
 
 
@@ -1148,9 +1228,10 @@
   (declare (type retained-mode-draw-data draw-data))
   (let ((draw-list (rm-draw-data-3d-triangle-list-with-normals-draw-list draw-data)))
     (setf (gethash handle (rm-draw-data-handle-hash-table draw-data))
-          (%draw-list-add-filled-3d-triangle-list-with-normals
-           draw-list ub32-oid
-           atom-group model-mtx ub32-color vertices material))
+	  (with-next-draw-list (draw-list nil)
+	    (%draw-list-add-filled-3d-triangle-list-with-normals
+	     draw-list ub32-oid
+	     atom-group model-mtx ub32-color vertices material)))
     (values)))
 
 
@@ -1159,14 +1240,15 @@
   (let* ((draw-list-table (draw-data-3d-triangle-list-with-normals-draw-list-table draw-data))
          (group-hash-table (draw-data-group-hash-table draw-data))
 	 (key (list atom-group *white-texture*))
+	 (initargs (list :texture *white-texture*
+			 :group (or (gethash atom-group group-hash-table)
+				    (setf (gethash atom-group group-hash-table)
+					  (make-group atom-group)))))
 	 (draw-list (or (gethash key draw-list-table)
 			(setf (gethash key draw-list-table)
-			      (make-instance '3d-vertex-with-normal-draw-list
-                                             :texture *white-texture*
-					     :group (or (gethash atom-group group-hash-table)
-							(setf (gethash atom-group group-hash-table)
-							      (make-group atom-group))))))))
-    (%draw-list-draw-filled-3d-triangle-list-with-normals draw-list ub32-oid ub32-color vertices)
+			      (apply #'make-instance '3d-vertex-with-normal-draw-list initargs)))))
+    (with-next-draw-list (draw-list initargs)
+      (%draw-list-draw-filled-3d-triangle-list-with-normals draw-list ub32-oid ub32-color vertices))
     (values)))
 
 
@@ -1175,14 +1257,15 @@
   (let* ((draw-list-table (draw-data-3d-triangle-list-with-normals-draw-list-table draw-data))
          (group-hash-table (draw-data-group-hash-table draw-data))
 	 (key (list atom-group *white-texture*))
+	 (initargs (list :texture *white-texture*
+			 :group (or (gethash atom-group group-hash-table)
+				    (setf (gethash atom-group group-hash-table)
+					  (make-group atom-group)))))
 	 (draw-list (or (gethash key draw-list-table)
 			(setf (gethash key draw-list-table)
-			      (make-instance '3d-vertex-with-normal-draw-list
-                                             :texture *white-texture*
-					     :group (or (gethash atom-group group-hash-table)
-							(setf (gethash atom-group group-hash-table)
-							      (make-group atom-group))))))))
-    (%draw-list-draw-filled-3d-triangle-list-with-normals draw-list ub32-oid ub32-color vertices))
+			      (apply #'make-instance '3d-vertex-with-normal-draw-list initargs)))))
+    (with-next-draw-list (draw-list initargs)
+      (%draw-list-draw-filled-3d-triangle-list-with-normals draw-list ub32-oid ub32-color vertices)))
   (values))
 
 
@@ -1191,9 +1274,10 @@
   (declare (type retained-mode-draw-data draw-data))
   (let ((draw-list (rm-draw-data-3d-triangle-list-with-normals-draw-list draw-data)))
     (setf (gethash handle (rm-draw-data-handle-hash-table draw-data))
-          (%draw-list-add-multicolor-3d-triangle-list-with-normals
-           draw-list ub32-oid atom-group
-           model-mtx vertices material))
+	  (with-next-draw-list (draw-list nil)
+	    (%draw-list-add-multicolor-3d-triangle-list-with-normals
+	     draw-list ub32-oid atom-group
+	     model-mtx vertices material)))
     (values)))
 
 
@@ -1203,14 +1287,15 @@
   (let* ((draw-list-table (rm-draw-data-3d-triangle-list-with-normals-draw-list-table draw-data))
          (group-hash-table (rm-draw-data-group-hash-table draw-data))
 	 (key (list atom-group *white-texture*))
+	 (initargs (list :texture *white-texture*
+			 :group (or (gethash atom-group group-hash-table)
+				    (setf (gethash atom-group group-hash-table)
+					  (make-group atom-group)))))
 	 (draw-list (or (gethash key draw-list-table)
 			(setf (gethash key draw-list-table)
-			      (make-instance '3d-vertex-with-normal-draw-list
-                                             :texture *white-texture*
-					     :group (or (gethash atom-group group-hash-table)
-							(setf (gethash atom-group group-hash-table)
-							      (make-group atom-group))))))))
-    (%draw-list-draw-multicolor-3d-triangle-list-with-normals draw-list ub32-oid vertices)
+			      (apply #'make-instance '3d-vertex-with-normal-draw-list initargs)))))
+    (with-next-draw-list (draw-list initargs)
+      (%draw-list-draw-multicolor-3d-triangle-list-with-normals draw-list ub32-oid vertices))
     (values)))
 
 
@@ -1219,14 +1304,15 @@
   (let* ((draw-list-table (draw-data-3d-triangle-list-with-normals-draw-list-table draw-data))
          (group-hash-table (draw-data-group-hash-table draw-data))
 	 (key (list atom-group *white-texture*))
+	 (initargs (list :texture *white-texture*
+			 :group (or (gethash atom-group group-hash-table)
+				    (setf (gethash atom-group group-hash-table)
+					  (make-group atom-group)))))
 	 (draw-list (or (gethash key draw-list-table)
 			(setf (gethash key draw-list-table)
-			      (make-instance '3d-vertex-with-normal-draw-list
-                                             :texture *white-texture*
-					     :group (or (gethash atom-group group-hash-table)
-							(setf (gethash atom-group group-hash-table)
-							      (make-group atom-group))))))))
-    (%draw-list-draw-multicolor-3d-triangle-list-with-normals draw-list ub32-oid vertices))
+			      (apply #'make-instance '3d-vertex-with-normal-draw-list initargs)))))
+    (with-next-draw-list (draw-list initargs)
+      (%draw-list-draw-multicolor-3d-triangle-list-with-normals draw-list ub32-oid vertices)))
   (values))
 
 
@@ -1235,9 +1321,10 @@
   (declare (type retained-mode-draw-data draw-data))
   (let ((draw-list (rm-draw-data-3d-triangle-strip-with-normals-draw-list draw-data)))
     (setf (gethash handle (rm-draw-data-handle-hash-table draw-data))
-          (%draw-list-add-filled-3d-triangle-strip-with-normals
-           draw-list ub32-oid atom-group
-           model-mtx ub32-color vertices material))
+	  (with-next-draw-list (draw-list nil)
+	    (%draw-list-add-filled-3d-triangle-strip-with-normals
+	     draw-list ub32-oid atom-group
+	     model-mtx ub32-color vertices material)))
     (values)))
 
 ;; can't render triangle strips without cmd!!
@@ -1245,9 +1332,10 @@
   (declare (type retained-mode-draw-data draw-data))
   (let ((draw-list (rm-draw-data-3d-triangle-list-draw-list draw-data)))
     (setf (gethash handle (rm-draw-data-handle-hash-table draw-data))
-          (%draw-list-add-textured-3d-triangle-list
-           draw-list ub32-oid atom-group
-           model-mtx texture ub32-color vertices))
+	  (with-next-draw-list (draw-list nil)
+	    (%draw-list-add-textured-3d-triangle-list
+	     draw-list ub32-oid atom-group
+	     model-mtx texture ub32-color vertices)))
     (values)))
 
 
@@ -1256,14 +1344,15 @@
   (let* ((draw-list-table (draw-data-3d-triangle-list-draw-list-table draw-data))
 	 (group-hash-table (draw-data-group-hash-table draw-data))
 	 (key (list atom-group texture))
+	 (initargs (list :texture texture
+			 :group (or (gethash atom-group group-hash-table)
+				    (setf (gethash atom-group group-hash-table)
+					  (make-group atom-group)))))
 	 (draw-list (or (gethash key draw-list-table)
 			(setf (gethash key draw-list-table)
-			      (make-instance '3d-vertex-draw-list
-					     :texture texture
-					     :group (or (gethash atom-group group-hash-table)
-							(setf (gethash atom-group group-hash-table)
-							      (make-group atom-group))))))))
-    (%draw-list-draw-textured-3d-triangle-list draw-list ub32-oid ub32-color vertices)
+			      (apply #'make-instance '3d-vertex-draw-list initargs)))))
+    (with-next-draw-list (draw-list initargs)
+      (%draw-list-draw-textured-3d-triangle-list draw-list ub32-oid ub32-color vertices))
     (values)))
 
 
@@ -1272,14 +1361,15 @@
   (let* ((draw-list-table (draw-data-3d-triangle-list-draw-list-table draw-data))
          (group-hash-table (draw-data-group-hash-table draw-data))
          (key (list atom-group texture))
+	 (initargs (list :texture texture
+			 :group (or (gethash atom-group group-hash-table)
+				    (setf (gethash atom-group group-hash-table)
+					  (make-group atom-group)))))
 	 (draw-list (or (gethash key draw-list-table)
 			(setf (gethash key draw-list-table)
-			      (make-instance '3d-vertex-draw-list
-                                             :texture texture
-					     :group (or (gethash atom-group group-hash-table)
-							(setf (gethash atom-group group-hash-table)
-							      (make-group atom-group))))))))
-    (%draw-list-draw-textured-3d-triangle-list draw-list ub32-oid ub32-color vertices)
+			      (apply #'make-instance '3d-vertex-draw-list initargs)))))
+    (with-next-draw-list (draw-list initargs)
+      (%draw-list-draw-textured-3d-triangle-list draw-list ub32-oid ub32-color vertices))
     (values)))
 
 
@@ -1288,9 +1378,10 @@
   (declare (type retained-mode-draw-data draw-data))
   (let ((draw-list (rm-draw-data-3d-triangle-strip-draw-list draw-data)))
     (setf (gethash handle (rm-draw-data-handle-hash-table draw-data))
-          (%draw-list-add-textured-3d-triangle-strip
-           draw-list ub32-oid atom-group
-           model-mtx texture ub32-color vertices))
+	  (with-next-draw-list (draw-list nil)
+	    (%draw-list-add-textured-3d-triangle-strip
+	     draw-list ub32-oid atom-group
+	     model-mtx texture ub32-color vertices)))
     (values)))
 
 
@@ -1299,8 +1390,9 @@
   (declare (type retained-mode-draw-data draw-data))
   (let ((draw-list (rm-draw-data-3d-triangle-list-with-normals-draw-list draw-data)))
     (setf (gethash handle (rm-draw-data-handle-hash-table draw-data))
-          (%draw-list-add-filled-sphere
-	   draw-list ub32-oid atom-group model-mtx ub32-color origin-x origin-y origin-z radius resolution material))
+	  (with-next-draw-list (draw-list nil)
+	    (%draw-list-add-filled-sphere
+	     draw-list ub32-oid atom-group model-mtx ub32-color origin-x origin-y origin-z radius resolution material)))
     (values)))
 
 (defun %draw-data-add-textured-sphere-primitive
@@ -1308,8 +1400,9 @@
   (declare (type retained-mode-draw-data draw-data))
   (let ((draw-list (rm-draw-data-3d-triangle-list-with-normals-draw-list draw-data)))
     (setf (gethash handle (rm-draw-data-handle-hash-table draw-data))
-          (%draw-list-add-textured-sphere
-	   draw-list ub32-oid atom-group model-mtx texture ub32-color origin-x origin-y origin-z radius resolution material))
+	  (with-next-draw-list (draw-list nil)
+	    (%draw-list-add-textured-sphere
+	     draw-list ub32-oid atom-group model-mtx texture ub32-color origin-x origin-y origin-z radius resolution material)))
     (values)))
 
 
@@ -1319,14 +1412,15 @@
   (let* ((draw-list-table (rm-draw-data-3d-triangle-list-with-normals-draw-list-table draw-data))
          (group-hash-table (rm-draw-data-group-hash-table draw-data))
 	 (key (list atom-group *white-texture*))
+	 (initargs (list :texture *white-texture*
+			 :group (or (gethash atom-group group-hash-table)
+				    (setf (gethash atom-group group-hash-table)
+					  (make-group atom-group)))))
 	 (draw-list (or (gethash key draw-list-table)
 			(setf (gethash key draw-list-table)
-			      (make-instance '3d-vertex-with-normal-draw-list
-                                             :texture *white-texture*
-					     :group (or (gethash atom-group group-hash-table)
-							(setf (gethash atom-group group-hash-table)
-							      (make-group atom-group))))))))
-    (%draw-list-draw-filled-sphere draw-list ub32-oid ub32-color origin-x origin-y origin-z radius resolution)
+			      (apply #'make-instance '3d-vertex-with-normal-draw-list initargs)))))
+    (with-next-draw-list (draw-list initargs)
+      (%draw-list-draw-filled-sphere draw-list ub32-oid ub32-color origin-x origin-y origin-z radius resolution))
     (values)))
 
 
@@ -1335,14 +1429,15 @@
   (let* ((draw-list-table (draw-data-3d-triangle-list-with-normals-draw-list-table draw-data))
          (group-hash-table (draw-data-group-hash-table draw-data))
          (key (list atom-group *white-texture*))
+	 (initargs (list :texture *white-texture*
+			 :group (or (gethash atom-group group-hash-table)
+				    (setf (gethash atom-group group-hash-table)
+					  (make-group atom-group)))))
 	 (draw-list (or (gethash key draw-list-table)
 			(setf (gethash key draw-list-table)
-			      (make-instance '3d-vertex-with-normal-draw-list
-                                             :texture *white-texture*
-					     :group (or (gethash atom-group group-hash-table)
-							(setf (gethash atom-group group-hash-table)
-							      (make-group atom-group))))))))
-    (%draw-list-draw-filled-sphere draw-list ub32-oid ub32-color origin-x origin-y origin-z radius resolution)
+			      (apply #'make-instance '3d-vertex-with-normal-draw-list initargs)))))
+    (with-next-draw-list (draw-list initargs)
+      (%draw-list-draw-filled-sphere draw-list ub32-oid ub32-color origin-x origin-y origin-z radius resolution))
     (values)))
 
 (defun %draw-data-add-filled-ellipsoid-primitive
@@ -1350,8 +1445,9 @@
   (declare (type retained-mode-draw-data draw-data))
   (let ((draw-list (rm-draw-data-3d-triangle-list-with-normals-draw-list draw-data)))
     (setf (gethash handle (rm-draw-data-handle-hash-table draw-data))
-          (%draw-list-add-filled-ellipsoid
-	   draw-list ub32-oid atom-group model-mtx ub32-color origin-x origin-y origin-z a b c resolution material))
+	  (with-next-draw-list (draw-list nil)
+	    (%draw-list-add-filled-ellipsoid
+	     draw-list ub32-oid atom-group model-mtx ub32-color origin-x origin-y origin-z a b c resolution material)))
     (values)))
 
 
@@ -1359,11 +1455,12 @@
   (declare (type retained-mode-draw-data draw-data))
   (let ((draw-list (rm-draw-data-2d-triangle-list-draw-list draw-data)))
     (setf (gethash handle (rm-draw-data-handle-hash-table draw-data))
-          (%draw-list-add-textured-2d-rectangle-list
-           draw-list ub32-oid atom-group model-mtx (font-atlas font) ub32-color sf-elevation vertices
-           #'(lambda (&rest args)
-               (apply #'make-text-draw-indexed-cmd
-                      font args))))
+	  (with-next-draw-list (draw-list nil)
+	    (%draw-list-add-textured-2d-rectangle-list
+	     draw-list ub32-oid atom-group model-mtx (font-atlas font) ub32-color sf-elevation vertices
+	     #'(lambda (&rest args)
+		 (apply #'make-text-draw-indexed-cmd
+			font args)))))
     (values)))
 
 (defun draw-data-add-text-primitive (draw-data group model-matrix font color pos-x pos-y string &optional (object-id 0) (elevation 0))
@@ -1396,14 +1493,15 @@
 	 (group-hash-table (rm-draw-data-group-hash-table draw-data))
 	 (texture (font-atlas font))
 	 (key (list atom-group texture))
+	 (initargs (list :texture texture :font font
+			 :group (or (gethash atom-group group-hash-table)
+				    (setf (gethash atom-group group-hash-table)
+					  (make-group atom-group)))))
 	 (draw-list (or (gethash key draw-list-table)
 			(setf (gethash key draw-list-table)
-			      (make-instance '3d-vertex-draw-list
-					     :texture texture :font font
-					     :group (or (gethash atom-group group-hash-table)
-							(setf (gethash atom-group group-hash-table)
-							      (make-group atom-group))))))))
-    (%draw-list-draw-textured-2d-rectangle-list draw-list ub32-oid ub32-color sf-elevation vertices)
+			      (apply #'make-instance '3d-vertex-draw-list initargs)))))
+    (with-next-draw-list (draw-list initargs)
+      (%draw-list-draw-textured-2d-rectangle-list draw-list ub32-oid ub32-color sf-elevation vertices))
     (values)))
 
 (defun draw-data-add-text (draw-data group font color pos-x pos-y string &optional (object-id 0) (elevation 0))
@@ -1433,14 +1531,15 @@
          (group-hash-table (draw-data-group-hash-table draw-data))
 	 (texture (font-atlas font))
          (key (list atom-group texture))
+	 (initargs (list :texture texture :font font
+			 :group (or (gethash atom-group group-hash-table)
+				    (setf (gethash atom-group group-hash-table)
+					  (make-group atom-group)))))
 	 (draw-list (or (gethash key draw-list-table)
 			(setf (gethash key draw-list-table)
-			      (make-instance '3d-vertex-draw-list
-                                             :texture texture :font font
-					     :group (or (gethash atom-group group-hash-table)
-							(setf (gethash atom-group group-hash-table)
-							      (make-group atom-group))))))))
-    (%draw-list-draw-textured-2d-rectangle-list draw-list ub32-oid ub32-color sf-elevation vertices)
+			      (apply #'make-instance '3d-vertex-draw-list initargs)))))
+    (with-next-draw-list (draw-list initargs)
+      (%draw-list-draw-textured-2d-rectangle-list draw-list ub32-oid ub32-color sf-elevation vertices))
     (values)))
 
 

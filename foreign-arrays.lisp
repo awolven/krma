@@ -42,7 +42,7 @@
 
 (defstruct (foreign-adjustable-array
 	    (:conc-name "FOREIGN-ARRAY-"))
-  (bytes nil :type (or simple-array null))
+  (bytes nil :type (or simple-array null)) ;; surprise! foreign arrays aren't actually foreign anymore.
   (fill-pointer 0 :type fixnum)
   (allocated-count 0 :type fixnum)
   (foreign-type nil)

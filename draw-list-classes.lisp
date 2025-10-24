@@ -28,7 +28,7 @@
     :initarg :index-memory)
    (index-size-aligned
     :accessor draw-list-index-size-aligned
-    :initform nil
+    :initform 0
     :initarg :index-size-aligned)
    (vertex-memory
     :accessor draw-list-vertex-memory
@@ -36,7 +36,7 @@
     :initarg :vertex-memory)
    (vertex-size-aligned
     :accessor draw-list-vertex-size-aligned
-    :initform nil
+    :initform 0
     :initarg :vertex-size-aligned)
    (texture
     :accessor draw-list-texture
@@ -56,7 +56,10 @@
     :initarg :point-size)
    (group :accessor draw-list-group
 	  :initform nil
-	  :initarg :group))
+	  :initarg :group)
+   (next :accessor draw-list-next
+	 ;; because we're going to be chaining draw lists, maybe...
+	 :initform nil))	 
   (:documentation "The base class for draw lists in krma."))
 
 ;; we are using textured vertices for standard (non-textured) primitives

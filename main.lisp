@@ -399,7 +399,8 @@
 				   viewport
 				   dpy command-buffer
 				   (aref (rm-draw-data scene) current-draw-data-index)
-				   (im-draw-data scene)))
+				   (im-draw-data scene)
+				   (aref (releaseme-queues dpy) current-draw-data-index)))
 		   (maybe-defer-debug (dpy)
 		     (vkCmdNextSubpass (h command-buffer) VK_SUBPASS_CONTENTS_INLINE)))))
 
@@ -420,13 +421,19 @@
 
 (defun recreate-swapchain-when-necessary (window device)
   (when (recreate-swapchain? window)
+    #+LINUX(sleep 0.02);;https://github.com/KhronosGroup/Vulkan-Samples/issues/250
     (multiple-value-bind (width height) (window-framebuffer-size window)
       (recreate-swapchain window device (render-pass window) (swapchain window) width height)
-      #+NIL
-      (setf (clui::last-framebuffer-width window) width
-	    (clui::last-framebuffer-height window) height)
       (setf (recreate-swapchain? window) nil)))
   (values))
+
+(defun maybe-destroy-old-swapchain (window)
+  (let ((old-swapchain (vk::swapchain-recreated? window)))
+    (when old-swapchain
+      (destroy-swapchain old-swapchain)
+      (setf (vk::swapchain-recreated? window) nil))))
+
+(defvar *wait-time* 1)
 
 (defun frame-iteration (dpy frame-count show-frame-rate?)
   
@@ -434,131 +441,101 @@
 	 (current-draw-data-cons (current-draw-data-cons dpy))
 	 (current-frame (car current-frame-cons))
 	 (current-draw-data (car current-draw-data-cons))
-	 #+NIL
-	 (image-indices (make-array 100 :adjustable t :fill-pointer 0 :initial-element nil)))
+	 (device (default-logical-device dpy)))
 
-    ;;(print (clui::window-keys (main-window (first (display-frame-managers dpy)))))
+    (do ((window (clui::display-window-list-head dpy) (clui::window-next window)))
+	((null window))
+      
+      (maybe-defer-debug (dpy)
+	(allocate-selection-set-tables window frame-count current-frame)
+	(compute-select-boxes-descriptor-set window frame-count current-frame)))
+
+    (loop for app in (display-frame-managers dpy)
+	  do (loop for scene in (active-scenes app)
+		   do (before-frame-begin dpy scene current-draw-data)))
+    
+    (maybe-defer-debug (dpy)
+      (call-immediate-mode-work-functions dpy))
     
     ;; maybe create new descriptor set if select box size has changed
-    (maybe-defer-debug (dpy)
-      ;; probably going to need a select box per framebuffer
-      (do ((window (clui::display-window-list-head dpy) (clui::window-next window)))
-	  ((null window))
-	(allocate-selection-set-tables window frame-count (car current-frame-cons))
-	(compute-select-boxes-descriptor-set window frame-count (car current-frame-cons))))
-
-
-    
-    
-
-    ;;(print (krma-select-box-2d dpy))
-    
-    ;; This loop takes all the scenes in all the applications
-    ;; and updates the portion of the scene's draw-lists
-    ;; which are not currently in use, that is,
-    ;; not being copied to gpu memory, or not being compacted.
-    ;; It is a candidate for parallelization.
-    
-    
-
-    ;; This loop is a candidate for parallelization
-    ;; It processes each scene on each application
-    ;; in the context of a window.
-    ;; Todo: if the scene does not appear in the window, by means of comparing clip coordinates,
-    ;; then it is not processed for that window
+    ;; probably going to need a select box per framebuffer
     (do ((window (clui::display-window-list-head dpy) (clui::window-next window)))
 	((null window))
 
       (when (vk::window-initialized? window)
-
+	(maybe-defer-debug (dpy)
+	  (maybe-destroy-old-swapchain window))
+      
+	(maybe-defer-debug (dpy)
+	  (recreate-swapchain-when-necessary window device)))
+      
+      (maybe-defer-debug (dpy)
+	(let ((frame-resources (frame-resources window)))
+	  (vk::wait-for-fence device frame-resources current-frame))))
+    
+    (bt:wait-on-semaphore (compacting-complete-semaphore dpy))
+    (bt:signal-semaphore (frame-iteration-complete-semaphore dpy))
+    
+    (do ((window (clui::display-window-list-head dpy) (clui::window-next window)))
+	((null window))
+      
+      (when (vk::window-initialized? window)
+	
 	(multiple-value-bind (w h) (window-framebuffer-size window)
 
 	  (if (or (= 0 w) (= 0 h))
 	      (sleep 0.016)
 
-	      (progn
-      
-		(recreate-swapchain-when-necessary window (default-logical-device dpy))
+	      (let ((frame-resources (frame-resources window)))
       
 		(with-slots (queue command-pool) window
-
-		  ;; todo: extract out wait-for-fences from frame-begin in cl-vulkan
-		  ;; and call it here instead of queuewaitidle.  it won't then be necessary in frame begin, but could just
-		  ;; leave it there since it is harmless, but needed when wait-for-fences is otherwise not called
-
-		  (when *frame-initialized*
-		    (let* ((swapchain (swapchain window))
-			   (previous-frame-number (mod (1- current-frame) (number-of-images swapchain))))
-		      ;; make sure the previous frame is done being processed before altering it's draw lists
-		      (vk::wait-for-fence swapchain previous-frame-number)
-	      
-		      (maybe-defer-debug (dpy)
-			(read-select-boxes window previous-frame-number))
-	    
-		      (maybe-defer-debug (dpy)
-			(read-selection-set window (number-of-images swapchain) previous-frame-number))))
-
-		  ;;(print (krma-selection-set-table window))
-		  ;;(print (krma-selection-set-buckets window))
-		  
-		  (loop for app in (display-frame-managers dpy)
-			do (loop for scene in (active-scenes app)
-				 do (before-frame-begin dpy scene current-draw-data)))
-	  
-		  (maybe-defer-debug (dpy)
-		    (call-immediate-mode-work-functions dpy))
 	
 		  (let* ((swapchain (swapchain window))
-			 (frame-resource (elt (frame-resources swapchain) current-frame))
+			 (frame-resource (elt frame-resources current-frame))
 			 (command-buffer (frame-command-buffer frame-resource)))
 	  
 		    (let ((image-index
-			    (frame-begin swapchain (render-pass window)
-					 current-frame (clear-value window)
+			    (frame-begin swapchain frame-resource
+					 (render-pass window)
+					 (clear-value window)
 					 command-pool)))
 
 		      (during-frame dpy window command-buffer current-draw-data show-frame-rate?)
+		      
+			
+		      (frame-end device queue frame-resource)
 	      
-		      (frame-end swapchain queue current-frame)
-	      
-		      (frame-present swapchain queue current-frame image-index window)))))))))
-
-    ;; frame-present must occur in this thread, so no parallelization here
-    #+NIL
-    (do* ((window (clui::display-window-list-head dpy) (clui::window-next window))
-	  (i 0 (1+ i))
-	  (image-index (aref image-indices i)))
-	
-	 ((null window))
-
-      (when (vk::window-initialized? window)
-
-	(with-slots (queue command-pool) window
-	  
-	  (let* ((swapchain (swapchain window))
-		 (current-frame-cons (current-frame-cons dpy))
-		 (current-frame (car current-frame-cons)))
-	    
-	    (frame-end swapchain queue current-frame)
-	    
-	    (frame-present swapchain queue current-frame image-index window)))))
-
-    ;; first time use of compacting complete semaphore is :count 1
-    ;; this needs to be the only thread that modifies current-frame
+		      (frame-present swapchain frame-resource queue image-index window)))))))))
     
-      (setq *frame-initialized* t)
-      (update-counts (current-frame-cons dpy) (current-draw-data-cons dpy) (number-of-images (swapchain (main-window (first (display-frame-managers dpy))))))
-      
-      (bt:wait-on-semaphore (compacting-complete-semaphore dpy))
-      (bt:signal-semaphore (frame-iteration-complete-semaphore dpy))
+    (setq *frame-initialized* t)
 
-    (values)))
+    (do ((window (clui::display-window-list-head dpy) (clui::window-next window)))
+	  ((null window))
+      ;; probably going to need a select box per framebuffer
+      (when *frame-initialized*
+	(let* ((number-of-images (number-of-images (swapchain window))))
+	  (maybe-defer-debug (dpy)
+	    (read-select-boxes window current-frame))
+	  (maybe-defer-debug (dpy)
+	    (read-selection-set window number-of-images current-frame)))))
+
+    (update-counts (current-frame-cons dpy) (current-draw-data-cons dpy) (number-of-images (swapchain (main-window (first (display-frame-managers dpy)))))))
+  
+  (values))
 
 (defun compactor-thread-iteration (dpy active-scenes)
   (bt:wait-on-semaphore (frame-iteration-complete-semaphore dpy))
   (let* ((current-draw-data-cons (current-draw-data-cons dpy))
-	 (alt-index (mod (1+ (car current-draw-data-cons)) 2)))
+	 (alt-index (mod (1+ (car current-draw-data-cons)) 2))
+	 (releaseme-queue (aref (releaseme-queues dpy) alt-index)))
 
+    
+    (maybe-defer-debug (dpy)
+      (loop with work = nil
+	    while (setq work (and (lparallel.queue:peek-queue releaseme-queue)
+				  (lparallel.queue:pop-queue releaseme-queue)))
+	    do (funcall work)))
+    
     (loop for active-scene in active-scenes
 	  do (let ((rm-draw-data-pair (rm-draw-data active-scene)))
 	       (compact-draw-lists

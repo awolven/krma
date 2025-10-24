@@ -24,7 +24,7 @@
 
 (defclass standard-pipeline-store (pipeline-store-mixin)
   ()
-  (:documentation "An concrete class based on pipeline-store-mixin used in krma-test-frame-manager."))
+  (:documentation "An concrete class based on pipeline-store-mixin used in krma-tutorial."))
 
 
 (defmethod initialize-instance :after ((instance pipeline-store-mixin) &rest initargs &key dpy)
@@ -150,7 +150,7 @@
    (frame-rate :initform 0 :accessor window-frame-rate)
    (frames :initform 0 :accessor %window-frames)
    (delta-time :initform 0 :accessor %window-delta-time)
-   (time :initform (/ (get-internal-real-time) internal-time-units-per-second) :accessor %window-time)
+   (time :initform 1 :accessor %window-time)
    (base-time :initform 0 :accessor %window-base-time)))
 
 (defstruct viewport
@@ -205,6 +205,8 @@
    (command-pool :accessor window-command-pool)
    (viewports :accessor window-viewports)
 
+   (staging-memory-block :initform nil :accessor window-staging-memory-block)
+
    (select-box-x0 :initform 0 :accessor krma-select-box-x0)
    (select-box-y0 :initform 0 :accessor krma-select-box-y0)
    (select-box-x1 :initform 1 :accessor krma-select-box-x1)
@@ -245,16 +247,16 @@
       (let ((swapchain (create-swapchain device window width height surface-format present-mode)))
 	(setf (swapchain window) swapchain)
 
-      (setup-framebuffers device render-pass swapchain)
+	(setup-framebuffers device render-pass swapchain)
       
-	(create-frame-resources swapchain (queue-family-index surface))
+	(create-frame-resources device window (number-of-images swapchain) (queue-family-index surface))
 
 	(with-slots (queue command-pool) window
 	  (let ((index (queue-family-index surface)))
-	    (setf queue (find-queue device index))
+	    (setf queue (vk::acquire-queue device index))
 	    (setf command-pool (find-command-pool device index))))
       
-      (values)))))
+	(values)))))
 
 
 (defclass krma-window (krma-window-mixin)
@@ -285,13 +287,14 @@
   (let ((dpy (clui::window-display window)))
     (with-slots (frame-rate frames delta-time time base-time) window
       (maybe-defer-debug (dpy)
-	(incf frames)
-	(setq time (/ (get-internal-real-time) internal-time-units-per-second))
-	(setq delta-time (- time base-time))
-	(when (>= delta-time 1)
-	  (setf frame-rate (float (/ frames delta-time)))
-	  (setq base-time time)
-	  (setq frames 0))))))
+	(when (= frames 20)
+	  (setq delta-time (float (/ (max (- (get-internal-run-time) time) 1) INTERNAL-TIME-UNITS-PER-SECOND 20)))
+	  (setq frame-rate (/ 1.0 delta-time))
+	  (setq time (get-internal-run-time))
+	  (setq frames 0)))
+      	(incf frames)
+
+      )))
 
 (defmethod clim:handle-event :after ((window krma-window-mixin) (event clui::window-resize-event-mixin))
   (let ((main-viewport (first (window-viewports window)))
@@ -340,13 +343,6 @@
 
     (push self (display-frame-managers (clui::window-display main-window)))
 
-    #+NIL
-    (let ((device (default-logical-device (clui::window-display main-window))))
-      (with-slots (queue command-pool) main-window
-	(let ((index (queue-family-index (render-surface main-window))))
-	  (setf queue (find-queue device index))
-	  (setf command-pool (find-command-pool device index)))))
-
     (values)))
 
 (defmethod frame-manager-default-font ((self krma-frame-manager-mixin))
@@ -356,6 +352,11 @@
   ((pipeline-store :accessor krma-pipeline-store)
    (texture-sampler :accessor krma-texture-sampler)
    (frame-managers :accessor display-frame-managers :initform nil)
+   (releaseme-queues :accessor releaseme-queues
+		     :initform (make-array
+				2
+				:initial-contents (list (lparallel.queue:make-queue)
+							(lparallel.queue:make-queue))))
    (compactor-thread :initform nil :accessor compactor-thread)
    (current-frame-cons :initform (list 0) :accessor current-frame-cons)
    (current-draw-data-cons :initform (list 0) :accessor current-draw-data-cons)
@@ -495,10 +496,8 @@
     (setf (krma-pipeline-store dpy) (make-instance 'standard-pipeline-store :dpy dpy))
 
     (let* ((index (queue-family-index (render-surface helper-window)))
-	   (queue (find-queue device index))
-	   (command-pool (find-command-pool device index))
-	   (command-buffer (elt (command-buffers command-pool) 0))
 	   (descriptor-pool (default-descriptor-pool device))
+	   (command-pool (find-command-pool device index))
 	   (sampler (krma-texture-sampler dpy))
            (texture-dsl (create-descriptor-set-layout
 			 device
@@ -524,15 +523,16 @@
       (uiop/filesystem:with-current-directory
 	  ((submodule-file "krma-fonts/"))
 	(setf (default-system-font dpy)
-	      (vulkan-make-font
-	       device queue sampler texture-dsl descriptor-pool command-buffer
+	      (vulkan-make-font 
+	       device sampler texture-dsl descriptor-pool command-pool
 	       :cache-file "rm16cache.json")))
     
       (let* ((bpp 4)
              (bitmap (make-array bpp :element-type '(unsigned-byte 8) :initial-element #xff)))
       
 	(setq *white-texture*
-              (make-vulkan-texture device queue sampler texture-dsl descriptor-pool command-buffer bpp bitmap 1 1)))
+	      (vk::with-command-pool (command-pool device)
+		(make-vulkan-texture device sampler texture-dsl descriptor-pool command-pool bpp bitmap 1 1))))
     
       (values))))
 
@@ -553,26 +553,20 @@
 
     (when bitmap
       (let* ((device (default-logical-device display))
-	     (descriptor-pool (default-descriptor-pool display))
+	     (descriptor-pool (default-descriptor-pool device))
 	     (sampler (krma-texture-sampler display))
 	     (texture-dsl (krma-texture-descriptor-set-layout display))
-	     (bpp 4)
-	     (texture)
-	     (scene (default-scene)))
-	(with-graphics-queue-and-command-buffer (display queue command-buffer)
-	  (rm-dispatch-to-render-thread-once-only (scene)
-	    (setq texture
-		  (make-vulkan-texture
-		   device queue sampler texture-dsl descriptor-pool command-buffer bpp
-		   bitmap width height))))
-	(loop until texture
-	      finally (return texture))))))
+	     (bpp 4))
+	(vk::with-command-pool (command-pool device)
+	  (make-vulkan-texture
+	   device sampler texture-dsl descriptor-pool command-pool bpp
+	   bitmap width height))))))
 
 (defmethod initialize-instance :after ((instance krma-enabled-display-mixin) &rest initargs)
   (apply #'setup-krma instance initargs)
   (values))
 
-(defclass krma-test-frame-manager (krma-frame-manager-mixin)
+(defclass tutorial (krma-frame-manager-mixin)
   ()
   (:documentation "A demo frame manager for krma."))
 

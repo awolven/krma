@@ -15,8 +15,8 @@
       (pathname (concatenate 'string (pathname-name pathname) "." (pathname-type pathname)))
       (pathname (pathname-name pathname))))
 
-(defun vulkan-make-font (device queue sampler descriptor-set-layout descriptor-pool
-                         command-buffer &key (cache-file "rm16cache.json")
+(defun vulkan-make-font (device sampler descriptor-set-layout descriptor-pool
+                         command-pool &key (cache-file "rm16cache.json")
                                           (bpp 4))
   (uiop/filesystem:with-current-directory
       ((submodule-file "krma-fonts/"))
@@ -43,7 +43,7 @@
                              do (setf (aref b2 i j 3) (aref b3 i j))))
 
               (setf (font-atlas font)
-                    (make-vulkan-texture device queue sampler descriptor-set-layout descriptor-pool
-					 command-buffer bpp
+                    (make-vulkan-texture device sampler descriptor-set-layout descriptor-pool
+					 command-pool bpp
 					 (pngload:data png) (pngload:width png) (pngload:height png)))))
           font)))))
