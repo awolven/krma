@@ -568,7 +568,7 @@
 (defvar *threshold* 0.008)
 (defvar *test* 1290)
 
-#+(and cocoa noglfw)
+#+cocoa
 (defun krma-main (app &rest args &key (show-frame-rate? t) &allow-other-keys)
   (declare (ignore args))
   (let* ((main-window (main-window app))
@@ -594,6 +594,10 @@
       (update-frame-rate window))
     (maybe-defer-debug (dpy)
       (frame-iteration dpy (number-of-images (swapchain window)) (window-show-frame-rate? window)))))
+
+#+cocoa
+(defmethod clui::content-view-draw-rect (window view rect)
+  (values))
 
 #-cocoa
 (defun krma-main (app &rest args &key (show-frame-rate? t) &allow-other-keys)

@@ -213,32 +213,7 @@
 					 &optional (allocator vk::+null-allocator+))
   (vk::create-wayland-window-surface instance window allocator))
 
-#+cocoa
-(defmethod initialize-helper-window ((display cocoa:display-with-krma-mixin) helper-window)
-  (setf (vk::render-surface helper-window)
-	(create-native-window-surface display
-				      (vk::get-vulkan-instance display)
-				      helper-window))
-  (setf (vk::window (vk::render-surface helper-window)) helper-window)
-  helper-window)
 
-#+win32
-(defmethod initialize-helper-window ((display win32:display-with-krma-mixin) helper-window)
-  (setf (vk::render-surface helper-window)
-	(create-native-window-surface display
-				      (vk::get-vulkan-instance display)
-				      helper-window))
-  (setf (vk::window (vk::render-surface helper-window)) helper-window)
-  helper-window)
-
-#+x11
-(defmethod initialize-helper-window ((display x11:local-server-with-krma-mixin) helper-window)
-  (setf (vk::render-surface helper-window)
-	(create-native-window-surface display
-				      (vk::get-vulkan-instance display)
-				      helper-window))
-  (setf (vk::window (vk::render-surface helper-window)) helper-window)
-  helper-window)
 
 #+win32
 (defmethod helper-window-class ((display win32:display-with-krma-mixin))

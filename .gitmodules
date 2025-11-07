@@ -21,10 +21,10 @@
 	url = git@github.com:awolven/cl-vulkan.git
 [submodule "submodules/clui"]
 	path = submodules/clui
-	url = https://bitbucket.org/awolven/clui.git/
+	url = git@github.com:awolven/CLUI.git
 [submodule "submodules/3d-math"]
 	path = submodules/3d-math
-	url = https://bitbucket.org/awolven/3d-math.git/
+	url = git@github.com:awolven/3d-math.git
 [submodule "clim-protocol"]
 	path = submodules/clim-protocol
-	url = https://github.com/awolven/clim-protocol.git
+	url = git@github.com:awolven/clim-protocol.git

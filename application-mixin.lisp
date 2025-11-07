@@ -253,7 +253,7 @@
 
 	(with-slots (queue command-pool) window
 	  (let ((index (queue-family-index surface)))
-	    (setf queue (vk::acquire-queue device index))
+	    (setf queue (vk::acquire-queue device VK_QUEUE_GRAPHICS_BIT))
 	    (setf command-pool (find-command-pool device index))))
       
 	(values)))))
@@ -380,6 +380,14 @@
    (stock-render-pass :initform nil :accessor display-stock-render-pass)
    (texture-descriptor-set-layout :initform nil :accessor krma-texture-descriptor-set-layout))
   (:default-initargs :enable-fragment-stores-and-atomics t))
+
+(defmethod clui::initialize-helper-window ((display krma::krma-enabled-display-mixin) helper-window)
+  (setf (vk::render-surface helper-window)
+	(clui::create-native-window-surface display
+				      (vk::get-vulkan-instance display)
+				      helper-window))
+  (setf (vk::window (vk::render-surface helper-window)) helper-window)
+  helper-window)
 
 (defmethod shutdown-run-loop ((dpy krma-enabled-display-mixin))
   (vk::shutdown-display dpy)
