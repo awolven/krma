@@ -20,19 +20,21 @@
 	       3d-triangle-strip-draw-list
 	       3d-triangle-strip-with-normals-draw-list) rm-draw-data
     
-    (setf 2d-point-list-draw-list (compact-draw-list 2d-point-list-draw-list)
-	  2d-line-list-draw-list (compact-draw-list 2d-line-list-draw-list)
-	  2d-triangle-list-draw-list (compact-draw-list 2d-triangle-list-draw-list)
-	  2d-triangle-list-draw-list-for-text (compact-draw-list 2d-triangle-list-draw-list-for-text)
-	  3d-point-list-draw-list (compact-draw-list 3d-point-list-draw-list)
-	  3d-line-list-draw-list (compact-draw-list 3d-line-list-draw-list)
-	  3d-triangle-list-draw-list (compact-draw-list 3d-triangle-list-draw-list)
-	  3d-triangle-list-with-normals-draw-list (compact-draw-list 3d-triangle-list-with-normals-draw-list)
-	  2d-line-strip-draw-list (compact-draw-list 2d-line-strip-draw-list)
-	  2d-triangle-strip-draw-list (compact-draw-list 2d-triangle-strip-draw-list)
-	  3d-line-strip-draw-list (compact-draw-list 3d-line-strip-draw-list)
-	  3d-triangle-strip-draw-list (compact-draw-list 3d-triangle-strip-draw-list)
-	  3d-triangle-strip-with-normals-draw-list (compact-draw-list 3d-triangle-strip-with-normals-draw-list))
+    (setf 2d-point-list-draw-list (compact-draw-list-group 2d-point-list-draw-list)
+	  2d-line-list-draw-list (compact-draw-list-group 2d-line-list-draw-list)
+	  2d-triangle-list-draw-list (compact-draw-list-group 2d-triangle-list-draw-list)
+	  2d-triangle-list-draw-list-for-text (compact-draw-list-group 2d-triangle-list-draw-list-for-text)
+	  3d-point-list-draw-list (compact-draw-list-group 3d-point-list-draw-list)
+	  3d-line-list-draw-list (compact-draw-list-group 3d-line-list-draw-list)
+	  3d-triangle-list-draw-list (compact-draw-list-group 3d-triangle-list-draw-list)
+	  3d-triangle-list-with-normals-draw-list (compact-draw-list-group 3d-triangle-list-with-normals-draw-list)
+	  2d-line-strip-draw-list (compact-draw-list-group 2d-line-strip-draw-list)
+	  2d-triangle-strip-draw-list (compact-draw-list-group 2d-triangle-strip-draw-list)
+	  3d-line-strip-draw-list (compact-draw-list-group 3d-line-strip-draw-list)
+	  3d-triangle-strip-draw-list (compact-draw-list-group 3d-triangle-strip-draw-list)
+	  3d-triangle-strip-with-normals-draw-list (compact-draw-list-group 3d-triangle-strip-with-normals-draw-list))
+
+    ;; wow. i'm not compacting any of the draw lists in tables. who'da thunk.
     
     (values)))
 
@@ -48,6 +50,14 @@
   ;;(print "-----------")
   ;;(finish-output)
   (values))
+
+(defun compact-draw-list-group (draw-list)
+  (let ((prev (draw-list-prev draw-list))
+	(maybe-new (compact-draw-list draw-list)))
+    (when prev
+      (setf (draw-list-prev maybe-new) prev)
+      (compact-draw-list-group prev))
+    maybe-new))
 
 (defun compact-draw-list (draw-list)
   

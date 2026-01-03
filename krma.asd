@@ -30,6 +30,7 @@
    (:file "draw-data")
    (:file "scene-mixin")
    (:file "application-mixin")
+   (:file "reference-camera")
    (:file "clui-support")
    (:file "vulkan-pipelines-1")
    (:file "vulkan-pipelines-2")

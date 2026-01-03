@@ -201,9 +201,7 @@
   (values))     
 
 (defclass krma-window-mixin (window-frame-rate-mixin vk:vulkan-window-mixin)
-  ((queue :accessor window-queue)
-   (command-pool :accessor window-command-pool)
-   (viewports :accessor window-viewports)
+  ((viewports :accessor window-viewports)
 
    (staging-memory-block :initform nil :accessor window-staging-memory-block)
 
@@ -228,40 +226,17 @@
    (selection-set-counter-pointers :initform nil :accessor krma-selection-set-counter-pointers)
    (selection-set-buckets-memory-blocks :initform nil :accessor krma-selection-set-buckets-memory-blocks)
    (selection-set-table-memory-blocks :initform nil :accessor krma-selection-set-table-memory-blocks)
-   (selection-set-counters :initform nil :accessor krma-selection-set-counters)))
+   (selection-set-counters :initform nil :accessor krma-selection-set-counters)
+   (middle-click-record :initform nil :accessor middle-click-mode-record)))
 
 ;; this is a callback which happens after the native platfrom window has been created but before events start to happen
-(defmethod clui::initialize-window-devices ((window vulkan-window-mixin) &rest args &key width height &allow-other-keys)
-  (declare (ignore args))
-  (let* ((device (default-logical-device (clui::window-display window)))
-	 (surface (create-window-surface device window)))
-    (let* ((surface-format (find-supported-format
-			    surface
-			    :requested-image-format (vk::window-desired-format window)
-			    :requested-color-space (vk::window-desired-color-space window)))
-           (present-mode (vk::get-physical-device-surface-present-mode (vk::paired-gpu surface) surface))
-	   (render-pass (krma::display-stock-render-pass (clui::window-display window))))
-      
-      (setf (render-pass window) render-pass)
 
-      (let ((swapchain (create-swapchain device window width height surface-format present-mode)))
-	(setf (swapchain window) swapchain)
-
-	(setup-framebuffers device render-pass swapchain)
-      
-	(create-frame-resources device window (number-of-images swapchain) (queue-family-index surface))
-
-	(with-slots (queue command-pool) window
-	  (let ((index (queue-family-index surface)))
-	    (setf queue (vk::acquire-queue device VK_QUEUE_GRAPHICS_BIT))
-	    (setf command-pool (find-command-pool device index))))
-      
-	(values)))))
 
 
 (defclass krma-window (krma-window-mixin)
   ())
 
+#+NIL
 (defmethod initialize-instance :before ((window krma-window) &rest initargs)
   (declare (ignore initargs))
 
@@ -377,7 +352,6 @@
    (fic-semaphore :initform (bt:make-semaphore :name "frame-iteration-complete")
 		  :accessor frame-iteration-complete-semaphore)
    (font :initform nil :accessor default-system-font)
-   (stock-render-pass :initform nil :accessor display-stock-render-pass)
    (texture-descriptor-set-layout :initform nil :accessor krma-texture-descriptor-set-layout))
   (:default-initargs :enable-fragment-stores-and-atomics t))
 
@@ -452,58 +426,13 @@
   (let* ((helper-window (clui::helper-window dpy))
 	 (surface (render-surface helper-window))
 	 (device (default-logical-device dpy)))
-    
-    (unless (vk::paired-gpu surface)
-      ;; helper window surface has not been initialized yet
-      ;; because we didn't have logical device when it was created.
-      ;; so initialize it so that we can get the surface-format to
-      ;; create the render pass properly
-      (let* ((gpu (physical-device device))
-	     (index (get-queue-family-index-with-wsi-support gpu surface)))
-	(initialize-window-surface surface gpu index)))
-    
-    (let ((depth-format (find-supported-depth-format (physical-device device))))
-      (unless (display-stock-render-pass dpy)
-	(setf (display-stock-render-pass dpy)
-	      (let ((format-enum (vk::surface-format-format (find-supported-format surface))))
-		(create-render-pass device format-enum
-				    :color-attachments (list (make-instance 'color-attachment
-									    :name :the-color-attachment
-									    :samples (vk::max-usable-sample-count device)
-									    :format format-enum
-									    :final-layout VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL))
-				    :depth-attachments (list (make-instance 'depth-attachment
-									    :name :3d-depth-attachment
-									    :samples (vk::max-usable-sample-count device)
-									    :format depth-format)
-							     (make-instance 'depth-attachment
-									    :name :2d-depth-attachment
-									    :samples (vk::max-usable-sample-count device)
-									    :format depth-format))
-				    :subpasses (list (make-instance 'subpass
-								    :name :3d-subpass
-								    :color-attachments (list :the-color-attachment)
-								    :depth-attachments (list :3d-depth-attachment))
-						     (make-instance 'subpass
-								    :name :2d-subpass
-								    :color-attachments (list :the-color-attachment)
-								    :depth-attachments (list :2d-depth-attachment)
-								    :dependencies (list :subpass-dependency)))
-				    :subpass-dependencies
-				    (list (make-instance 'vk::subpass-dependency
-							 :src-subpass 0
-							 :dst-subpass 1
-							 :src-stage-mask VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
-							 :dst-stage-mask VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT
-							 :src-access-mask VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT
-							 :dst-access-mask VK_ACCESS_SHADER_READ_BIT)))))))
 
     (setf (krma-texture-sampler dpy) (create-sampler (default-logical-device dpy) :allocator (allocator device)))
     (create-select-boxes-descriptor-set-layout device dpy)
     (create-ubershader-per-instance-descriptor-set-layout device dpy)
     (setf (krma-pipeline-store dpy) (make-instance 'standard-pipeline-store :dpy dpy))
 
-    (let* ((index (queue-family-index (render-surface helper-window)))
+    (let* ((index (queue-family-index surface))
 	   (descriptor-pool (default-descriptor-pool device))
 	   (command-pool (find-command-pool device index))
 	   (sampler (krma-texture-sampler dpy))

@@ -569,19 +569,23 @@
 (defvar *test* 1290)
 
 #+cocoa
-(defun krma-main (app &rest args &key (show-frame-rate? t) &allow-other-keys)
+(defun krma-main (frame-manager &rest args &key (show-frame-rate? t) &allow-other-keys)
   (declare (ignore args))
-  (let* ((main-window (main-window app))
+  (let* ((main-window (main-window frame-manager))
 	 (dpy (clui::window-display main-window)))
     
     (setf (window-show-frame-rate? main-window) show-frame-rate?)
 
-    ;; this is called in ApplicationDidFinishLaunching:
-    ;;(start-compactor-thread dpy)
-    ;; need to move that method from clui/ to krma/
+    ;; cocoa uses an ApplicationDidFinishLaunching callback
+    ;; we use this callback to start the compactor thread
+    ;; a clui::application-did-finish-launching method is defined in clui-support
+
+    ;; In clui, in the default resize-event handler, clui::initialize-window-devices is called.
+    ;; A method of clui::initialize-window-devices is defined
+    ;; in application-mixin.lisp of krma/ specializing on vulkan windows.
+    ;; For cocoa, no other calls to initialize-window-devices is required.
     
-    (unwind-protect (progn
-		      (ns::|run| dpy))
+    (unwind-protect (ns::|run| dpy)
       (shutdown-run-loop dpy))))
 
 
@@ -600,10 +604,10 @@
   (values))
 
 #-cocoa
-(defun krma-main (app &rest args &key (show-frame-rate? t) &allow-other-keys)
+(defun krma-main (frame-manager &rest args &key (show-frame-rate? t) &allow-other-keys)
   (declare (ignorable args))
 
-  (let* ((main-window (main-window app))
+  (let* ((main-window (main-window frame-manager))
 	 (dpy (clui::window-display main-window)))
     
     (setf (window-show-frame-rate? main-window) show-frame-rate?)
@@ -640,12 +644,7 @@
 		    (frame-iteration dpy (number-of-images (swapchain main-window)) show-frame-rate?)))
       
       (shutdown-run-loop dpy))))
-    
 
-(defgeneric main (frame-manager &rest args &key &allow-other-keys)
-  (:documentation "Define your own main function for your custom frame-manager if necessary."))
-
-
-(defmethod main ((frame-manager krma-frame-manager-mixin) &rest args &key &allow-other-keys)
+(defmethod clui:main ((frame-manager krma-frame-manager-mixin) &rest args &key &allow-other-keys)
   (apply #'krma-main frame-manager args))
 

@@ -7,6 +7,7 @@
   (:use :cl :cffi :vk :%vk #+glfw :$glfw)
   (:import-from :clui
 		#:get-displays
+		#:window-display
 		#:default-display
 		#:default-screen
 		#:gamma-ramp
@@ -239,10 +240,6 @@
 	   #:krma-application-mixin
 	   #:krma-test-application
 	   #:scene-class
-
-	   #:main
-	   #:run-1
-	   #:run
 
 	   #:im-draw-data
            #:rm-draw-data

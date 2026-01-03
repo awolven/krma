@@ -268,9 +268,12 @@
 ;;scene-add-textured-2d-rectangle-list-primitive
 
 (defvar *earth-texture*
-  (make-vulkan-texture-from-image-file
-   (default-display)
-   (asdf/system:system-relative-pathname :krma "land_ocean_ice_2048.png")))
+  (progn
+      #+(and sbcl darwin)
+      (sb-int:set-floating-point-modes :traps '())
+      (make-vulkan-texture-from-image-file
+       (default-display)
+       (asdf/system:system-relative-pathname :krma "land_ocean_ice_2048.png"))))
 
 (scene-add-textured-2d-rectangle-list-primitive
  (default-scene) :default nil *earth-texture* #xffffffff

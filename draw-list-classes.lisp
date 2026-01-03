@@ -57,9 +57,8 @@
    (group :accessor draw-list-group
 	  :initform nil
 	  :initarg :group)
-   (next :accessor draw-list-next
-	 ;; because we're going to be chaining draw lists, maybe...
-	 :initform nil))	 
+   (prev :accessor draw-list-prev
+	 :initform nil))
   (:documentation "The base class for draw lists in krma."))
 
 ;; we are using textured vertices for standard (non-textured) primitives

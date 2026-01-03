@@ -116,7 +116,7 @@
 (defmethod initialize-instance :after ((pipeline pipeline-mixin) &rest initargs
 				&key dpy)
   (declare (ignore initargs))
-  (create-device-objects pipeline (default-logical-device dpy) (display-stock-render-pass dpy))
+  (create-device-objects pipeline (default-logical-device dpy) (display-default-render-pass dpy))
   (values))
 
 (defmethod make-push-constant-ranges ((pipeline pipeline-mixin))

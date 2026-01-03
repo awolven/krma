@@ -206,7 +206,7 @@
 				 (cmd-first-idx cmd) (cmd-vtx-offset cmd)
 				 0))))
 
-      (do ((draw-list draw-list (draw-list-next draw-list)))
+      (do ((draw-list draw-list (draw-list-prev draw-list)))
 	  ((null draw-list))
 	
 	(let ((index-array (draw-list-index-array draw-list)))
