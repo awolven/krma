@@ -232,7 +232,7 @@
 
 
 #+win32
-(defmethod helper-window-class ((display win32:display-with-krma-mixin))
+(defmethod helper-window-class ((display win32::display-with-krma-mixin))
   'vk::vulkan-helper-window)
 
 #+cocoa
