@@ -117,7 +117,7 @@
 													     (scene-ambient scene)))
 		       (setf (foreign-slot-value p-stage '(:struct fragment-uniform-buffer) 'table-pointer)
 			     (aref (krma-selection-set-table-pointers window) current-frame))
-		       (setf (foreign-slot-value p-stage '(:struct fragment-uniform-buffer) 'table-capacity) 1024)
+		       (setf (foreign-slot-value p-stage '(:struct fragment-uniform-buffer) 'table-capacity) +select-box-3d-depth+)
 		       (multiple-value-bind (x y) (window-cursor-position window)
 			 (setf (foreign-slot-value p-stage '(:struct fragment-uniform-buffer) 'pointer-pos-x)
 			       (clampf x))
@@ -149,7 +149,7 @@
 
    (ambient :initform *default-scene-ambient* :accessor scene-ambient)
 
-   (children :initform () :accessor node-children))
+   (children :initform (fset:set) :accessor node-children))
   (:documentation "Abstract base class for scenes in krma. Define your own scene classes with this mixin as a superclass."))
 
 #+sbcl

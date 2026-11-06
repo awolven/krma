@@ -14,7 +14,7 @@
 (defconstant +buffer-alignment+ 256) ;; todo: query non-coherent-atom-size of physical device
 (defconstant +select-box-2d-depth+ 1024)
 (defconstant +view-depth+ 16)
-(defconstant +select-box-3d-depth+ 1024)
+(defconstant +select-box-3d-depth+ 4096)
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (if (eq 8 (cffi:foreign-type-size :pointer))

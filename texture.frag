@@ -18,7 +18,7 @@ layout(buffer_reference, std430, buffer_reference_align = 4) buffer _counter {
 #define max_depth 3 // for hashset logic
 
 #define SELECT_BOX_DEPTH_2D 1024
-#define SELECT_BOX_DEPTH_3D 1024
+#define SELECT_BOX_DEPTH_3D 4096
 #define MAX_LIGHTS 10
 
 struct light { // not used
@@ -98,7 +98,7 @@ bool sethash (uint value) {
   
   while ( count < 50 )
     {
-      uint prev = atomicCompSwap(_table(ub.table + uint64_t(slot)).val, 0, value);
+      uint prev = atomicCompSwap(_table(ub.table + uint64_t(slot) * 4).val, 0, value);
       if ( prev == 0 || prev == value ) {
 	return true;
       }
@@ -144,17 +144,10 @@ void main () {
     sethash(inObjectId);
   }
 
-  if (/*(ub.pointer_pos_x - 0.5) <= gl_FragCoord.x &&
+  if ((ub.pointer_pos_x - 0.5) <= gl_FragCoord.x &&
       (ub.pointer_pos_y - 0.5) <= gl_FragCoord.y &&
-      gl_FragCoord.x <= (ub.pointer_pos_x + 0.5) &&
-      gl_FragCoord.y <= (ub.pointer_pos_y + 0.5)*/
-      (ub.pointer_pos_x) <= gl_FragCoord.x &&
-      (ub.pointer_pos_y) <= gl_FragCoord.y &&
-      gl_FragCoord.x <= (ub.pointer_pos_x + 1.0) &&
-      gl_FragCoord.y <= (ub.pointer_pos_y + 1.0)
-      /*uint(ub.pointer_pos_x) == uint(gl_FragCoord.x)
-      &&
-      uint(ub.pointer_pos_y) == uint(gl_FragCoord.y)*/) {
+      gl_FragCoord.x < (ub.pointer_pos_x + 0.5) &&
+      gl_FragCoord.y < (ub.pointer_pos_y + 0.5)) {
     
     if ( is2d == 1) {
       uint zIndex = uint(round((1.0 - gl_FragCoord.z) * SELECT_BOX_DEPTH_2D) + 0.5);
@@ -168,14 +161,14 @@ void main () {
     } else {
       float near = extents.z;
       float far = extents.w;	
-      float z = (2.0 * near) / (far + near - gl_FragCoord.z * (far - near));
-      
-      uint zIndex = uint(z * 4.0 * (SELECT_BOX_DEPTH_3D-1));
+      float z = ((((near * far)/(far - (gl_FragCoord.z * (far - near)))) - near) / (far - near));
+      float slotPos = pow(z, 0.25);
+      uint slot = min(uint(slotPos * float(SELECT_BOX_DEPTH_3D)), SELECT_BOX_DEPTH_3D - 1u);
       uint row_size = uint(pc.selectBox.z) - uint(pc.selectBox.x);
       uint offset = uint(gl_FragCoord.y - pc.selectBox.y) * row_size
 	+ uint(gl_FragCoord.x - pc.selectBox.x);
-      if (selected_objects_3d[offset][zIndex] == 0) {
-	selected_objects_3d[offset][zIndex] = inObjectId;
+      if (selected_objects_3d[offset][slot] == 0) {
+	selected_objects_3d[offset][slot] = inObjectId;
       }
     }
   }

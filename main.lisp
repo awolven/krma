@@ -62,20 +62,14 @@
   (declare (ignorable frame-count))
   (read-buffer (memory-block-buffer
 		(aref (krma-selection-set-table-memory-blocks window) frame-to-read))
-	       (krma-selection-set-table window) (* 4 1024)
+	       (krma-selection-set-table window) (* 4 +select-box-3d-depth+)
 	       (aref (krma-selection-set-table-memory-blocks window) frame-to-read)
-	       (* 4 1024))
-  #+NIL
-  (read-buffer (memory-block-buffer
-		(aref (krma-selection-set-buckets-memory-blocks window) frame-to-read))
-	       (krma-selection-set-buckets window) (* 4 32 1024)
-	       (aref (krma-selection-set-buckets-memory-blocks window) frame-to-read)
-	       (* 4 32 1024))
-  #+NIL
-  (read-buffer (memory-block-buffer
-		(krma-selection-set-counter-memory-block window))
-	       (krma-selection-set-counters window) (* frame-count 4)
-	       (krma-selection-set-counter-memory-block window) 512))
+	       (* 4 +select-box-3d-depth+))
+
+  (clear-buffer (memory-block-buffer
+		 (aref (krma-selection-set-table-memory-blocks window) frame-to-read))
+		0 (* 4 +select-box-3d-depth+)
+		(aref (krma-selection-set-table-memory-blocks window) frame-to-read)))
   
 
 (defun allocate-selection-set-tables (window frame-count current-frame)
@@ -87,10 +81,10 @@
 	    (make-array frame-count :element-type '(unsigned-byte 32))))
 
     (unless (krma-selection-set-buckets window)
-      (setf (krma-selection-set-buckets window) (make-array (* 32 1024) :element-type '(unsigned-byte 32))))
+      (setf (krma-selection-set-buckets window) (make-array (* 32 +select-box-3d-depth+) :element-type '(unsigned-byte 32))))
 
     (unless (krma-selection-set-table window)
-      (setf (krma-selection-set-table window) (make-array 1024 :element-type '(unsigned-byte 32))))
+      (setf (krma-selection-set-table window) (make-array +select-box-3d-depth+ :element-type '(unsigned-byte 32))))
     
     (unless (krma-selection-set-buckets-pointers window)
       (setf (krma-selection-set-buckets-pointers window) (make-array frame-count :initial-element nil)))
@@ -119,7 +113,7 @@
 
     (unless (aref (krma-selection-set-buckets-memory-blocks window) current-frame)
       (setf (aref (krma-selection-set-buckets-memory-blocks window) current-frame)
-	    (acquire-memory-sized device (* 4 32 1024) VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)))
+	    (acquire-memory-sized device (* 4 32 +select-box-3d-depth+) VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)))
 
     (unless (aref (krma-selection-set-buckets-pointers window) current-frame)
       (setf (aref (krma-selection-set-buckets-pointers window) current-frame)
@@ -133,7 +127,7 @@
 
     (unless (aref (krma-selection-set-table-memory-blocks window) current-frame)
       (setf (aref (krma-selection-set-table-memory-blocks window) current-frame)
-	    (acquire-memory-sized device (* 4 1024) VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)))
+	    (acquire-memory-sized device (* 4 +select-box-3d-depth+) VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)))
 
     (unless (aref (krma-selection-set-table-pointers window) current-frame)
       (setf (aref (krma-selection-set-table-pointers window) current-frame)
@@ -144,12 +138,13 @@
 
     (clear-buffer (memory-block-buffer
 		   (aref (krma-selection-set-buckets-memory-blocks window) current-frame))
-		  0 (* 4 32 1024)
+		  0 (* 4 32 +select-box-3d-depth+)
 		  (aref (krma-selection-set-buckets-memory-blocks window) current-frame))
 
+    #+NIL ;; done in read-selection-set
     (clear-buffer (memory-block-buffer
 		   (aref (krma-selection-set-table-memory-blocks window) current-frame))
-		  0 (* 4 1024)
+		  0 (* 4 +select-box-3d-depth+)
 		  (aref (krma-selection-set-table-memory-blocks window) current-frame))
 
     (clear-buffer (memory-block-buffer
@@ -440,6 +435,18 @@
 
 (defvar *wait-time* 1)
 
+#+NIL
+    (do ((window (clui::display-window-list-head dpy) (clui::window-next window)))
+	((null window))
+      ;; probably going to need a select box per framebuffer
+      (when *frame-initialized*
+	(let* ((number-of-images (number-of-images (swapchain window))))
+	  (maybe-defer-debug (dpy)
+	    (read-select-boxes window current-frame))
+	  (maybe-defer-debug (dpy)
+	    (read-selection-set window number-of-images current-frame))))
+      #+NIL(print (krma-selection-set-table window)))
+
 (defun frame-iteration (dpy frame-count show-frame-rate?)
 
   (let* ((current-frame-cons (current-frame-cons dpy))
@@ -461,7 +468,7 @@
     
     (maybe-defer-debug (dpy)
       (call-immediate-mode-work-functions dpy))
-    
+
     ;; maybe create new descriptor set if select box size has changed
     ;; probably going to need a select box per framebuffer
     (do ((window (clui::display-window-list-head dpy) (clui::window-next window)))
@@ -476,7 +483,13 @@
       
       (maybe-defer-debug (dpy)
 	(let ((frame-resources (frame-resources window)))
-	  (vk::wait-for-fence device frame-resources current-frame))))
+	  (vk::wait-for-fence device frame-resources current-frame)))
+
+      (when *frame-initialized*
+	(maybe-defer-debug (dpy)
+	  (read-select-boxes window current-frame))
+	(maybe-defer-debug (dpy)
+	  (read-selection-set window nil current-frame))))
     
     (do ((window (clui::display-window-list-head dpy) (clui::window-next window)))
 	((null window))
@@ -511,19 +524,9 @@
     
     (setq *frame-initialized* t)
 
-    (do ((window (clui::display-window-list-head dpy) (clui::window-next window)))
-	  ((null window))
-      ;; probably going to need a select box per framebuffer
-      (when *frame-initialized*
-	(let* ((number-of-images (number-of-images (swapchain window))))
-	  (maybe-defer-debug (dpy)
-	    (read-select-boxes window current-frame))
-	  (maybe-defer-debug (dpy)
-	    (read-selection-set window number-of-images current-frame)))))
-
     (bt:wait-on-semaphore (compacting-complete-semaphore dpy))
     (bt:signal-semaphore (frame-iteration-complete-semaphore dpy))
-    
+
     (update-counts (current-frame-cons dpy) (current-draw-data-cons dpy) (number-of-images (swapchain (main-window (first (display-frame-managers dpy)))))))
 
   (bt:wait-on-semaphore (compactor-ready-semaphore dpy))

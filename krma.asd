@@ -5,6 +5,7 @@
   :description "A cross platform graphics abstraction layer."
   :depends-on (:cffi
 	       :float-features
+	       :fset
 	       :3d-math
 	       :cl-vulkan ;;#+darwin :cl-metal
 	       :sdf/bmfont :3b-bmfont/json
