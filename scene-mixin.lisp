@@ -1928,6 +1928,73 @@
 (defun scene-display (scene)
   (krma::draw-data-dpy (elt (krma::rm-draw-data scene) 0)))
 
+(defun add-thing-to-scene (thing &optional (scene (default-scene)))
+  (setf (krma::node-children scene) (fset:with (krma::node-children scene) thing)))
+
+(defun remove-thing-from-scene (thing &optional (scene (default-scene)))
+  (setf (krma::node-children scene) (fset:less (krma::node-children scene) thing)))
+  
+
+(defun erase-everything-3d (scene)
+  (let ((scene-objects (fset:convert 'list (krma::node-children scene))))
+    (loop for obj in scene-objects
+	  unless (typep obj 'clui::window-mixin)
+	    do (setf (krma::node-children scene) (fset:less (krma::node-children scene) obj))))
+  (flet ((erase-rm-draw-data (dd)
+	   (with-slots (;;2d-line-strip-draw-list
+			;;2d-triangle-strip-draw-list
+			;;2d-instanced-line-draw-list
+			;;fg-3d-instanced-line-draw-list
+			
+			3d-line-strip-draw-list
+			3d-triangle-strip-draw-list
+			3d-instanced-tube-draw-list
+			3d-triangle-strip-with-normals-draw-list
+			
+			;;2d-point-list-draw-list
+			;;2d-line-list-draw-list
+			;;2d-triangle-list-draw-list
+			;;2d-triangle-list-draw-list-for-text
+			
+			3d-point-list-draw-list
+			3d-line-list-draw-list
+			3d-triangle-list-draw-list
+			3d-triangle-list-with-normals-draw-list) dd
+	     (let ((draw-lists (list ;;2d-line-strip-draw-list
+				     ;;2d-triangle-strip-draw-list
+				     ;;2d-instanced-line-draw-list
+				     ;;fg-3d-instanced-line-draw-list
+				     
+				     3d-line-strip-draw-list
+				     3d-triangle-strip-draw-list
+				     3d-instanced-tube-draw-list
+				     3d-triangle-strip-with-normals-draw-list
+				     
+				     ;;2d-point-list-draw-list
+				     ;;2d-line-list-draw-list
+				     ;;2d-triangle-list-draw-list
+				     ;;2d-triangle-list-draw-list-for-text
+				     
+				     3d-point-list-draw-list
+				     3d-line-list-draw-list
+				     3d-triangle-list-draw-list
+				     3d-triangle-list-with-normals-draw-list)))
+	       (mapcar #'(lambda (dl)
+			   (let ((cv (krma::draw-list-cmd-vector dl)))
+			     (when cv
+			       (setf (fill-pointer cv) 0))))
+		       draw-lists)))
+	   (let ((ght (krma::rm-draw-data-group-hash-table dd)))
+	     (let ((r '()))
+	       (maphash (lambda (k v) (declare (ignore k)) (push v r)) ght) 
+	       (krma::delete-groups-1 dd r)
+	       (clrhash ght)))
+	   (let ((pht (krma::rm-draw-data-handle-hash-table dd)))
+	     (clrhash pht))))
+    (let ((a (slot-value scene 'krma::rm-draw-data)))
+      (erase-rm-draw-data (elt a 0))
+      (erase-rm-draw-data (elt a 1)))))
+
 (defun erase-everything (scene)
   (setf (krma::node-children scene) (fset::set))
   (flet ((erase-rm-draw-data (dd)
