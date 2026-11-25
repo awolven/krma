@@ -385,8 +385,8 @@
       (maybe-defer-debug (dpy)
 	(multiple-value-bind (w h) (window-framebuffer-size window)
 	  (declare (ignorable h))
-	  (draw-text (format nil "fps: ~4,0f" (window-frame-rate window))
-		     (- w 100) 15 :color #x000000ff))))
+	  (draw-text (format nil "fps: ~6,2f" (window-frame-rate window))
+		     (- w 116) 15 :color #x000000ff))))
     
     ;; render here.
     
@@ -520,7 +520,8 @@
 			
 		      (frame-end device queue frame-resource)
 	      
-		      (frame-present swapchain frame-resource queue image-index window)))))))))
+		      (frame-present swapchain frame-resource queue image-index window)
+		      (update-frame-rate window)))))))))
     
     (setq *frame-initialized* t)
 
@@ -618,8 +619,6 @@
   (declare (ignore view rect))
   (with-slots ((dpy clui::display) queue command-pool) window
     (maybe-defer-debug (dpy)
-      (update-frame-rate window))
-    (maybe-defer-debug (dpy)
       (frame-iteration dpy (number-of-images (swapchain window)) (window-show-frame-rate? window)))))
 
 #+cocoa
@@ -660,9 +659,6 @@
 		  (when (clui::run-loop-exit? dpy)
 		    (return))
 
-		  (maybe-defer-debug (dpy)
-		    (update-frame-rate main-window))
-		  
 		  (maybe-defer-debug (dpy)
 		    (frame-iteration dpy (number-of-images (swapchain main-window)) show-frame-rate?)))
       
