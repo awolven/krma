@@ -147,10 +147,10 @@
 
 (defclass window-frame-rate-mixin ()
   ((show-frame-rate? :initform t :accessor window-show-frame-rate?)
-   (frame-rate :initform 0 :accessor window-frame-rate)
+   (frame-rate :initform 0.0d0 :accessor window-frame-rate)
    (frames :initform 0 :accessor %window-frames)
-   (delta-time :initform 0 :accessor %window-delta-time)
-   (time :initform 1 :accessor %window-time)
+   (delta-time :initform 0.0d0 :accessor %window-delta-time)
+   (time :initform nil :accessor %window-time)
    (base-time :initform 0 :accessor %window-base-time)))
 
 (defstruct viewport
@@ -259,17 +259,25 @@
   (values))
 
 (defun update-frame-rate (window)
-  (let ((dpy (clui::window-display window)))
-    (with-slots (frame-rate frames delta-time time base-time) window
-      (maybe-defer-debug (dpy)
-	(when (= frames 20)
-	  (setq delta-time (float (/ (max (- (get-internal-run-time) time) 1) INTERNAL-TIME-UNITS-PER-SECOND 20)))
-	  (setq frame-rate (/ 1.0 delta-time))
-	  (setq time (get-internal-run-time))
-	  (setq frames 0)))
-      	(incf frames)
-
-      )))
+  (with-slots (frame-rate frames delta-time time) window
+    (let ((now (get-internal-real-time)))
+      (cond
+        ((null time)
+         (setf time now
+               frames 0))
+        (t
+         (incf frames)
+         (let ((elapsed (- now time)))
+           (when (>= elapsed
+                     (/ internal-time-units-per-second 2))
+             (let ((seconds
+                     (/ (float elapsed 1.0d0)
+                        internal-time-units-per-second)))
+               (setf frame-rate (/ frames seconds)
+                     delta-time (/ seconds frames)
+                     time now
+                     frames 0))))))))
+  (values))
 
 (defmethod clim:handle-event :after ((window krma-window-mixin) (event clui::window-resize-event-mixin))
   (let ((main-viewport (first (window-viewports window)))
