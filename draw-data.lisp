@@ -462,7 +462,6 @@
 								  1.0f0  0.5f0
 								  0.0f0  0.5f0)))))
 	
-	
 	(setf (cmd-instance-array cmd) list)
 	(setf (cmd-point-size cmd) sf-line-thickness)
 	(setf (gethash handle (rm-draw-data-handle-hash-table draw-data))
@@ -513,19 +512,7 @@
 			   
 			   0.0f0 -0.5f0 0.0f0
 			   0.0f0  0.5f0 1.0f0
-			   0.0f0  0.5f0 0.0f0)
-		   #+NIL
-		   (loop for i from 0 to 9
-			 append (loop for j from 0 below 2
-				      append (list (cos (* pi (/ i 9)))
-						   (sin (* pi (/ i 9)))
-						   j
-						   (cos (* pi (/ (1+ i) 9)))
-						   (sin (* pi (/ (1+ i) 9)))
-						   j
-						   (cos (* pi (/ i 9)))
-						   (sin (* pi (/ i 9)))
-						   (mod (1+ j) 2))))))))
+			   0.0f0  0.5f0 0.0f0)))))
 	(setf (cmd-instance-array cmd) list)
 	(setf (cmd-point-size cmd) sf-line-thickness)
 	(setf (gethash handle (rm-draw-data-handle-hash-table draw-data))
@@ -568,14 +555,15 @@
       (let* ((cmd (with-next-draw-list (draw-list cmd-vector
 						  (draw-data-fg-3d-instanced-line-draw-list draw-data)
 						  (make-instance '3d-vertex-draw-list))
-		    (%draw-list-add-filled-3d-triangle-list 
+		    (%draw-list-add-filled-3d-triangle-strip 
 		     draw-list cmd-vector ub32-oid atom-group nil ub32-color
 		     (list 0.0f0 -0.5f0 0.0f0
-			   1.0f0 -0.5f0 0.0f0
-			   1.0f0  0.5f0 0.0f0
 			   0.0f0 -0.5f0 1.0f0
-			   1.0f0  0.5f0 1.0f0
-			   0.0f0  0.5f0 1.0f0)))))
+			   0.0f0  0.5f0 1.0f0
+			   
+			   0.0f0 -0.5f0 0.0f0
+			   0.0f0  0.5f0 1.0f0
+			   0.0f0  0.5f0 0.0f0)))))
 	(setf (cmd-instance-array cmd) list)
 	(setf (cmd-point-size cmd) sf-line-thickness)
 	))

@@ -275,7 +275,7 @@
 				   window
 				   3d-camera-view-matrix 3d-camera-projection-matrix
 				   viewport near far releaseme-queue))
-	
+
 	(loop for (p dl) on (3d-cmd-oriented-combinations pipeline-store rm-draw-data dpy) by #'cddr
 	      do (render-draw-list-cmds p rm-draw-data dl dpy device command-buffer
 					scene
@@ -1847,23 +1847,27 @@
                        2d-line-list-draw-list-table
                        2d-triangle-list-draw-list-table
                        2d-triangle-list-draw-list-for-text-table
-		       2d-instanced-line-draw-list
+
                        3d-point-list-draw-list-table
                        3d-line-list-draw-list-table
                        3d-triangle-list-draw-list-table
                        3d-triangle-list-with-normals-draw-list-table
-		       3d-instanced-tube-draw-list
-
+		       ;;
+		       2d-line-strip-draw-list
                        2d-triangle-strip-draw-list
+		       2d-instanced-line-draw-list
+		       fg-3d-instanced-line-draw-list
+		       
                        3d-line-strip-draw-list
                        3d-triangle-strip-draw-list
+		       3d-instanced-tube-draw-list
                        3d-triangle-strip-with-normals-draw-list
 
                        2d-point-list-draw-list
                        2d-line-list-draw-list
-		       2d-line-strip-draw-list
                        2d-triangle-list-draw-list
                        2d-triangle-list-draw-list-for-text
+		       
                        3d-point-list-draw-list
                        3d-line-list-draw-list
                        3d-triangle-list-draw-list
@@ -1882,6 +1886,7 @@
             (setf 2d-line-list-draw-list-table (free-group-draw-lists 2d-line-list-draw-list-table))
             (setf 2d-triangle-list-draw-list-table (free-group-draw-lists 2d-triangle-list-draw-list-table))
             (setf 2d-triangle-list-draw-list-for-text-table (free-group-draw-lists 2d-triangle-list-draw-list-for-text-table))
+
             (setf 3d-point-list-draw-list-table (free-group-draw-lists 3d-point-list-draw-list-table))
             (setf 3d-line-list-draw-list-table (free-group-draw-lists 3d-line-list-draw-list-table))
             (setf 3d-triangle-list-draw-list-table (free-group-draw-lists 3d-triangle-list-draw-list-table))
@@ -1890,21 +1895,25 @@
 
 	    ;;(setf 2d-triangle-list-draw-list-table (make-hash-table :test #'equalp))
 
+	    (delete-primitives-with-groups 2d-line-strip-draw-list)
             (delete-primitives-with-groups 2d-triangle-strip-draw-list)
 	    (delete-primitives-with-groups 2d-instanced-line-draw-list)
+	    (delete-primitives-with-groups fg-3d-instanced-line-draw-list)
+	    
             (delete-primitives-with-groups 3d-line-strip-draw-list)
             (delete-primitives-with-groups 3d-triangle-strip-draw-list)
+	    (delete-primitives-with-groups 3d-instanced-tube-draw-list)
             (delete-primitives-with-groups 3d-triangle-strip-with-normals-draw-list)
+	    
             (delete-primitives-with-groups 2d-point-list-draw-list)
             (delete-primitives-with-groups 2d-line-list-draw-list)
-	    (delete-primitives-with-groups 2d-line-strip-draw-list)
             (delete-primitives-with-groups 2d-triangle-list-draw-list)
             (delete-primitives-with-groups 2d-triangle-list-draw-list-for-text)
+	    
             (delete-primitives-with-groups 3d-point-list-draw-list)
             (delete-primitives-with-groups 3d-line-list-draw-list)
             (delete-primitives-with-groups 3d-triangle-list-draw-list)
-            (delete-primitives-with-groups 3d-triangle-list-with-normals-draw-list)
-	    (delete-primitives-with-groups 3d-instanced-tube-draw-list))
+            (delete-primitives-with-groups 3d-triangle-list-with-normals-draw-list))
 
 	  (when totally-expunge?
 	    (let ((groups (draw-data-group-hash-table draw-data)))
@@ -1915,6 +1924,74 @@
 		      list-of-groups)))))
     (error (c)
       (warn (concatenate 'string "while in delete-groups-1 ..." (princ-to-string c))))))
+
+(defun scene-display (scene)
+  (krma::draw-data-dpy (elt (krma::rm-draw-data scene) 0)))
+
+(defun erase-everything (scene)
+  (setf (krma::node-children scene) (fset::set))
+  (flet ((erase-rm-draw-data (dd)
+	   (with-slots (2d-line-strip-draw-list
+			2d-triangle-strip-draw-list
+			2d-instanced-line-draw-list
+			fg-3d-instanced-line-draw-list
+			
+			3d-line-strip-draw-list
+			3d-triangle-strip-draw-list
+			3d-instanced-tube-draw-list
+			3d-triangle-strip-with-normals-draw-list
+			
+			2d-point-list-draw-list
+			2d-line-list-draw-list
+			2d-triangle-list-draw-list
+			2d-triangle-list-draw-list-for-text
+			
+			3d-point-list-draw-list
+			3d-line-list-draw-list
+			3d-triangle-list-draw-list
+			3d-triangle-list-with-normals-draw-list) dd
+	     (let ((draw-lists (list 2d-line-strip-draw-list
+				     2d-triangle-strip-draw-list
+				     2d-instanced-line-draw-list
+				     fg-3d-instanced-line-draw-list
+				     
+				     3d-line-strip-draw-list
+				     3d-triangle-strip-draw-list
+				     3d-instanced-tube-draw-list
+				     3d-triangle-strip-with-normals-draw-list
+				     
+				     2d-point-list-draw-list
+				     2d-line-list-draw-list
+				     2d-triangle-list-draw-list
+				     2d-triangle-list-draw-list-for-text
+				     
+				     3d-point-list-draw-list
+				     3d-line-list-draw-list
+				     3d-triangle-list-draw-list
+				     3d-triangle-list-with-normals-draw-list)))
+	       (mapcar #'(lambda (dl)
+			   (let ((cv (krma::draw-list-cmd-vector dl)))
+			     (when cv
+			       (setf (fill-pointer cv) 0))))
+		       draw-lists)))
+	   (let ((ght (krma::rm-draw-data-group-hash-table dd)))
+	     (let ((r '()))
+	       (maphash (lambda (k v) (declare (ignore k)) (push v r)) ght) 
+	       (krma::delete-groups-1 dd r)
+	       (clrhash ght)))
+	   (let ((pht (krma::rm-draw-data-handle-hash-table dd)))
+	     (clrhash pht))))
+    (let ((a (slot-value scene 'krma::rm-draw-data)))
+      (erase-rm-draw-data (elt a 0))
+      (erase-rm-draw-data (elt a 1)))
+    (let ((dpy (scene-display scene)))
+      ;;(setf (KRMA::IMMEDIATE-MODE-WORK-FUNCTION-1 dpy) nil)
+      ;;(setf (KRMA::IMMEDIATE-MODE-WORK-FUNCTION-2 dpy) nil)
+      (setf (KRMA::IMMEDIATE-MODE-WORK-FUNCTION-3 dpy) nil)
+      ;;(setf (KRMA::IMMEDIATE-MODE-WORK-FUNCTION-4 dpy) nil)
+      ;;(setf (KRMA::IMMEDIATE-MODE-WORK-FUNCTION-5 dpy) nil)
+      (setf (KRMA::IMMEDIATE-MODE-WORK-FUNCTION-6 dpy) nil)
+      (krma::erase-immediate-mode-draw-data dpy scene))))
 
 (defun %purge-im-groups-1 (draw-data)
   ;; call this function when finalizing a scene
