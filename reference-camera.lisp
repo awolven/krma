@@ -23,7 +23,7 @@
   (%recompute-projection-matrix self)
   (values))
 
-(defmethod un-project ((self camera-mixin) (point vec2) &optional (depth 0))
+(defmethod un-project ((self camera-mixin) (point 3dm.coalton::vec2) &optional (depth 0))
   (let* ((x (- (/ (* 2.0d0 (vx point)) (slot-value self 'width)) 1.0d0))
 	 (y (- (/ (* 2.0d0 (vy point)) (slot-value self 'height)) 1.0d0))
 	 (view-matrix (camera-view-matrix self))
